@@ -1,0 +1,33 @@
+{
+  "name": "@nebuctf/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc && cp src/schema.sql dist/schema.sql",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/main.js",
+    "worker": "tsx src/worker-main.ts",
+    "test": "tsx --test test/*.test.ts",
+    "seed": "tsx src/cli.ts seed",
+    "admin": "tsx src/cli.ts admin"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/multipart": "^9.3.0",
+    "@fastify/websocket": "^11.3.4",
+    "fastify": "^5.6.1",
+    "pg": "^8.16.3",
+    "yazl": "^3.3.1",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.14",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.5",
+    "@types/ws": "^8.18.2",
+    "@types/yazl": "^3.3.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

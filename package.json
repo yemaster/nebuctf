@@ -1,0 +1,25 @@
+{
+  "name": "nebuctf",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces",
+    "seed": "npm run seed -w apps/api",
+    "admin": "node scripts/admin.mjs",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,css,json}\" \"scripts/*.mjs\"",
+    "benchmark": "node scripts/benchmark.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=24.14"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2"
+  }
+}
