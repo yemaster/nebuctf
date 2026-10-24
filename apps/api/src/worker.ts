@@ -44,7 +44,15 @@ export function containerConfig(i: Row): Record<string, any> {
       PortBindings:
         generator || i.spec.access_mode === "domain"
           ? {}
-          : { [port]: [{ HostIp: config.CHALLENGE_BIND, HostPort: "" }] },
+          : {
+              [port]: [
+                {
+                  HostIp: config.CHALLENGE_BIND,
+                  // Docker reserves one free port atomically within this range.
+                  HostPort: config.CHALLENGE_PORT_RANGE,
+                },
+              ],
+            },
       LogConfig: {
         Type: "json-file",
         Config: { "max-size": "1m", "max-file": "2" },

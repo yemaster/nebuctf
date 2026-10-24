@@ -1,4 +1,10 @@
 import { z } from "zod";
+export const challengePortRange = z.string().refine((value) => {
+  if (value === "") return true;
+  if (!/^\d{4,5}-\d{4,5}$/.test(value)) return false;
+  const [first, last] = value.split("-").map(Number);
+  return first! >= 1024 && first! <= last! && last! <= 65535;
+}, "CHALLENGE_PORT_RANGE must be empty or an ordered range within 1024-65535");
 const env = z
   .object({
     NODE_ENV: z
@@ -28,6 +34,7 @@ const env = z
       .regex(/^[a-zA-Z0-9.-]+$/)
       .default("localhost"),
     CHALLENGE_BIND: z.string().default("127.0.0.1"),
+    CHALLENGE_PORT_RANGE: challengePortRange.default(""),
     IMAGE_PREFIXES: z.string().default("nebuctf/"),
     MAX_INSTANCES: z.coerce.number().int().min(1).default(64),
     MAX_OWNER_INSTANCES: z.coerce.number().int().min(1).default(2),
