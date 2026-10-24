@@ -1,0 +1,263 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+@import "tw-animate-css";
+@custom-variant dark (&:is(.dark *));
+@theme inline {
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--card);
+  --color-sidebar-foreground: var(--foreground);
+  --color-sidebar-primary: var(--primary);
+  --color-sidebar-primary-foreground: var(--primary-foreground);
+  --color-sidebar-accent: var(--accent);
+  --color-sidebar-accent-foreground: var(--foreground);
+  --color-sidebar-border: var(--border);
+  --color-sidebar-ring: var(--primary);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--primary);
+}
+:root {
+  --radius: 0.375rem;
+  color-scheme: light;
+  --background: #f6f7f8;
+  --card: #ffffff;
+  --foreground: #202629;
+  --primary: #137766;
+  --primary-foreground: #ffffff;
+  --secondary: #e8ecee;
+  --secondary-foreground: #344147;
+  --muted: #eff2f3;
+  --muted-foreground: #5d6a70;
+  --accent: #e4efeb;
+  --destructive: #bf3041;
+  --success: #187346;
+  --warning: #886005;
+  --border: #d5dcdf;
+  color: var(--foreground);
+  background: var(--background);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+:root.dark {
+  color-scheme: dark;
+  --background: #141414;
+  --card: #1e1e1e;
+  --foreground: #e5e9eb;
+  --primary: #69cbb7;
+  --primary-foreground: #102923;
+  --secondary: #2c2c2c;
+  --secondary-foreground: #b9c2c7;
+  --muted: #181818;
+  --muted-foreground: #a2adb4;
+  --accent: #2b3937;
+  --destructive: #ff8d94;
+  --success: #79d3a8;
+  --warning: #edc378;
+  --border: #343434;
+}
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    @apply font-sans;
+    margin: 0;
+    min-width: 320px;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:not(:disabled),
+  a,
+  summary {
+    cursor: pointer;
+  }
+  a:focus-visible,
+  select:focus-visible,
+  summary:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+  }
+  input[type="checkbox"] {
+    accent-color: var(--primary);
+  }
+  ::selection {
+    background: var(--accent);
+  }
+}
+/* Practice changes the full list into the existing left directory. */
+::view-transition-group(practice-directory) {
+  animation-duration: 480ms;
+  animation-timing-function: cubic-bezier(0.32, 0, 0.2, 1);
+}
+::view-transition-image-pair(practice-directory) {
+  overflow: clip;
+  background: var(--card);
+}
+::view-transition-old(practice-directory) {
+  width: 100%;
+  height: auto;
+  animation: card-cover-leave 180ms ease-out both;
+}
+::view-transition-new(practice-directory) {
+  height: 100%;
+  object-fit: cover;
+  object-position: top left;
+  animation: directory-reveal 200ms 240ms ease-out both;
+}
+@keyframes directory-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+@layer components {
+  .markdown h1 {
+    @apply mt-8 mb-5 text-2xl font-semibold;
+  }
+  .markdown h2 {
+    @apply mt-8 mb-4 text-xl font-semibold;
+  }
+  .markdown h3 {
+    @apply mt-6 mb-3 text-base font-semibold;
+  }
+  .markdown p {
+    @apply my-4;
+  }
+  .markdown ul {
+    @apply my-4 list-disc space-y-1 pl-6;
+  }
+  .markdown ol {
+    @apply my-4 list-decimal space-y-1 pl-6;
+  }
+  .markdown a {
+    @apply text-primary underline underline-offset-4;
+  }
+  .markdown pre {
+    @apply my-5 overflow-x-auto rounded-md bg-muted p-5 text-[13px] leading-6;
+  }
+  .markdown code {
+    @apply rounded bg-secondary px-1 py-0.5 font-mono text-[0.9em];
+  }
+  .markdown pre code {
+    @apply bg-transparent p-0;
+  }
+  .markdown blockquote {
+    @apply my-5 border-l-2 border-border pl-5 text-muted-foreground;
+  }
+  .markdown table {
+    @apply my-5 block max-w-full overflow-x-auto border text-left;
+  }
+  .markdown th {
+    @apply border bg-muted px-4 py-2;
+  }
+  .markdown td {
+    @apply border px-4 py-2;
+  }
+}
+
+/* The opaque surface and the fading snapshot are separate layers. Keep the
+   snapshot's aspect ratio while the surface grows, then hold it for 500 ms. */
+::view-transition-group(card-surface) {
+  animation-duration: 560ms;
+  animation-timing-function: cubic-bezier(0.32, 0, 0.2, 1);
+}
+::view-transition-image-pair(card-surface) {
+  height: 100%;
+  overflow: clip;
+  isolation: isolate;
+  animation: card-surface-expand 560ms cubic-bezier(0.32, 0, 0.2, 1) both;
+}
+::view-transition-group(site-header) {
+  animation-duration: 0s;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 360ms;
+}
+::view-transition-old(site-header),
+::view-transition-new(site-header) {
+  animation-duration: 160ms;
+}
+::view-transition-old(card-surface),
+::view-transition-new(card-surface) {
+  width: 100%;
+  height: auto;
+  object-position: top left;
+  overflow: clip;
+  mix-blend-mode: normal;
+}
+::view-transition-old(card-surface) {
+  z-index: 1;
+  animation: card-cover-leave 280ms linear both;
+}
+::view-transition-new(card-surface) {
+  z-index: 0;
+  animation: card-surface-hold calc(560ms + 500ms) linear both;
+}
+@keyframes card-surface-expand {
+  from {
+    background-color: var(--card);
+    border-radius: var(--card-source-radius, var(--radius-xl));
+  }
+  to {
+    background-color: var(--background);
+    border-radius: 0;
+  }
+}
+@keyframes card-surface-hold {
+  from,
+  to {
+    opacity: 0;
+  }
+}
+@keyframes card-cover-leave {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.01ms !important;
+  }
+}
