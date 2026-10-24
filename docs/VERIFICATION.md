@@ -345,3 +345,17 @@ WriteUp 管理参考实际读取的 GZCTF 管理页面与 PDF 组件源码，改
 上线检查修正了静态复制插件保留源目录所造成的 PDF 资源地址不匹配；最终 253 个静态文件均通过 HTTP 逐字节校验，字体/CMap/解码目录及 PDF Worker 的 JavaScript MIME 正确。首页不加载 PDF、编辑器、图表或流程图包；PDF 预览不额外加载图表、编辑器和流程图包。15 个路由、两类 WebSocket、匿名预览拒绝均正常，4 个计分范围与更新前一致。
 
 仅更新 API 与 Web，无数据库迁移，Worker、Gateway 和数据库未重启。当前入口 `http://localhost:8080`，构建入口 `index-BtHzN7iI.js`。没有向业务库上传测试 WriteUp 或写入测试成绩；按用户要求未打开本地浏览器，实际动效、中文排版和窄屏布局留给本地页面验收。
+
+## 远程开发环境与 CI 修复
+
+2026-10-25：在 Debian 12 的 2 核、2 GiB 开发服务器部署独立 Docker Compose 栈。安装 Docker Engine 29.6.1、Compose 5.2.0、Node.js 24.14.1、Git 和项目依赖，项目目录 `/opt/nebuctf`。启用 Docker 开机启动与容器自动恢复，使用小内存覆盖配置及独立随机密钥；平台绑定 61001，靶机端口池为 30000–50000。按用户要求不保留额外宿主机出站隔离、端口保留或防火墙规则。
+
+`CHALLENGE_PORT_RANGE` 经配置校验后直接传给 Docker 的原子端口分配器，保持原有留空行为。新增真实 Docker 测试验证两个环境并发启动时端口不同、池满失败、HTTP 可用及释放后复用。测试使用 64 MiB 的示例服务并清理自身资源，不连接平台数据库。
+
+CI 的 [checkout v7.0.1](https://github.com/actions/checkout/blob/v7.0.1/action.yml) 与 [setup-node v7.1.0](https://github.com/actions/setup-node/blob/v7.1.0/action.yml) 改为 Node.js 24 运行时版本，并固定到对应提交。首页公告导航测试补齐统计、近期赛事和日历接口模拟，等待请求完成后再验证整块点击与公告定位，消除未模拟请求触发整页错误造成的时序失败；没有延长等待阈值或跳过原断言。
+
+服务器验证结果：类型检查通过；后端 132 项中 129 通过，3 项真实 Docker 测试按默认开关跳过；前端 114 项全部通过。另在隔离 PostgreSQL 17 容器执行 15 项真实数据库测试，全部通过；单独启用的端口池 Docker 测试通过。Compose 配置验证及 API/Web 镜像构建通过。GitHub 运行结果仍需推送修复后重新触发，本记录不将本地或服务器检查称为 GitHub 成功运行。
+
+公网逐字节校验全部 253 个静态文件（8,312,615 字节），13 个 SPA 入口、健康检查、匿名管理访问拒绝、管理员登录/登出和 CSRF 检查通过。实际靶机端口 30000 从服务器外可访问，测试容器和临时数据库已清理。最终数据库仅有初始化管理员，没有迁移本地测试数据或留下测试赛题、比赛与实例。API、数据库、Worker 和 Gateway 均健康，Web 正常运行；前端入口仍为 `index-BtHzN7iI.js`。
+
+GitHub 拉取使用 HTTPS/HTTP 1.1，未复制本机 SSH 私钥或 GitHub token。基础镜像通过 SSH 导入，四个 amd64 镜像 ID 与可信来源逐一一致；服务器直接访问 Docker Hub 仍不稳定，后续在线拉取取决于对应镜像源连通性。当前使用公网 IP 和 HTTP，不提供泛域名解析或 TLS。部署操作见 [远程开发](REMOTE_DEVELOPMENT.md)。

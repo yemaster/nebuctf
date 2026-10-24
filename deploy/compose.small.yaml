@@ -1,0 +1,19 @@
+# Development host with 2 GiB RAM. Use with compose.yaml, not on its own.
+# Reserve a separate, small challenge pool through MAX_MEMORY/MAX_CPU in .env.
+services:
+  db:
+    command: [postgres, -c, shared_buffers=64MB, -c, max_connections=80]
+    mem_limit: 256m
+    cpus: 1
+  api:
+    mem_limit: 320m
+    cpus: 1
+  gateway:
+    mem_limit: 64m
+    cpus: 0.5
+  worker:
+    mem_limit: 192m
+    cpus: 1
+  web:
+    mem_limit: 64m
+    cpus: 0.5
