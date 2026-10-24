@@ -1,0 +1,45 @@
+/* Bridge the editor's documented theme variables to the existing UI tokens. */
+.nebuctf-markdown-editor.w-md-editor {
+  --color-fg-default: var(--foreground);
+  --color-canvas-default: var(--card);
+  --color-border-default: var(--input);
+  --color-accent-fg: var(--primary);
+  --color-neutral-muted: var(--muted);
+  --md-editor-font-family: var(--font-sans);
+  font-family: var(--font-sans);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+.nebuctf-markdown-editor .w-md-editor-toolbar {
+  padding: 6px;
+  gap: 6px;
+}
+.nebuctf-markdown-editor .w-md-editor-toolbar ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.nebuctf-markdown-editor .w-md-editor-toolbar ul:last-child {
+  margin-left: auto;
+}
+.nebuctf-markdown-editor .w-md-editor-preview {
+  padding: 16px;
+}
+.nebuctf-markdown-editor .w-md-editor-input:focus-within {
+  box-shadow: inset 0 0 0 2px var(--ring);
+}
+.nebuctf-markdown-editor.w-md-editor-fullscreen {
+  border-radius: 0;
+}
+@media (max-width: 640px) {
+  .nebuctf-markdown-editor.w-md-editor-show-live .w-md-editor-input {
+    width: 100%;
+    height: 50%;
+  }
+  .nebuctf-markdown-editor.w-md-editor-show-live .w-md-editor-preview {
+    top: 50%;
+    width: 100%;
+    box-shadow: inset 0 1px 0 var(--input);
+  }
+}
