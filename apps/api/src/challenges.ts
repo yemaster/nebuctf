@@ -1,0 +1,196 @@
+import { recordFlagAnomaly } from "./contest-monitor.js";
+import { notifyContest } from "./activity-events.js";
+import { creditSolve } from "./solve.js";
+import { teamPhases } from "./contest-timing.js";
+import { flagMode } from "./challenge-model.js";
+import { challengeProgress } from "./challenge-parts.js";
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { type DB } from "./db.js";
+import { requireUser } from "./auth.js";
+import {
+  challengeAccess,
+  contestAccess,
+  ownerFor,
+  progressOwnerFor,
+} from "./context.js";
+import { id, page, scope as scopeSchema } from "./schemas.js";
+import { dynamicFlag, equal, fail, flagHash, rate } from "./security.js";
+import { visibleChallengeIds } from "./group-permissions.js";
+export function challengeRoutes(app: FastifyInstance, db: DB) {
+  app.get("/api/challenges", async (req) => {
+    const p = page.parse(req.query);
+    const contest = await contestAccess(db, p.scope, req.user ?? undefined);
+    const cutoff =
+      contest?.freeze_at &&
+      new Date(contest.freeze_at).getTime() <= Date.now() &&
+      new Date(contest.ends_at).getTime() > Date.now()
+        ? contest.freeze_at
+        : new Date();
+    if (!req.user && p.scope !== "practice") fail(401, "请先登录");
+    const owner = await progressOwnerFor(db, p.scope, req.user ?? undefined);
+    const phases = contest && owner ? await teamPhases(db, contest, owner) : [];
+    const sections = phases
+      .filter((p) => p.status === "active")
+      .map((p) => p.section);
+    const args = [
+      p.scope,
+      p.q,
+      p.category,
+      owner,
+      (p.page - 1) * 24,
+      cutoff,
+      sections,
+      await visibleChallengeIds(db, p.scope, req.user ?? undefined),
+    ];
+    const rows = await db.query(
+      `SELECT c.*,count(*) OVER()::int total,(SELECT count(*)::int FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.created_at<=$6) solves,EXISTS(SELECT 1 FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.owner_key=$4) solved FROM challenges c WHERE c.published AND (($1='practice' AND c.practice) OR EXISTS(SELECT 1 FROM contest_challenges cc WHERE cc.challenge_id=c.id AND cc.contest_id::text=$1 AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()) AND ($4='' OR CASE WHEN c.challenge_type='objective' THEN 'objective' ELSE 'practical' END=ANY($7::text[])))) AND ($8::uuid[] IS NULL OR c.id=ANY($8::uuid[])) AND ($2='' OR c.title ILIKE '%'||$2||'%') AND ($3='' OR c.category=$3) ORDER BY c.created_at,c.id LIMIT 24 OFFSET $5`,
+      args,
+    );
+    return {
+      items: (await challengeProgress(db, rows, p.scope, owner, cutoff)).map(
+        (c) => ({
+          ...c,
+          description: undefined,
+          hints: undefined,
+          parts: c.parts.map((p) => ({ ...p, description: undefined })),
+        }),
+      ),
+      total: rows[0]?.total ?? 0,
+      page: p.page,
+      phases,
+    };
+  });
+  app.get("/api/challenges/:id", async (req) => {
+    const cid = id.parse((req.params as any).id),
+      scope = scopeSchema.parse((req.query as any).scope);
+    const c = await challengeAccess(db, cid, scope, req.user ?? undefined);
+    const contest = await contestAccess(db, scope, req.user ?? undefined);
+    const cutoff =
+      contest?.freeze_at &&
+      new Date(contest.freeze_at).getTime() <= Date.now() &&
+      new Date(contest.ends_at).getTime() > Date.now()
+        ? contest.freeze_at
+        : new Date();
+    const owner = await progressOwnerFor(db, scope, req.user ?? undefined);
+    const [count] = await db.query(
+      "SELECT coalesce(bool_or(owner_key=$3),false) solved FROM solves WHERE challenge_id=$1 AND scope=$2",
+      // Personal progress stays live during a freeze, while aggregate counts use the cutoff below.
+      [cid, scope, owner],
+    );
+    const [visible] = await db.query(
+      "SELECT count(*)::int n FROM solves WHERE challenge_id=$1 AND scope=$2 AND created_at<=$3",
+      [cid, scope, cutoff],
+    );
+    const attachments = await db.query(
+      "SELECT id,name,size FROM attachments WHERE challenge_id=$1 ORDER BY created_at",
+      [cid],
+    );
+    const [result] = await challengeProgress(
+      db,
+      [{ ...c, solves: visible!.n, solved: count!.solved }],
+      scope,
+      owner,
+      cutoff,
+    );
+    return { ...result, attachments };
+  });
+  app.post("/api/challenges/:id/submit", async (req) => {
+    const u = requireUser(req),
+      cid = id.parse((req.params as any).id),
+      data = z
+        .object({ flag: z.string().min(1).max(256), scope: scopeSchema })
+        .parse(req.body);
+    await rate(db, `submit-user:${u.id}`, 30, 60);
+    return db.transaction(async (tx) => {
+      await tx.query("SELECT id FROM challenges WHERE id=$1 FOR SHARE", [cid]);
+      const c = await challengeAccess(tx, cid, data.scope, u, true, "submit");
+      if (c.challenge_type === "objective")
+        fail(400, "客观题请使用答案提交入口");
+      if (c.challenge_type === "awd") fail(400, "AWD 请使用比赛攻防提交入口");
+      const owner = await ownerFor(tx, data.scope, u);
+      await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
+        JSON.stringify([data.scope, cid, owner]),
+      ]);
+      const parts = await tx.query(
+        "SELECT * FROM challenge_parts WHERE challenge_id=$1 ORDER BY position,id",
+        [cid],
+      );
+      const submitted = flagHash(data.flag);
+      const candidates = parts.length
+        ? parts.filter((part) => part.role !== "defense")
+        : [{ ...c, id: null }];
+      // Check every candidate; client never chooses the small question being credited.
+      let matched: (typeof candidates)[number] | undefined;
+      for (const part of candidates) {
+        const expected =
+          flagMode(c) === "dynamic"
+            ? flagHash(
+                dynamicFlag(cid, data.scope, owner, part.id ?? undefined),
+              )
+            : part.flag_hash;
+        if (equal(submitted, expected)) matched = part;
+      }
+      const correct = !!matched,
+        submissionId = crypto.randomUUID();
+      await tx.query(
+        "INSERT INTO submissions(id,user_id,challenge_id,scope,owner_key,correct,part_id) VALUES($1,$2,$3,$4,$5,$6,$7)",
+        [
+          submissionId,
+          u.id,
+          cid,
+          data.scope,
+          owner,
+          correct,
+          matched?.id ?? null,
+        ],
+      );
+      if (!matched) {
+        if (flagMode(c) === "dynamic")
+          await recordFlagAnomaly(
+            tx,
+            submissionId,
+            data.scope,
+            cid,
+            owner,
+            submitted,
+          );
+        await notifyContest(tx, data.scope);
+        return { correct: false, already_solved: false };
+      }
+      return creditSolve(
+        tx,
+        c,
+        data.scope,
+        owner,
+        u.id,
+        matched.id ? matched : undefined,
+      );
+    });
+  });
+  app.get("/api/submissions", async (req) => {
+    const u = requireUser(req);
+    const p = page.parse(req.query);
+    return {
+      items: await db.query(
+        "SELECT s.id,c.title,s.correct,s.created_at,s.scope,p.title part_title FROM submissions s LEFT JOIN challenge_parts p ON p.id=s.part_id JOIN challenges c ON c.id=s.challenge_id WHERE s.user_id=$1 ORDER BY s.created_at DESC LIMIT 30 OFFSET $2",
+        [u.id, (p.page - 1) * 30],
+      ),
+    };
+  });
+  app.get("/api/stats", async (req) => {
+    const [stats] = await db.query(
+      `SELECT (SELECT count(*)::int FROM challenges WHERE published AND practice) challenges,(SELECT count(*)::int FROM contests WHERE published AND ends_at>now()) contests,(SELECT count(*)::int FROM teams) teams,(SELECT count(*)::int FROM solves WHERE scope='practice') solves`,
+    );
+    const activity = await db.query(
+      `SELECT u.username,c.title,s.created_at FROM solves s JOIN users u ON u.id=s.user_id JOIN challenges c ON c.id=s.challenge_id WHERE s.scope='practice' AND c.published AND c.practice ORDER BY s.created_at DESC LIMIT 6`,
+    );
+    const [personal] = req.user
+      ? await db.query(
+          "SELECT count(*)::int solves FROM solves WHERE scope='practice' AND owner_key=$1",
+          [`u:${req.user.id}`],
+        )
+      : [{ solves: 0 }];
+    return { ...stats, personal, activity };
+  });
+}
