@@ -1,0 +1,372 @@
+import { useEffect, useRef, useState } from "react";
+import { m, useReducedMotion } from "motion/react";
+import { Link } from "react-router-dom";
+import {
+  Activity,
+  BellRing,
+  FlagOff,
+  CheckCircle2,
+  ChevronUp,
+  Flag,
+  LockKeyhole,
+  Loader2,
+  Trophy,
+} from "lucide-react";
+import { useContestRealtime } from "@/lib/contest-realtime";
+import { useAPI } from "@/lib/api";
+import type { Contest, User } from "@/lib/types";
+import { useContestCapabilities } from "@/lib/contest-access";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { Card } from "./ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
+import { ScrollArea } from "./ui/scroll-area";
+
+export interface ContestEvent {
+  id: string;
+  type: "release" | "solve" | "withdraw" | "hint";
+  challenge_id: string;
+  challenge_title: string;
+  part_title: string | null;
+  team_name: string | null;
+  blood_rank: number | null;
+  created_at: string;
+}
+export interface ContestActivityData {
+  permissions_version?: string;
+  items: ContestEvent[];
+  frozen: boolean;
+  hint_updates?: {
+    id: string;
+    challenge_id: string;
+    challenge_title: string;
+    created_at: string;
+  }[];
+}
+const time = new Intl.DateTimeFormat("zh-CN", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
+export function ContestActivity({
+  scope,
+  user,
+  hidden = false,
+}: {
+  scope: string;
+  user: User | null;
+  hidden?: boolean;
+}) {
+  const contest = useAPI<Contest>(`/contests/${scope}`);
+  const access = useContestCapabilities(contest.data, user);
+  if (!access.activity || !user) return null;
+  return (
+    <ActivityPanel
+      key={`${scope}:${user.id}`}
+      scope={scope}
+      userId={user.id}
+      canOpen={access.challenges}
+      hidden={hidden}
+    />
+  );
+}
+function ActivityPanel({
+  scope,
+  userId,
+  canOpen,
+  hidden,
+}: {
+  scope: string;
+  userId: string;
+  canOpen: boolean;
+  hidden: boolean;
+}) {
+  const key = `nebuctf-activity:${userId}:${scope}`;
+  const reduced = useReducedMotion();
+  const [open, setOpen] = useState(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored !== null) return stored === "open";
+    } catch {}
+    return (
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 1024px)").matches
+    );
+  });
+  const data = useContestRealtime(scope);
+  const seen = useRef<Set<string> | null>(null);
+  const [unread, setUnread] = useState(0);
+  const [newHints, setNewHints] = useState(0);
+  const hintSeen = useRef<string | null>(null);
+  const knownHints = useRef(new Set<string>());
+  useEffect(() => {
+    if (!data.data) return;
+    const updates =
+      data.data.hint_updates ??
+      data.data.items.filter((e) => e.type === "hint");
+    if (hintSeen.current === null) {
+      try {
+        hintSeen.current = localStorage.getItem(key + ":hints");
+      } catch {}
+      if (!hintSeen.current) {
+        hintSeen.current =
+          updates.reduce(
+            (latest, h) => (h.created_at > latest ? h.created_at : latest),
+            "",
+          ) || "1970-01-01T00:00:00.000Z";
+      }
+    }
+    try {
+      if (!localStorage.getItem(key + ":hints"))
+        localStorage.setItem(key + ":hints", hintSeen.current!);
+    } catch {}
+    const fresh = updates.filter(
+      (h) => h.created_at > hintSeen.current! && !knownHints.current.has(h.id),
+    );
+    for (const hint of updates) knownHints.current.add(hint.id);
+    if (open) {
+      setNewHints(0);
+      hintSeen.current = updates.reduce(
+        (latest, h) => (h.created_at > latest ? h.created_at : latest),
+        hintSeen.current!,
+      );
+      try {
+        localStorage.setItem(key + ":hints", hintSeen.current);
+      } catch {}
+    } else if (fresh.length) setNewHints((n) => Math.min(99, n + fresh.length));
+  }, [data.data, open, key]);
+  useEffect(() => {
+    if (!data.data) return;
+    const ids = new Set(data.data.items.map((item) => item.id));
+    const added = seen.current
+      ? [...ids].filter((id) => !seen.current!.has(id)).length
+      : 0;
+    if (open) setUnread(0);
+    else if (added) setUnread((value) => Math.min(99, value + added));
+    seen.current = new Set([...(seen.current ?? []), ...ids].slice(-1000));
+  }, [data.data, open]);
+  function toggle(value: boolean) {
+    setOpen(value);
+    if (value) {
+      setUnread(0);
+      setNewHints(0);
+    }
+    try {
+      localStorage.setItem(key, value ? "open" : "closed");
+    } catch {}
+  }
+  return (
+    <Collapsible open={open} onOpenChange={toggle} asChild>
+      <m.div
+        aria-label="比赛动态"
+        initial={false}
+        animate={{ width: open ? 384 : newHints ? 288 : 224 }}
+        transition={{ duration: reduced ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
+        className={`fixed right-4 bottom-14 z-30 max-w-[calc(100vw-2rem)] sm:right-6 ${hidden ? "invisible" : ""}`}
+      >
+        <Card className="gap-0 overflow-hidden py-0 shadow-lg">
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="ghost"
+              className="h-12 w-full justify-start gap-3 rounded-xl px-4"
+              aria-label={open ? "收起比赛动态" : "展开比赛动态"}
+            >
+              {newHints && !open ? (
+                <BellRing className="text-warning motion-safe:animate-pulse" />
+              ) : (
+                <Activity className="text-muted-foreground" />
+              )}
+              <span>比赛动态</span>
+              {data.data?.frozen && (
+                <LockKeyhole
+                  className="size-3.5 text-muted-foreground"
+                  aria-label="已封榜"
+                />
+              )}
+              {newHints > 0 && !open && (
+                <Badge
+                  variant="secondary"
+                  className="text-warning"
+                  aria-label={`${newHints} 条新提示`}
+                >
+                  新提示 {newHints}
+                </Badge>
+              )}
+              {unread > 0 && (
+                <Badge
+                  aria-label={`${unread} 条新动态`}
+                  className="motion-safe:animate-in motion-safe:zoom-in-75"
+                >
+                  {unread === 99 ? "99+" : unread}
+                </Badge>
+              )}
+              <ChevronUp
+                className={`ml-auto shrink-0 text-muted-foreground motion-safe:transition-transform motion-safe:duration-300 ${open ? "rotate-180" : ""}`}
+              />
+            </Button>
+          </CollapsibleTrigger>
+          <span role="status" className="sr-only">
+            {newHints > 0
+              ? `${newHints} 条新题目提示，请展开比赛动态查看`
+              : unread > 0
+                ? `${unread} 条新比赛动态`
+                : ""}
+          </span>
+          <CollapsibleContent forceMount asChild>
+            <m.div
+              initial={false}
+              animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }}
+              transition={{
+                height: {
+                  duration: reduced ? 0 : 0.28,
+                  ease: [0.22, 1, 0.36, 1],
+                },
+                opacity: {
+                  duration: reduced ? 0 : 0.16,
+                  delay: open && !reduced ? 0.08 : 0,
+                },
+              }}
+              inert={!open || undefined}
+              aria-hidden={!open || undefined}
+              className="overflow-hidden"
+            >
+              {data.status === "retrying" && (
+                <p
+                  role="status"
+                  className="px-4 pt-3 text-xs text-muted-foreground"
+                >
+                  连接中断，正在重连
+                </p>
+              )}
+              {data.error && (
+                <div
+                  role="alert"
+                  className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-muted-foreground"
+                >
+                  <span>动态更新失败</span>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void data.refetch()}
+                  >
+                    重试
+                  </Button>
+                </div>
+              )}
+              {data.isLoading ? (
+                <div
+                  role="status"
+                  className="flex h-40 items-center justify-center gap-2 text-sm text-muted-foreground"
+                >
+                  <Loader2 className="size-4 motion-safe:animate-spin" />
+                  加载中
+                </div>
+              ) : (
+                <ScrollArea className="h-80 max-h-[50dvh]">
+                  <ul aria-label="近期比赛动态" className="px-4 pb-3">
+                    {data.data?.items.map((event) => {
+                      const blood = event.blood_rank
+                        ? ["一血", "二血", "三血"][event.blood_rank - 1]
+                        : null;
+                      const Icon = blood
+                        ? Trophy
+                        : event.type === "hint"
+                          ? BellRing
+                          : event.type === "withdraw"
+                            ? FlagOff
+                            : event.type === "release"
+                              ? Flag
+                              : CheckCircle2;
+                      return (
+                        <li
+                          key={event.id}
+                          className="relative flex gap-3 py-3 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-2 motion-safe:duration-300"
+                        >
+                          <Icon
+                            className={`mt-1 size-4 shrink-0 ${blood ? "text-warning" : "text-muted-foreground"}`}
+                          />
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                              <span>
+                                {blood ? (
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-warning"
+                                  >
+                                    {blood}
+                                  </Badge>
+                                ) : (
+                                  {
+                                    release: "题目上线",
+                                    withdraw: "题目下线",
+                                    hint: "新增提示",
+                                    solve: "新解出",
+                                  }[event.type]
+                                )}
+                              </span>
+                              <time
+                                dateTime={event.created_at}
+                                title={new Date(
+                                  event.created_at,
+                                ).toLocaleString("zh-CN")}
+                                className="tabular-nums"
+                              >
+                                {time.format(new Date(event.created_at))}
+                              </time>
+                            </div>
+                            <p className="break-words text-sm leading-6">
+                              {event.type === "solve" && (
+                                <>
+                                  <span className="font-medium">
+                                    {event.team_name}
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    {" "}
+                                    解出{" "}
+                                  </span>
+                                </>
+                              )}
+                              {canOpen && event.type !== "withdraw" ? (
+                                <Link
+                                  className="rounded-sm underline-offset-4 after:absolute after:inset-0 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                                  to={`/contests/${scope}/challenges?challenge=${event.challenge_id}`}
+                                >
+                                  {event.challenge_title}
+                                  {event.part_title
+                                    ? ` / ${event.part_title}`
+                                    : ""}
+                                </Link>
+                              ) : (
+                                <span>
+                                  {event.challenge_title}
+                                  {event.part_title
+                                    ? ` / ${event.part_title}`
+                                    : ""}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {!data.error && data.data?.items.length === 0 && (
+                    <p className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+                      暂无比赛动态
+                    </p>
+                  )}
+                </ScrollArea>
+              )}
+            </m.div>
+          </CollapsibleContent>
+        </Card>
+      </m.div>
+    </Collapsible>
+  );
+}
