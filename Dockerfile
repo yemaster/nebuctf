@@ -1,0 +1,33 @@
+FROM node:24.14-bookworm-slim AS dependencies
+WORKDIR /app
+COPY package*.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+RUN npm ci --no-audit --no-fund
+
+FROM dependencies AS build
+COPY apps apps
+RUN npm run build
+
+FROM node:24.14-bookworm-slim AS runtime-dependencies
+WORKDIR /app
+COPY package*.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+RUN npm ci --omit=dev --workspace=apps/api --include-workspace-root=false --no-audit --no-fund
+
+FROM node:24.14-bookworm-slim AS api
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 DATA_DIR=/data
+WORKDIR /app
+COPY --from=runtime-dependencies /app/node_modules ./node_modules
+COPY --from=build /app/apps/api/dist ./dist
+COPY apps/api/package.json ./package.json
+RUN mkdir -p /data/files && chown -R node:node /data
+USER node
+EXPOSE 3000
+CMD ["node", "dist/main.js"]
+
+FROM nginxinc/nginx-unprivileged:1.28-alpine AS web
+COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+EXPOSE 8080
