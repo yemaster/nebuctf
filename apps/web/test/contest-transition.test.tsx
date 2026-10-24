@@ -805,6 +805,29 @@ test("contest navigation handles shared snapshots, fallbacks and unregistered de
       async () => {
         let scrolled = "";
         const previous = dom.window.HTMLElement.prototype.scrollIntoView;
+        const previousFetch = globalThis.fetch;
+        const unexpected: string[] = [];
+        // Home also loads recent contests, the calendar and platform statistics.
+        // Without these fixtures, a rejected relative-URL request can replace the
+        // announcement list with the page error before the assertion runs.
+        globalThis.fetch = (async (input: string) => {
+          const url = new URL(input, "http://localhost");
+          if (
+            url.pathname === "/api/contests" ||
+            url.pathname === "/api/contests/calendar"
+          )
+            return Response.json({ items: [contest], total: 1 });
+          if (url.pathname === "/api/stats")
+            return Response.json({
+              challenges: 1,
+              contests: 1,
+              teams: 0,
+              solves: 0,
+              activity: [],
+            });
+          unexpected.push(input);
+          throw Error(`Unexpected home request: ${input}`);
+        }) as typeof fetch;
         dom.window.HTMLElement.prototype.scrollIntoView = function () {
           scrolled = this.id;
         };
@@ -812,9 +835,18 @@ test("contest navigation handles shared snapshots, fallbacks and unregistered de
           await mount("/");
           await settle(
             () =>
+              cache.isFetching() === 0 &&
               !!container.querySelector(
                 'a[href="/announcements#announcement-notice-1"]',
               ),
+          );
+          assert.deepEqual(unexpected, []);
+          assert.equal(
+            cache
+              .getQueryCache()
+              .findAll({ type: "active" })
+              .some((query) => query.state.status === "error"),
+            false,
           );
           const row = container.querySelector(
             'a[href="/announcements#announcement-notice-1"]',
@@ -833,8 +865,9 @@ test("contest navigation handles shared snapshots, fallbacks and unregistered de
             () => document.activeElement?.id === "announcement-notice-1",
           );
           assert.equal(scrolled, "announcement-notice-1");
-          await cleanup();
         } finally {
+          await cleanup();
+          globalThis.fetch = previousFetch;
           dom.window.HTMLElement.prototype.scrollIntoView = previous;
         }
       },
