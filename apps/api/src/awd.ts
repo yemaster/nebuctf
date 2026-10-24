@@ -41,7 +41,7 @@ export function awdRoutes(app: FastifyInstance, db: DB) {
       [scope, cid],
     );
     const items = await db.query(
-      `SELECT t.id team_id,t.name,i.id instance_id,i.endpoint,i.status,i.owner_key=$3 own,k.status health FROM accepted_registrations r JOIN teams t ON t.id=r.team_id LEFT JOIN contest_groups g ON g.id=r.group_id LEFT JOIN LATERAL (SELECT id,endpoint,status,owner_key FROM instances WHERE challenge_id=$2 AND scope=$1::text AND owner_key='t:'||t.id AND status IN ('queued','starting','running','stopping','failed') ORDER BY created_at DESC LIMIT 1) i ON true LEFT JOIN awd_checks k ON k.owner_key='t:'||t.id AND k.round_id=(SELECT id FROM contest_rounds WHERE contest_id=$1 AND challenge_id=$2 ORDER BY number DESC LIMIT 1) WHERE r.contest_id=$1 AND ${permissionSQL("g", "$2::uuid", "view")} AND ${permissionSQL("g", "$2::uuid", "resources")} ORDER BY t.name,t.id`,
+      `SELECT t.id team_id,t.name,i.id instance_id,i.endpoint,i.status,i.owner_key=$3 own,k.status health FROM accepted_registrations r JOIN teams t ON t.id=r.team_id LEFT JOIN contest_groups g ON g.id=r.group_id LEFT JOIN LATERAL (SELECT id,endpoint,status,owner_key FROM instances WHERE challenge_id=$2 AND scope=$1::text AND owner_key='t:'||t.id AND status IN ('queued','starting','running','stopping','failed') ORDER BY created_at DESC LIMIT 1) i ON true LEFT JOIN awd_checks k ON k.owner_key='t:'||t.id AND k.round_id=(SELECT id FROM contest_rounds WHERE contest_id=$1::uuid AND challenge_id=$2 ORDER BY number DESC LIMIT 1) WHERE r.contest_id=$1::uuid AND ${permissionSQL("g", "$2::uuid", "view")} AND ${permissionSQL("g", "$2::uuid", "resources")} ORDER BY t.name,t.id`,
       [scope, cid, owner],
     );
     const history = await db.query(

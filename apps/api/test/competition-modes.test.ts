@@ -570,6 +570,12 @@ test("mixed contest questions, scoped scores, clocks, objectives, rounds and AWD
           [contest.id, awd.id],
         );
       const round = (await ensureRound(db, ct!, link!))!;
+      const emptyArena = await ok(
+        `/challenges/${awd.id}/arena?scope=${contest.id}`,
+      );
+      assert.equal(emptyArena.round.number, round.number);
+      assert.equal(emptyArena.items.length, 2);
+      assert(emptyArena.items.every((item: any) => item.instance_id === null));
       const ia = crypto.randomUUID(),
         ib = crypto.randomUUID();
       for (const [iid, owner, actor] of [
@@ -600,6 +606,24 @@ test("mixed contest questions, scoped scores, clocks, objectives, rounds and AWD
           [crypto.randomUUID(), round.id, iid, "t:" + owner],
         );
       }
+      const arena = await ok(`/challenges/${awd.id}/arena?scope=${contest.id}`);
+      assert.equal(
+        arena.items.find((item: any) => item.team_id === ta).instance_id,
+        ia,
+      );
+      assert.equal(
+        arena.items.find((item: any) => item.team_id === ta).own,
+        true,
+      );
+      assert.equal(
+        arena.items.find((item: any) => item.team_id === tb).own,
+        false,
+      );
+      assert(
+        arena.items.every(
+          (item: any) => item.status === "running" && item.health === "up",
+        ),
+      );
       assert.equal(
         (
           await ok(`/challenges/${awd.id}/attack`, alice, {
@@ -647,6 +671,11 @@ test("mixed contest questions, scoped scores, clocks, objectives, rounds and AWD
       );
       assert.equal(scored.find((r) => r.owner_key === "t:" + ta)!.points, 300);
       assert.equal(scored.find((r) => r.owner_key === "t:" + tb)!.points, 100);
+      const history = (
+        await ok(`/challenges/${awd.id}/arena?scope=${contest.id}`)
+      ).history;
+      assert.equal(history.length, 1);
+      assert.equal(history[0].points, 300);
     },
   );
   await t.test(
