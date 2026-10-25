@@ -1,6 +1,7 @@
 import { Check, LoaderCircle, RotateCw, ShieldCheck } from "lucide-react";
 import { Button } from "./ui/button";
 import type { useCaptcha } from "@/lib/use-captcha";
+import { CaptchaLabel } from "./captcha-label";
 
 export function Captcha({
   verification,
@@ -48,9 +49,7 @@ export function Captcha({
                 : "text-muted-foreground"
           }
         />
-        <span role="status" aria-live="polite">
-          {text}
-        </span>
+        <CaptchaLabel text={text} working={working} verified={verified} />
       </Button>
       {status === "error" && (
         <p role="alert" className="text-sm text-destructive">
