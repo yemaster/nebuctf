@@ -23,6 +23,23 @@
 
 支持浅色与深灰两套主题，默认跟随系统，通过背景和间距区分区域，不加装饰线条或背景图案。字体继承 shadcn/Tailwind 默认 sans 字体栈，图标使用 Lucide。没有添加假终端；提交区调用原有 Flag 判题 API。
 
+### 导航与主题设置
+
+主导航使用统一的 44 px 按钮、16 px 文字和水平内边距，当前项通过完整底色与柔和阴影标记；登录和注册只在对应路由选中。比赛仍为单层导航，账户操作保留在最右侧。宽度不足时改用 Sheet，不缩小文字挤进一行。学习与账户菜单继续点击展开，并共用 Dropdown Menu。
+
+右上角「主题设置」参考 [shadcn Popover](https://ui.shadcn.com/docs/components/radix/popover)、[Toggle Group](https://ui.shadcn.com/docs/components/radix/toggle-group) 和 [Radix 主题配置](https://www.radix-ui.com/themes/docs/theme/overview)，用同一面板并列展示外观和主题色。外观提供亮色、暗色、跟随系统；色块使用单选语义、名称与选中勾，不用下拉选择。点击即时生效，切换后面板保持打开；支持 Escape、焦点恢复、刷新保留及跨标签页同步。外部启动脚本在首帧前同时应用外观和主题色；存储不可用时仍可切换。
+
+主题色参考 CTF 平台的公开配置，页面使用自己的简洁色名。这里只映射主色、前景和选中底色，保留现有背景、字体、布局与成功/警告/错误状态色。2026-10-25 核对的来源及实际值：
+
+| 名称 | 参考来源 | 浅色主色 | 深色主色 |
+| --- | --- | --- | --- |
+| 薄荷青 | [GZCTF brand 色阶](https://github.com/GZTimeWalker/GZCTF/blob/cc12f65fe9cd9eb2a94ccfcb3604a81e394e0296/src/GZCTF/ClientApp/src/utils/ThemeOverride.ts)，取 `brand[8]` 与 `brand[5]` | `#007F6E` | `#2AE5B5` |
+| 冰川蓝 | [ret2shell Cyber 主色](https://github.com/ret2shell/ret2shell/blob/2d40f675a3735a8de46ebd66fe548eb4f74a94cf/web/src/lib/storage/theme.ts)，浅色采用原色 20% 黑色混合 | `#0774BE` | `#0991ED` |
+| 深海蓝 | [CTFd core](https://github.com/CTFd/CTFd/blob/738f1de09ac4a8ccbd65bf74577acdc1dbecd08e/CTFd/themes/core/assets/scss/main.scss) 所用 [Bootstrap 蓝色色阶](https://github.com/twbs/bootstrap/blob/v5.3.8/scss/_variables.scss)，取 blue-600 与 blue-300 | `#0A58CA` | `#6EA8FE` |
+| 青柠绿 | [Hack The Box 官网](https://www.hackthebox.com/) 实际使用的 `#9FEF00`，浅色采用原色 50% 黑色混合 | `#507800` | `#9FEF00` |
+
+浅色适配仅降低同一原色的亮度，使主色文字在现有浅色背景上可读；未新增其他色相。选中底色由当前主色按浅色 12%、深色 14% 与卡片背景混合，避免整页染色。四组配色的按钮文字、主色文字及选中项正文均经过至少 4.5:1 对比度检查。来源名称不显示在主题面板。
+
 ## shadcn/ui 选型
 
 先阅读官方文档和示例，再从官方 `new-york-v4` registry 引入 Radix 版本源码。组件位于 `apps/web/src/components/ui`，沿用项目现有 React、Tailwind 和 radix-ui 依赖，不另造组件交互。
@@ -30,6 +47,7 @@
 | 场景 | 官方组件 |
 | --- | --- |
 | 主导航、学习与账户菜单 | Button、[Dropdown Menu](https://ui.shadcn.com/docs/components/radix/dropdown-menu)、Sheet |
+| 外观与主题色 | [Popover](https://ui.shadcn.com/docs/components/radix/popover)、Toggle Group |
 | 分类和内容类型 | [Toggle Group](https://ui.shadcn.com/docs/components/radix/toggle-group)，窄屏分类用 Native Select |
 | 登录、注册 | [Field](https://ui.shadcn.com/docs/components/radix/field)、Label、Input Group、[Alert](https://ui.shadcn.com/docs/components/radix/alert) |
 | 学习节点 | Card、Button、Badge |
