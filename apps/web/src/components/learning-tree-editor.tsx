@@ -16,6 +16,7 @@ import { Plus, Trash2, BookOpen, Flag, X, GitFork } from "lucide-react";
 import { toast } from "sonner";
 import type { Article, LearningNode, LearningTree } from "@/lib/types";
 import { useAPI } from "@/lib/api";
+import { randomUUID } from "@/lib/random-uuid";
 import {
   learningGraph,
   arrangeSkillTree,
@@ -118,7 +119,7 @@ export function LearningTreeEditor({
     if (selected === id) setSelected(null);
   }
   function add(parentId?: string) {
-    const id = crypto.randomUUID(),
+    const id = randomUUID(),
       bounds = canvas.current?.getBoundingClientRect(),
       parent = nodes.find((node) => node.id === parentId);
     const position = parent

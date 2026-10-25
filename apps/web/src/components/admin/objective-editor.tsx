@@ -1,5 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
 import type { Objective } from "@/lib/competition";
+import { randomUUID } from "@/lib/random-uuid";
 import { Field } from "../shared";
 import { Input, Textarea } from "../ui/input";
 import { Button } from "../ui/button";
@@ -129,7 +130,7 @@ export function ObjectiveEditor({
                 blanks: [
                   ...v.blanks,
                   {
-                    id: crypto.randomUUID(),
+                    id: randomUUID(),
                     label: `填空 ${v.blanks.length + 1}`,
                     answers: [""],
                   },

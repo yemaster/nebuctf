@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
+import { randomUUID } from "@/lib/random-uuid";
 import type { Challenge, ContestGroup } from "@/lib/types";
 import {
   defaultGroupPermissions,
@@ -98,7 +99,7 @@ export function GroupsEditor({
               ...old,
               {
                 id: "",
-                key: crypto.randomUUID(),
+                key: randomUUID(),
                 name: "",
                 description: "",
                 permissions: { ...defaultGroupPermissions },

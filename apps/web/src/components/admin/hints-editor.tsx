@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { randomUUID } from "@/lib/random-uuid";
 import { ArrowUp, ArrowDown, Plus, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/input";
@@ -13,7 +14,7 @@ export function HintsEditor({
   onChange: (value: string[]) => void;
   disabled?: boolean;
 }) {
-  const [keys, setKeys] = useState(() => value.map(() => crypto.randomUUID()));
+  const [keys, setKeys] = useState(() => value.map(() => randomUUID()));
   function move(index: number, step: number) {
     const next = [...value],
       ids = [...keys];
@@ -85,7 +86,7 @@ export function HintsEditor({
         size="sm"
         disabled={disabled || value.length >= 10}
         onClick={() => {
-          setKeys([...keys, crypto.randomUUID()]);
+          setKeys([...keys, randomUUID()]);
           onChange([...value, ""]);
         }}
       >

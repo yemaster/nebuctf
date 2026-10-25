@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { ArrowUp, ArrowDown, Plus, X } from "lucide-react";
 import type { ChallengePart } from "@/lib/types";
+import { randomUUID } from "@/lib/random-uuid";
 import { Button } from "./ui/button";
 import { Input, Textarea } from "./ui/input";
 import { Field } from "./shared";
@@ -9,7 +10,7 @@ const ScoreCurve = lazy(() => import("./admin/score-curve"));
 export type PartDraft = Partial<ChallengePart> & { key: string };
 export const newPart = (flagEnv?: string): PartDraft => ({
   flag_env: flagEnv,
-  key: crypto.randomUUID(),
+  key: randomUUID(),
   title: "",
   initial_points: 100,
   minimum_points: 50,

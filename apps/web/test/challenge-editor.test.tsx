@@ -30,6 +30,12 @@ test(
     const originals = new Map<string, PropertyDescriptor | undefined>();
     for (const [key, value] of Object.entries({
       window: dom.window,
+      // Public HTTP origins expose getRandomValues, but not randomUUID.
+      crypto: {
+        getRandomValues: globalThis.crypto.getRandomValues.bind(
+          globalThis.crypto,
+        ),
+      },
       document: dom.window.document,
       HTMLElement: dom.window.HTMLElement,
       HTMLInputElement: dom.window.HTMLInputElement,
