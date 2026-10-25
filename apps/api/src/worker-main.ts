@@ -50,6 +50,15 @@ while (running) {
       );
     if (iteration++ % 15 === 0) await worker.reconcile();
     await writeFile("/tmp/worker-health", String(Date.now()));
+    if (iteration % 5 === 0) {
+      await db.query(
+        "INSERT INTO system_settings(key,value) VALUES('worker_heartbeat','{}') ON CONFLICT(key) DO UPDATE SET updated_at=now()",
+      );
+      await db.query("DELETE FROM email_verifications WHERE expires_at<now()");
+      await db.query(
+        "DELETE FROM ai_calls WHERE created_at<now()-interval '90 days'",
+      );
+    }
   } catch (e) {
     console.error("worker cycle failed", (e as Error).message);
   }

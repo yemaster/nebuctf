@@ -1,10 +1,6 @@
-import {
-  contestResourcePolicy,
-  requireContestResourceSlot,
-} from "./contest-resource-limits.js";
+import { contestResourcePolicy } from "./contest-resource-limits.js";
 import { permissionSQL } from "./group-permissions.js";
 import { flagEnvironmentSpec } from "./flag-environment.js";
-import { resourceUsage } from "./resource-usage.js";
 import { resourceChallenge } from "./challenge-model.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
@@ -19,6 +15,8 @@ import { config } from "./config.js";
 import { id, scope as scopeSchema } from "./schemas.js";
 import { fail, rate, HttpError } from "./security.js";
 import { imageKey, imagePrefixKey } from "./image-reference.js";
+import { allocationPlan } from "./container-policy.js";
+import { getSetting } from "./settings.js";
 export const storage = () => join(config.DATA_DIR, "files");
 function sendAttachment(
   reply: FastifyReply,
@@ -82,10 +80,11 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
   app.post("/api/challenges/:id/instances", async (req) => {
     const u = requireUser(req),
       cid = id.parse((req.params as any).id),
-      { scope, resource_type } = z
+      { scope, resource_type, replace_ids } = z
         .object({
           scope: scopeSchema,
           resource_type: z.enum(["container", "attachment"]).optional(),
+          replace_ids: z.array(z.uuid()).max(100).default([]),
         })
         .parse(req.body);
     await rate(db, `instance:${u.id}`, 10, 60);
@@ -113,27 +112,48 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
         [cid, scope, owner, activeStatuses, c.resource_type],
       );
       if (existing) return existing;
-      await requireContestResourceSlot(tx, scope, owner, c.resource_type);
-      const usage = await resourceUsage(tx, owner);
+      const { policy, replacements } = await allocationPlan(
+        tx,
+        scope,
+        owner,
+        c,
+      );
       if (
-        usage!.n >= config.MAX_INSTANCES ||
-        usage!.cpu + c.cpu > config.MAX_CPU ||
-        usage!.memory + c.memory > config.MAX_MEMORY
+        replacements.length &&
+        (replace_ids.length !== replacements.length ||
+          replacements.some((old) => !replace_ids.includes(old.id)))
       )
-        fail(409, "资源池已满，请稍后重试", {
-          label: "管理我的靶机",
-          href: `/instances?scope=${scope}`,
-        });
-      if (owner !== "shared" && usage!.owned >= config.MAX_OWNER_INSTANCES)
-        fail(409, "已达到个人或战队环境数量上限", {
-          label: "释放不用的靶机",
-          href: `/instances?scope=${scope}`,
-        });
+        return {
+          requires_confirmation: true,
+          replacements: replacements.map((old) => ({
+            id: old.id,
+            title: old.title,
+          })),
+        };
       await resourceCooldown(tx, owner, scope, cid, c.resource_type);
+      for (const old of replacements) {
+        await resourceCooldown(tx, owner, scope, old.challenge_id);
+        await tx.query(
+          "UPDATE instances SET status='stopping',updated_at=now() WHERE id=$1",
+          [old.id],
+        );
+        await audit(tx, u.id, "instance.replace", old.id);
+      }
+      const timed = c.resource_type === "container" && owner !== "shared";
+      const ttl =
+        timed && (c.use_platform_ttl ?? c.ttl === 1800)
+          ? policy.default_ttl
+          : c.ttl;
       const iid = crypto.randomUUID();
       const expiry = new Date(Date.now() + 5 * 60 * 1000);
       let maximum = new Date(
-        Date.now() + (owner === "shared" ? 7 * 86400 : 4 * 3600) * 1000,
+        Date.now() +
+          (owner === "shared"
+            ? 7 * 86400
+            : timed
+              ? ttl + policy.renew_limit * policy.renew_seconds + 300
+              : 4 * 3600) *
+            1000,
       );
       if (scope !== "practice" && !challenge.contest_practice) {
         const [contest] = await tx.query(
@@ -165,7 +185,16 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
             port: c.port,
             cpu: c.cpu,
             memory: c.memory,
-            ttl: c.ttl,
+            ttl,
+            ...(timed
+              ? {
+                  renew_limit: policy.renew_limit,
+                  renew_seconds: policy.renew_seconds,
+                }
+              : {}),
+            ...(replacements.length
+              ? { replace_ids: replacements.map((old) => old.id) }
+              : {}),
           }),
           new Date(Math.min(expiry.getTime(), maximum.getTime())),
           maximum,
@@ -193,7 +222,7 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
       );
     return {
       items: await db.query(
-        `SELECT i.id,i.scope,i.challenge_id,c.title,i.status,i.kind,i.resource_type,CASE WHEN $5::boolean THEN i.endpoint ELSE NULL END endpoint,i.expires_at,i.created_at,r.expires_at next_operation_at,(i.spec->>'ttl')::int ttl,i.owner_key='shared' shared,i.error FROM instances i JOIN challenges c ON c.id=i.challenge_id LEFT JOIN registrations reg ON reg.contest_id::text=i.scope AND 't:'||reg.team_id=$2 LEFT JOIN contest_groups g ON g.id=reg.group_id LEFT JOIN rate_limits r ON r.key='resource:'||i.owner_key||':'||i.scope||':'||i.challenge_id::text||CASE WHEN i.resource_type='attachment' THEN ':attachment' ELSE '' END WHERE i.scope=$1 AND ${permissionSQL("g", "i.challenge_id", "view")} AND ${permissionSQL("g", "i.challenge_id", "resources")} AND (i.owner_key=$2 OR (i.owner_key='shared' AND $4::boolean=false AND $5::boolean AND c.published AND ($1='practice' OR EXISTS(SELECT 1 FROM contest_challenges cc WHERE cc.contest_id::text=$1 AND cc.challenge_id=c.id AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()))))) AND i.status=ANY($3::text[]) ORDER BY i.created_at DESC LIMIT 100`,
+        `SELECT i.id,i.scope,i.challenge_id,c.title,i.status,i.kind,i.resource_type,CASE WHEN $5::boolean THEN i.endpoint ELSE NULL END endpoint,i.expires_at,i.created_at,i.renew_count,(i.spec->>'renew_limit')::int renew_limit,i.max_expires_at,r.expires_at next_operation_at,(i.spec->>'ttl')::int ttl,i.owner_key='shared' shared,i.error FROM instances i JOIN challenges c ON c.id=i.challenge_id LEFT JOIN registrations reg ON reg.contest_id::text=i.scope AND 't:'||reg.team_id=$2 LEFT JOIN contest_groups g ON g.id=reg.group_id LEFT JOIN rate_limits r ON r.key='resource:'||i.owner_key||':'||i.scope||':'||i.challenge_id::text||CASE WHEN i.resource_type='attachment' THEN ':attachment' ELSE '' END WHERE i.scope=$1 AND ${permissionSQL("g", "i.challenge_id", "view")} AND ${permissionSQL("g", "i.challenge_id", "resources")} AND (i.owner_key=$2 OR (i.owner_key='shared' AND $4::boolean=false AND $5::boolean AND c.published AND ($1='practice' OR EXISTS(SELECT 1 FROM contest_challenges cc WHERE cc.contest_id::text=$1 AND cc.challenge_id=c.id AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()))))) AND i.status=ANY($3::text[]) ORDER BY i.created_at DESC LIMIT 100`,
         [
           scope,
           owner,
@@ -233,6 +262,9 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
     return {
       next_operation_at: row?.expires_at ?? null,
       quota: await contestResourcePolicy(db, scope, owner, c.resource_type),
+      auto_destroy:
+        c.resource_type === "container" &&
+        (await getSetting(db, "containers")).auto_destroy,
     };
   });
   async function owned(tx: DB, iid: string, u: ReturnType<typeof requireUser>) {
@@ -282,26 +314,32 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
       await lock(tx);
       const i = await owned(tx, iid, u);
       if (i.scope === "test") fail(400, "测试环境不支持续期，请重新创建");
+      if (i.spec.awd || i.owner_key === "shared")
+        fail(400, "此环境由比赛统一管理");
       await challengeAccess(tx, i.challenge_id, i.scope, u, true, "resources");
       if (
         i.status !== "running" ||
         new Date(i.expires_at).getTime() <= Date.now()
       )
         fail(409, "环境不在运行中");
+      const policy = await getSetting(tx, "containers");
+      if (i.renew_count >= (i.spec.renew_limit ?? policy.renew_limit))
+        fail(409, "续期次数已用完");
       const expires = new Date(
         Math.min(
-          Math.max(
-            Date.now() + i.spec.ttl * 1000,
-            new Date(i.expires_at).getTime(),
-          ),
+          new Date(i.expires_at).getTime() +
+            (i.spec.renew_seconds ?? policy.renew_seconds) * 1000,
           new Date(i.max_expires_at).getTime(),
         ),
       );
+      if (expires.getTime() <= new Date(i.expires_at).getTime())
+        fail(409, "已到可续期截止时间");
       await tx.query(
-        "UPDATE instances SET expires_at=$1,updated_at=now() WHERE id=$2",
+        "UPDATE instances SET expires_at=$1,renew_count=renew_count+1,updated_at=now() WHERE id=$2",
         [expires, iid],
       );
-      return { expires_at: expires };
+      await audit(tx, u.id, "instance.renew", iid);
+      return { expires_at: expires, renew_count: i.renew_count + 1 };
     });
   });
   app.post("/api/admin/challenges/:id/attachments", async (req) => {

@@ -10,6 +10,7 @@ const resourceLimits = {
 };
 export const containerInput = z.object({
   ...resourceLimits,
+  use_platform_ttl: z.boolean().optional(),
   mode: z.enum(["private", "public"]).default("private"),
   access_mode: z.enum(["port", "domain"]).default("port"),
   port: z.number().int().min(1024).max(65535).default(8080),

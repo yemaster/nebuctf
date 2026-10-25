@@ -263,7 +263,7 @@ export class Worker {
     for (let slot = 0; slot < free; slot++) {
       const i = await this.db.transaction(async (tx) => {
         const [row] = await tx.query(
-          "SELECT * FROM instances WHERE (status='queued' OR (status='starting' AND updated_at<now()-interval '2 minutes')) AND id<>ALL($1::uuid[]) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1",
+          "SELECT * FROM instances WHERE (status='queued' OR (status='starting' AND updated_at<now()-interval '2 minutes')) AND id<>ALL($1::uuid[]) AND NOT EXISTS(SELECT 1 FROM instances previous WHERE previous.id::text IN (SELECT jsonb_array_elements_text(coalesce(instances.spec->'replace_ids','[]'::jsonb))) AND previous.status NOT IN ('stopped','failed')) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1",
           [[...this.jobs.keys()]],
         );
         if (row)

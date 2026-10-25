@@ -13,6 +13,8 @@ import {
 } from "./security.js";
 import type { User } from "./context.js";
 import { consumeCaptcha } from "./captcha.js";
+import { getSetting } from "./settings.js";
+import { emailAllowed, verifyRegistrationEmail } from "./mail.js";
 declare module "fastify" {
   interface FastifyRequest {
     user: User | null;
@@ -33,14 +35,17 @@ export async function authRoutes(app: FastifyInstance, db: DB) {
   app.decorateRequest("user", null);
   app.addHook("onRequest", async (req, reply) => {
     reply.header("Cache-Control", "no-store");
-    if (!["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+    if (
+      !req.routeOptions.config.aiProxy &&
+      !["GET", "HEAD", "OPTIONS"].includes(req.method)
+    ) {
       if (
         req.headers.origin !== config.APP_ORIGIN ||
         req.headers["x-csrf-protection"] !== "1"
       )
         fail(403, "请求来源验证失败");
     }
-    if (req.cookies[sessionCookie]) {
+    if (!req.routeOptions.config.aiProxy && req.cookies[sessionCookie]) {
       const [user] = await db.query<User>(
         "SELECT u.id,u.username,u.email,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now() AND NOT u.disabled",
         [digest(req.cookies[sessionCookie]!)],
@@ -51,14 +56,39 @@ export async function authRoutes(app: FastifyInstance, db: DB) {
   app.get("/api/me", async (req) => ({ user: req.user }));
   app.post("/api/auth/register", async (req, reply) => {
     const data = register.parse(req.body);
-    await consumeCaptcha(db, req, "register");
+    const mail = await getSetting(db, "mail");
+    if (!emailAllowed(data.email, mail.allowed_emails))
+      fail(400, "此邮箱不在允许注册的范围内");
+    const verificationId = mail.require_verification
+      ? await verifyRegistrationEmail(
+          db,
+          data.email,
+          (req.body as any).email_verification,
+        )
+      : null;
+    if (!verificationId) await consumeCaptcha(db, req, "register");
     await rate(db, `register:${req.ip}`, 5, 3600);
     const hash = await hashPassword(data.password);
     const uid = crypto.randomUUID();
-    await db.query(
-      "INSERT INTO users(id,username,email,password_hash) VALUES($1,$2,$3,$4)",
-      [uid, data.username, data.email, hash],
-    );
+    await db.transaction(async (tx) => {
+      if (verificationId) {
+        const rows = await tx.query(
+          "DELETE FROM email_verifications WHERE id=$1 AND email=$2 AND expires_at>now() RETURNING id",
+          [verificationId, data.email.toLowerCase()],
+        );
+        if (!rows.length) fail(400, "验证码已使用或已过期");
+      }
+      await tx.query(
+        "INSERT INTO users(id,username,email,password_hash,email_verified_at) VALUES($1,$2,$3,$4,$5)",
+        [
+          uid,
+          data.username,
+          data.email,
+          hash,
+          verificationId ? new Date() : null,
+        ],
+      );
+    });
     const t = token();
     await db.query(
       "INSERT INTO sessions VALUES($1,$2,now()+interval '7 days')",

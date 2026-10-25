@@ -23,6 +23,9 @@ import { adminRoutes } from "./admin.js";
 import { config } from "./config.js";
 import { imageRoutes } from "./images.js";
 import type { DB } from "./db.js";
+import { systemAdminRoutes } from "./system-admin.js";
+import { registrationMailRoutes } from "./mail.js";
+import { aiRoutes } from "./ai-routes.js";
 export async function buildApp(db: DB, logging = false) {
   const app = Fastify({
     logger: logging
@@ -30,6 +33,7 @@ export async function buildApp(db: DB, logging = false) {
           redact: [
             "req.headers.cookie",
             "req.headers.authorization",
+            "req.headers.x-api-key",
             "req.body",
           ],
           serializers: {
@@ -87,6 +91,9 @@ export async function buildApp(db: DB, logging = false) {
     });
   });
   await authRoutes(app, db);
+  systemAdminRoutes(app, db);
+  registrationMailRoutes(app, db);
+  aiRoutes(app, db);
   captchaRoutes(app, db);
   teamRoutes(app, db);
   challengeRoutes(app, db);

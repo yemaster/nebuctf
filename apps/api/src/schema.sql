@@ -212,3 +212,14 @@ ALTER TABLE contests ADD COLUMN IF NOT EXISTS visibility text NOT NULL DEFAULT '
 ALTER TABLE contests ADD COLUMN IF NOT EXISTS resource_limits jsonb NOT NULL DEFAULT '{}' CHECK(jsonb_typeof(resource_limits)='object');
 CREATE INDEX IF NOT EXISTS instances_contest_resource_quota ON instances(scope,resource_type,owner_key) WHERE status IN ('queued','starting','running','ready','stopping');
 INSERT INTO schema_migrations(version) VALUES(19) ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS system_settings(key text PRIMARY KEY,value jsonb NOT NULL,updated_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at timestamptz;
+ALTER TABLE instances ADD COLUMN IF NOT EXISTS renew_count integer NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS email_verifications(id uuid PRIMARY KEY,email text NOT NULL,code_hash text NOT NULL,attempts integer NOT NULL DEFAULT 0,expires_at timestamptz NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS email_verifications_expiry ON email_verifications(expires_at);
+CREATE TABLE IF NOT EXISTS ai_routes(id uuid PRIMARY KEY,name varchar(80) NOT NULL,enabled boolean NOT NULL DEFAULT false,protocol text NOT NULL CHECK(protocol IN ('openai','anthropic')),base_url text NOT NULL,key_cipher text NOT NULL,access_hash text NOT NULL UNIQUE,access_prefix text NOT NULL,models jsonb NOT NULL,rpm integer NOT NULL,daily_limit integer NOT NULL,concurrency integer NOT NULL,max_tokens integer NOT NULL,timeout_seconds integer NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS ai_calls(id uuid PRIMARY KEY,route_id uuid NOT NULL REFERENCES ai_routes(id) ON DELETE CASCADE,model text NOT NULL,protocol text NOT NULL,status integer NOT NULL DEFAULT 0,input_tokens integer NOT NULL DEFAULT 0,output_tokens integer NOT NULL DEFAULT 0,elapsed_ms integer NOT NULL DEFAULT 0,created_at timestamptz NOT NULL DEFAULT now(),expires_at timestamptz NOT NULL);
+CREATE INDEX IF NOT EXISTS ai_calls_route_time ON ai_calls(route_id,created_at DESC);
+CREATE INDEX IF NOT EXISTS ai_calls_pending ON ai_calls(route_id,expires_at) WHERE status=0;
+INSERT INTO schema_migrations(version) VALUES(20) ON CONFLICT DO NOTHING;
