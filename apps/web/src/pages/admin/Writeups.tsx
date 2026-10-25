@@ -127,7 +127,7 @@ export function WriteupsAdmin() {
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" asChild>
               <Link
-                to={`/admin/contests/${id}/edit?section=writeup&return=${encodeURIComponent(location.pathname + location.search)}`}
+                to={`/contests/${id}/manage/settings?section=writeup&return=${encodeURIComponent(location.pathname + location.search)}`}
               >
                 提交设置
               </Link>

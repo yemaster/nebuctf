@@ -102,7 +102,6 @@ export function SiteHeader({
         ...(access.scoreboard
           ? [{ to: `${base}/scoreboard`, name: "排行榜" }]
           : []),
-        ...(access.spectate ? [{ to: `${base}/spectate`, name: "观战" }] : []),
         ...(contest.data?.writeup_access
           ? [{ to: `${base}/writeup`, name: "WriteUp" }]
           : []),
@@ -114,20 +113,13 @@ export function SiteHeader({
     : primary;
   const management =
     contestId && user?.role === "admin"
-      ? [
-          { to: `${base}/manage/teams`, name: "报名战队" },
-          { to: `${base}/manage/activity`, name: "比赛动态" },
-          { to: `${base}/manage/integrity`, name: "作弊线索" },
-          { to: `${base}/manage/writeups`, name: "WriteUp 管理" },
-          {
-            to: `/admin/contests/${contestId}/edit?return=${encodeURIComponent(pathname + search)}`,
-            name: "比赛设置",
-          },
-        ]
+      ? [{ to: `${base}/manage/teams`, name: "管理" }]
       : [];
+  const managing = pathname.startsWith(`${base}/manage/`);
   const title = contestId ? (contest.data?.title ?? "比赛") : "NebuCTF";
   const active = (to: string) => {
     const path = to.split("?")[0];
+    if (path === `${base}/manage/teams`) return managing;
     return (
       pathname === path || (path !== base && pathname.startsWith(`${path}/`))
     );
@@ -242,29 +234,19 @@ export function SiteHeader({
             </Button>
           ))}
           {management.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className={navigationClass(
-                    management.some((m) => active(m.to)),
-                  )}
-                  data-nav-active={
-                    management.some((m) => active(m.to)) || undefined
-                  }
-                >
-                  管理
-                  <ChevronDown />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {management.map((m) => (
-                  <DropdownMenuItem key={m.to} asChild>
-                    <Link to={m.to}>{m.name}</Link>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button
+              variant="ghost"
+              asChild
+              className={navigationClass(managing)}
+            >
+              <Link
+                to={`${base}/manage/teams`}
+                data-nav-active={managing || undefined}
+                aria-current={managing ? "page" : undefined}
+              >
+                管理
+              </Link>
+            </Button>
           )}
           {!contestId && (
             <DropdownMenu>

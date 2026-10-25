@@ -110,6 +110,9 @@ function AppShell() {
     location.pathname === "/challenges" ||
     /^\/contests\/[^/]+\/challenges$/.test(location.pathname);
   const spectating = /^\/contests\/[^/]+\/spectate$/.test(location.pathname);
+  const contestManaging = /^\/contests\/[^/]+\/manage(?:\/|$)/.test(
+    location.pathname,
+  );
   const adminPage =
     location.pathname === "/admin" || location.pathname.startsWith("/admin/");
   const authPage = ["/login", "/register"].includes(location.pathname);
@@ -146,7 +149,13 @@ function AppShell() {
             >
               <m.div
                 key={
-                  adminPage ? "admin" : authPage ? "auth" : location.pathname
+                  adminPage
+                    ? "admin"
+                    : contestManaging
+                      ? `contest-manage:${contestId}`
+                      : authPage
+                        ? "auth"
+                        : location.pathname
                 }
                 initial={instant ? false : { opacity: 0, y: transition.y }}
                 animate={{ opacity: 1, y: 0 }}
@@ -161,7 +170,7 @@ function AppShell() {
                   duration: instant ? 0 : transition.duration,
                   ease: "easeOut",
                 }}
-                className={`h-full min-h-0 bg-background ${adminPage || spectating ? "overflow-hidden" : workbench || authPage ? "overflow-y-auto lg:overflow-hidden" : "overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8"}`}
+                className={`h-full min-h-0 bg-background ${adminPage || spectating || contestManaging ? "overflow-hidden" : workbench || authPage ? "overflow-y-auto lg:overflow-hidden" : "overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8"}`}
               >
                 <m.div
                   initial={false}
@@ -178,7 +187,11 @@ function AppShell() {
                   style={{ visibility: expanding ? "hidden" : undefined }}
                   data-card-content={expanding ? "waiting" : "visible"}
                   className={
-                    workbench || authPage || adminPage || spectating
+                    workbench ||
+                    authPage ||
+                    adminPage ||
+                    spectating ||
+                    contestManaging
                       ? "h-full min-h-0"
                       : "mx-auto min-h-full w-full max-w-[1600px]"
                   }
@@ -265,8 +278,10 @@ function AppShell() {
               )}
             </AnimatePresence>
           </main>
-          {!spectating && <SiteFooter contestId={contestId} user={user} />}
-          {contestId && !spectating && (
+          {!spectating && !contestManaging && (
+            <SiteFooter contestId={contestId} user={user} />
+          )}
+          {contestId && !spectating && !contestManaging && (
             <ContestActivity
               scope={contestId}
               user={user}

@@ -255,7 +255,7 @@ test(
             button("收起 审核战队 的成员")!.getAttribute("aria-expanded"),
             "true",
           );
-          assert.match(host.textContent!, /2026/);
+          assert.match(host.textContent!, /01\/15/);
           await click(button("收起 审核战队 的成员"));
           assert.equal(
             host.textContent!.includes("captain@example.test"),
@@ -284,17 +284,23 @@ test(
         async () => {
           const origin = `/contests/${id}/manage/teams?status=pending`;
           await mount(origin);
-          await settle(() => !!button("管理"));
-          await act(async () => {
-            button("管理")!.dispatchEvent(
-              new dom.window.MouseEvent("pointerdown", {
-                bubbles: true,
-                button: 0,
-              }),
-            );
-          });
-          await settle(() => !!document.querySelector('[role="menu"]'));
-          const settings = [...document.querySelectorAll("a")].find(
+          await settle(
+            () => !!host.querySelector('[aria-label="比赛管理导航"]'),
+          );
+          assert.equal(button("管理"), undefined);
+          assert.ok(
+            [...host.querySelectorAll("header a")].some(
+              (a) => a.textContent === "管理",
+            ),
+          );
+          assert.equal(
+            [...host.querySelectorAll("header a")].some(
+              (a) => a.textContent === "观战",
+            ),
+            false,
+          );
+          const sidebar = host.querySelector('[aria-label="比赛管理导航"]');
+          const settings = [...sidebar!.querySelectorAll("a")].find(
             (a) => a.textContent === "比赛设置",
           );
           assert.ok(settings);
@@ -307,6 +313,11 @@ test(
           );
           await click(settings);
           await settle(() => !!host.querySelector('a[aria-label="返回比赛"]'));
+          assert.equal(
+            host.querySelector('[aria-label="比赛管理导航"]'),
+            sidebar,
+            "sidebar persists when switching to settings",
+          );
           assert.equal(
             host
               .querySelector('a[aria-label="返回比赛"]')!

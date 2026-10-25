@@ -1,5 +1,5 @@
 import { ContestForm } from "@/components/admin/contest-form";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { Pencil, Upload, Users } from "lucide-react";
 import { toast } from "sonner";
 import { api, useAction, useAPI } from "@/lib/api";
@@ -154,7 +154,13 @@ export function ContestAdmin() {
 export function ContestEditor() {
   const { id } = useParams(),
     navigate = useNavigate(),
-    back = useEditorReturn("/admin/contests", id);
+    location = useLocation(),
+    back = useEditorReturn(
+      location.pathname.startsWith("/contests/")
+        ? `/contests/${id}/manage/teams`
+        : "/admin/contests",
+      id,
+    );
   const data = useAPI<Contest>(`/admin/contests/${id}`, !!id);
   const save = useAction(
     async (body: Record<string, unknown>) => {
