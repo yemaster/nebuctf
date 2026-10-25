@@ -95,11 +95,14 @@ export function SiteHeader({
           ? [
               {
                 to: arenaPaths[contestId] ?? `${base}/challenges`,
-                name: "赛题",
+                name: access.practice ? "赛后练习" : "赛题",
               },
             ]
           : []),
-        { to: `${base}/scoreboard`, name: "排行榜" },
+        ...(access.scoreboard
+          ? [{ to: `${base}/scoreboard`, name: "排行榜" }]
+          : []),
+        ...(access.spectate ? [{ to: `${base}/spectate`, name: "观战" }] : []),
         ...(contest.data?.writeup_access
           ? [{ to: `${base}/writeup`, name: "WriteUp" }]
           : []),

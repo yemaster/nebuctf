@@ -27,6 +27,7 @@ export interface ChallengePart {
   solved: boolean;
 }
 export interface Challenge {
+  contest_practice?: boolean;
   permissions?: import("./group-permissions").GroupPermissions;
   challenge_type?: QuestionType;
   flag_mode?: "static" | "dynamic";
@@ -93,6 +94,15 @@ export interface ContestGroup {
   rank_overall?: boolean;
 }
 export interface Contest {
+  practice_mode?: boolean;
+  practice_active?: boolean;
+  spectator_enabled?: boolean;
+  spectator_scoreboard?: boolean;
+  viewer_role?: "spectator" | "participant" | "staff";
+  registration_mode?: "public" | "invite" | "teams";
+  registration_team_ids?: string[];
+  registration_code_set?: boolean;
+  eligible_team_ids?: string[] | null;
   writeup?: Partial<import("./writeups").WriteupConfig>;
   writeup_access?: boolean;
   require_review?: boolean;
@@ -112,6 +122,7 @@ export interface Contest {
   groups: ContestGroup[];
   registration: {
     team_id: string;
+    practice_only?: boolean;
     group_id: string | null;
     status?: "pending" | "accepted" | "rejected" | "suspended";
     review_note?: string;
@@ -146,6 +157,7 @@ export interface Announcement {
   created_at: string;
 }
 export interface Submission {
+  contest_practice?: boolean;
   part_title?: string | null;
   id: string;
   username?: string;

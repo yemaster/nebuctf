@@ -170,7 +170,14 @@ export function MonitorList({
                 <TableCell className="whitespace-nowrap text-muted-foreground">
                   {date(r.created_at)}
                 </TableCell>
-                <TableCell>{eventNames[r.type]}</TableCell>
+                <TableCell>
+                  {eventNames[r.type]}
+                  {r.contest_practice && (
+                    <Badge variant="secondary" className="ml-2">
+                      赛后练习
+                    </Badge>
+                  )}
+                </TableCell>
                 <TableCell>
                   {r.challenge_title ?? "—"}
                   {r.part_title && (

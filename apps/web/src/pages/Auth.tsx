@@ -25,6 +25,7 @@ import { TableRow, TableCell } from "@/components/ui/table";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useUser } from "@/App";
 import { api, useAction, useAPI, client } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
 import type { Submission } from "@/lib/types";
 import { date, safeLocalPath } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -294,6 +295,11 @@ export function Account() {
               <TableRow key={s.id}>
                 <TableCell>
                   {s.title}
+                  {s.contest_practice && (
+                    <Badge variant="secondary" className="ml-2">
+                      赛后练习
+                    </Badge>
+                  )}
                   {s.part_title && (
                     <span className="ml-3 text-muted-foreground">
                       {s.part_title}

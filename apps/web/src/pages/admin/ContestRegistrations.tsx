@@ -39,6 +39,7 @@ import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import type { Contest } from "@/lib/types";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import {
   useBase,
   ReviewBadge,
@@ -213,6 +214,9 @@ export function Registrations() {
                         {r.name}
                       </Button>
                     </CollapsibleTrigger>
+                    {r.practice_only && (
+                      <Badge variant="secondary">赛后练习</Badge>
+                    )}
                   </TableCell>
                   <TableCell>{r.captain}</TableCell>
                   <TableCell>{r.member_count}</TableCell>

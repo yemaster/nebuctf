@@ -424,7 +424,14 @@ export function LogAdmin({ audit = false }: { audit?: boolean }) {
         {data.data?.items.map((r) => (
           <TableRow key={r.id}>
             <TableCell>{r.username}</TableCell>
-            <TableCell>{audit ? r.action : r.title}</TableCell>
+            <TableCell>
+              {audit ? r.action : r.title}
+              {!audit && r.contest_practice && (
+                <Badge variant="secondary" className="ml-2">
+                  赛后练习
+                </Badge>
+              )}
+            </TableCell>
             <TableCell className="text-xs text-muted-foreground">
               {audit ? r.target : r.correct ? "正确" : "错误"}
             </TableCell>

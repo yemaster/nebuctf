@@ -13,6 +13,7 @@ export const integrityStatuses = {
 };
 export type ReviewStatus = keyof typeof statuses;
 export type Registration = {
+  practice_only?: boolean;
   team_id: string;
   name: string;
   captain: string;
@@ -58,6 +59,7 @@ export type Activity = {
   challenge_title: string | null;
   part_title: string | null;
   correct: boolean | null;
+  contest_practice?: boolean;
   detail: string | null;
 };
 export function useBase() {

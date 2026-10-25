@@ -8,13 +8,28 @@ export function contestCapabilities(
   now = Date.now(),
 ) {
   const registered = !!user && !!contest?.registered;
+  const staff = user?.role === "admin";
   const preview = user?.role === "admin" && !contest?.registration;
   const active =
     !!contest &&
     Date.parse(contest.starts_at) <= now &&
     now < Date.parse(contest.ends_at);
+  const practice =
+    !!contest?.practice_mode && now >= Date.parse(contest.ends_at);
   return {
-    challenges: active && (registered || preview),
+    role: staff
+      ? ("staff" as const)
+      : registered
+        ? ("participant" as const)
+        : ("spectator" as const),
+    practice,
+    scoreboard:
+      !!contest &&
+      (staff || registered || contest.spectator_scoreboard !== false),
+    spectate:
+      !!contest &&
+      (staff || (contest.published && contest.spectator_enabled !== false)),
+    challenges: (active || practice) && (registered || preview),
     instances: registered,
     activity:
       !!contest &&

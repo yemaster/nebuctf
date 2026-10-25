@@ -153,6 +153,21 @@ test(
           total: items.length,
         };
       }
+      if (path.includes("/admin/teams")) {
+        const params = new URL(path, "http://localhost").searchParams;
+        const teams = [
+          { id: "team-a", name: "Alpha", captain: "alice", members: 3 },
+          { id: "team-b", name: "Beta", captain: "bob", members: 2 },
+        ];
+        data = {
+          items: teams.filter(
+            (team) =>
+              !params.has("ids") ||
+              params.get("ids")!.split(",").includes(team.id),
+          ),
+          total: teams.length,
+        };
+      }
       if (path.includes("/answer")) {
         if (body)
           answer = {
@@ -458,6 +473,74 @@ test(
           );
           assert.equal(saved.timing.objective.duration_seconds, 1800);
           assert.equal(ctf.initial_points, 100);
+        },
+      );
+      await t.test(
+        "access settings preserve independent spectator switches, invitation codes and selected teams across tabs",
+        async () => {
+          saved = undefined;
+          await mount(
+            <ContestForm
+              contest={
+                {
+                  title: "Access",
+                  description: "",
+                  starts_at: new Date(Date.now() + 3600000).toISOString(),
+                  ends_at: new Date(Date.now() + 7200000).toISOString(),
+                  team_limit: 4,
+                  groups: [],
+                  challenge_ids: [],
+                } as any
+              }
+              pending={false}
+              save={(v) => {
+                saved = v;
+              }}
+            />,
+          );
+          await tab("访问与报名");
+          const toggle = (name: string) =>
+            host()
+              .querySelector(`input[name="${name}"]`)!
+              .closest("label")!
+              .querySelector<HTMLButtonElement>("button")!;
+          assert.equal(
+            toggle("spectator_enabled").getAttribute("data-state"),
+            "checked",
+          );
+          await click(toggle("spectator_scoreboard"));
+          await click(toggle("practice_mode"));
+          await click(toggle("require_review"));
+          await click(host().querySelector('[role="radio"][value="invite"]')!);
+          await tab("基本信息");
+          await click(button("保存比赛"));
+          assert.equal(saved, undefined);
+          assert.equal(
+            host().querySelector('[role="tab"][aria-selected="true"]')!
+              .textContent,
+            "访问与报名",
+          );
+          await change(
+            host().querySelector('[name="registration_code"]')!,
+            "invite-123",
+          );
+          await tab("报名分组");
+          await click(button("保存比赛"));
+          assert.equal(saved.spectator_enabled, true);
+          assert.equal(saved.spectator_scoreboard, false);
+          assert.equal(saved.practice_mode, true);
+          assert.equal(saved.require_review, true);
+          assert.equal(saved.registration_mode, "invite");
+          assert.equal(saved.registration_code, "invite-123");
+          await tab("访问与报名");
+          await click(host().querySelector('[role="radio"][value="teams"]')!);
+          await settle(() => !!button("添加"));
+          await click(button("添加"));
+          await tab("基本信息");
+          await click(button("保存比赛"));
+          assert.equal(saved.registration_mode, "teams");
+          assert.deepEqual(saved.registration_team_ids, ["team-a"]);
+          assert.equal(saved.registration_code, "");
         },
       );
       await t.test(

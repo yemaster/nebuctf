@@ -18,6 +18,7 @@ import { ActionError } from "./action-error";
 import { FlagFeedback } from "./flag-feedback";
 type Answer = { choices?: string[]; blanks?: Record<string, string> };
 type Saved = {
+  practice?: boolean;
   answer: Answer;
   correct: boolean | null;
   finalized_at: string | null;
@@ -47,7 +48,9 @@ export function ObjectiveAnswer({
     }
   }, [query.data]);
   const saved = feedback ?? query.data,
-    locked = readOnly || (!!saved?.finalized_at && scope !== "practice");
+    locked =
+      readOnly ||
+      (!!saved?.finalized_at && scope !== "practice" && !saved.practice);
   const submit = useAction(
     async (finalize: boolean) => {
       const result = await api<Saved>(`/challenges/${id}/answer`, "POST", {
@@ -166,7 +169,9 @@ export function ObjectiveAnswer({
           <Button
             disabled={!complete || submit.isPending || query.isLoading}
             onClick={() =>
-              scope === "practice" ? submit.mutate(true) : setConfirm(true)
+              scope === "practice" || saved?.practice
+                ? submit.mutate(true)
+                : setConfirm(true)
             }
           >
             {submit.isPending ? "提交中" : "提交答案"}

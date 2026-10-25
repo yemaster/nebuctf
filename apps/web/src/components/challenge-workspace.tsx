@@ -122,7 +122,11 @@ export function ChallengeWorkspace({
               <span>{c.difficulty}</span>
               <span>{c.points} 分</span>
               <span>{c.solves} 人全部解出</span>
-              {!permissions.score && <span>本组作答不计分</span>}
+              {!permissions.score && (
+                <span>
+                  {c.contest_practice ? "赛后练习" : "本组作答不计分"}
+                </span>
+              )}
               {completed && (
                 <span className="flex items-center gap-2 text-success">
                   <CheckCircle2 className="size-4" />
@@ -137,15 +141,22 @@ export function ChallengeWorkspace({
           >
             <Markdown>{c.description || "暂无题面"}</Markdown>
           </section>
-          {c.scoring_mode === "round" && c.challenge_type !== "awd" && user && (
-            <RoundProgress
-              id={id}
-              scope={scope}
-              carry={c.round?.carry !== false}
-            />
-          )}
+          {c.scoring_mode === "round" &&
+            (c.challenge_type !== "awd" || c.contest_practice) &&
+            user && (
+              <RoundProgress
+                id={id}
+                scope={scope}
+                carry={c.round?.carry !== false}
+              />
+            )}
           {permissions.resources && (
             <QuestionResources challenge={c} scope={scope} />
+          )}
+          {c.contest_practice && c.challenge_type === "awd" && (
+            <p className="text-sm text-muted-foreground">
+              对抗已结束，可查看题面和历史轮次。
+            </p>
           )}
           {c.challenge_type === "awd" && user && permissions.resources && (
             <AwdArena id={id} scope={scope} />
@@ -248,7 +259,9 @@ export function ChallengeWorkspace({
                 />
               ) : !permissions.submit ? (
                 <p className="text-sm text-muted-foreground">
-                  本组可查看此题，暂不开放作答。
+                  {c.contest_practice && c.challenge_type === "awd"
+                    ? ""
+                    : "本组可查看此题，暂不开放作答。"}
                 </p>
               ) : user ? (
                 <form

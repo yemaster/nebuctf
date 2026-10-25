@@ -42,6 +42,7 @@ export default defineConfig({
       output: {
         onlyExplicitManualChunks: true,
         manualChunks(id) {
+          if (id.includes("/node_modules/three/")) return "spectator-3d";
           if (/\/node_modules\/(es-toolkit|tiny-invariant)\//.test(id))
             return "shared-utils";
           if (/\/node_modules\/(react-pdf|pdfjs-dist)\//.test(id))

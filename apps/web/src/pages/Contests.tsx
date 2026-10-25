@@ -3,7 +3,8 @@ import { Scoreboard } from "./Scoreboard";
 export { Scoreboard } from "./Scoreboard";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useState, type ReactNode } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, MonitorPlay } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { useUser } from "@/App";
 import { api, useAction, useAPI } from "@/lib/api";
 import type { Contest, TeamSummary } from "@/lib/types";
@@ -124,7 +125,8 @@ export function ContestDetail() {
     user = useUser(),
     [open, setOpen] = useState(false),
     [team, setTeam] = useState(""),
-    [group, setGroup] = useState("");
+    [group, setGroup] = useState(""),
+    [invite, setInvite] = useState("");
   const data = useAPI<Contest>(`/contests/${id}`),
     teams = useAPI<{ items: TeamSummary[] }>("/teams/mine", !!user);
   const access = useContestCapabilities(data.data, user);
@@ -133,13 +135,19 @@ export function ContestDetail() {
       api(`/contests/${id}/register`, "POST", {
         team_id: team,
         group_id: group || null,
+        invite_code: invite,
       }),
     () => setOpen(false),
   );
   const unregister = useAction(() => api(`/contests/${id}/unregister`, "POST"));
   const c = data.data,
     captained =
-      teams.data?.items.filter((t) => t.captain_id === user?.id) ?? [];
+      teams.data?.items.filter(
+        (t) =>
+          t.captain_id === user?.id &&
+          (c?.registration_mode !== "teams" ||
+            c.eligible_team_ids?.includes(t.id)),
+      ) ?? [];
   if (data.error || data.isLoading)
     return (
       <QueryState
@@ -178,6 +186,9 @@ export function ContestDetail() {
                         {c.title}
                       </h1>
                       <ContestStatusBadge contest={c} />
+                      {access.practice && (
+                        <Badge variant="secondary">练习开放</Badge>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent className="px-6 sm:px-8">
@@ -225,6 +236,16 @@ export function ContestDetail() {
                           支战队已报名
                         </span>
                       </dd>
+                      <dt className="text-muted-foreground">报名范围</dt>
+                      <dd>
+                        {
+                          {
+                            public: "公开报名",
+                            invite: "邀请码报名",
+                            teams: "指定战队",
+                          }[c.registration_mode ?? "public"]
+                        }
+                      </dd>
                     </dl>
                   </CardContent>
                 </div>
@@ -238,7 +259,9 @@ export function ContestDetail() {
                     className={`text-sm ${c.registered ? "text-success" : "text-muted-foreground"}`}
                   >
                     {c.registered
-                      ? "已报名"
+                      ? c.registration?.practice_only
+                        ? "练习报名已通过"
+                        : "已报名"
                       : c.registration?.status &&
                           c.registration.status !== "accepted"
                         ? (
@@ -250,9 +273,9 @@ export function ContestDetail() {
                           )[c.registration.status]
                         : access.challenges
                           ? "管理员预览"
-                          : !user
-                            ? "未登录"
-                            : "未报名"}
+                          : user?.role === "admin"
+                            ? "管理人员"
+                            : "观战者"}
                   </p>
                   {c.registration && (
                     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
@@ -271,14 +294,26 @@ export function ContestDetail() {
                   )}
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">
+                  {access.spectate && (
+                    <Button variant="secondary" asChild>
+                      <Link to={`/contests/${id}/spectate`}>
+                        <MonitorPlay />
+                        观战
+                      </Link>
+                    </Button>
+                  )}
                   {access.challenges ? (
                     <Button asChild>
                       <Link to={`/contests/${id}/challenges`}>
-                        {c.registered ? "进入赛场" : "预览赛题"}
+                        {access.practice
+                          ? "进入练习"
+                          : c.registered
+                            ? "进入赛场"
+                            : "预览赛题"}
                         <ArrowRight />
                       </Link>
                     </Button>
-                  ) : contestStatus(c) === "已结束" ? (
+                  ) : contestStatus(c) === "已结束" && !access.practice ? (
                     <Button variant="secondary" disabled>
                       比赛已结束
                     </Button>
@@ -327,8 +362,9 @@ export function ContestDetail() {
                   ) : (
                     <Button
                       disabled={
-                        c.groups.length > 0 &&
-                        c.groups.every((g) => g.joinable === false)
+                        (c.groups.length > 0 &&
+                          c.groups.every((g) => g.joinable === false)) ||
+                        (c.registration_mode === "teams" && !captained.length)
                       }
                       onClick={() => {
                         setTeam(captained[0]?.id ?? "");
@@ -338,18 +374,27 @@ export function ContestDetail() {
                         setOpen(true);
                       }}
                     >
-                      {c.groups.length > 0 &&
-                      c.groups.every((g) => g.joinable === false)
-                        ? "组别报名已关闭"
-                        : c.registration?.status === "rejected"
-                          ? "重新报名"
-                          : "战队报名"}
+                      {c.registration_mode === "teams" && !captained.length
+                        ? "仅限指定战队"
+                        : c.groups.length > 0 &&
+                            c.groups.every((g) => g.joinable === false)
+                          ? "组别报名已关闭"
+                          : c.registration?.status === "rejected"
+                            ? "重新报名"
+                            : access.practice
+                              ? "报名练习"
+                              : "战队报名"}
                     </Button>
                   )}
                 </div>
               </CardFooter>
             </Card>
-            {c.registered && <ContestTiming id={c.id} />}
+            {c.registered && !access.practice && <ContestTiming id={c.id} />}
+            {access.practice && (
+              <p className="text-sm text-muted-foreground">
+                赛后练习不计入正式排名，报名仍遵守本场组别与审核规则。
+              </p>
+            )}
             {c.writeup_access && (
               <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-muted/40 px-5 py-4">
                 <div className="space-y-1">
@@ -405,7 +450,9 @@ export function ContestDetail() {
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogContent aria-describedby={undefined}>
-              <DialogTitle>比赛报名</DialogTitle>
+              <DialogTitle>
+                {access.practice ? "练习报名" : "比赛报名"}
+              </DialogTitle>
               <QueryState
                 loading={teams.isLoading}
                 error={teams.error}
@@ -434,6 +481,20 @@ export function ContestDetail() {
                         ))}
                       </NativeSelect>
                     </Field>
+                    {c.registration_mode === "invite" && (
+                      <Field label="报名邀请码">
+                        <Input
+                          name="invite_code"
+                          type="password"
+                          autoComplete="off"
+                          required
+                          minLength={6}
+                          maxLength={128}
+                          value={invite}
+                          onChange={(e) => setInvite(e.target.value)}
+                        />
+                      </Field>
+                    )}
                     {c.groups.length > 0 && (
                       <Field label="参赛组别">
                         <NativeSelect
@@ -500,7 +561,7 @@ function ContestAccess({
   section,
   children,
 }: {
-  section: "challenges" | "instances";
+  section: "challenges" | "instances" | "scoreboard";
   children: ReactNode;
 }) {
   const { id } = useParams(),
@@ -529,7 +590,11 @@ export function ContestArena() {
 }
 export function ContestBoard() {
   const { id } = useParams();
-  return <Scoreboard scope={id} />;
+  return (
+    <ContestAccess section="scoreboard">
+      <Scoreboard scope={id} />
+    </ContestAccess>
+  );
 }
 export function ContestAnnouncements() {
   const { id } = useParams();

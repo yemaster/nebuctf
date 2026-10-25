@@ -1,3 +1,4 @@
+import { ContestAccessSettings } from "./contest-access-settings";
 import { useSearchParams } from "react-router-dom";
 import { ContestPosterEditor } from "./contest-poster-editor";
 import { WriteupSettings } from "./writeup-settings";
@@ -28,6 +29,9 @@ export function ContestForm({
   const [params] = useSearchParams();
   const [section, setSection] = useState(
     params.get("section") === "writeup" ? "writeup" : "content",
+  );
+  const [allowedTeams, setAllowedTeams] = useState(
+    c?.registration_team_ids ?? [],
   );
   const [selected, setSelected] = useState(c?.challenge_ids ?? []);
   const [settings, setSettings] = useState<ContestQuestion[]>(
@@ -70,6 +74,12 @@ export function ContestForm({
           team_limit: Number(f.get("team_limit")),
           published: f.has("published"),
           require_review: f.has("require_review"),
+          practice_mode: f.has("practice_mode"),
+          spectator_enabled: f.has("spectator_enabled"),
+          spectator_scoreboard: f.has("spectator_scoreboard"),
+          registration_mode: f.get("registration_mode"),
+          registration_code: f.get("registration_code") ?? "",
+          registration_team_ids: allowedTeams,
           challenge_ids: selected,
           challenge_settings: settings.filter((s) =>
             selected.includes(s.challenge_id),
@@ -91,6 +101,7 @@ export function ContestForm({
             <TabsTrigger value="writeup">WriteUp 提交</TabsTrigger>
             <TabsTrigger value="challenges">赛题设置</TabsTrigger>
             <TabsTrigger value="timing">时间规则</TabsTrigger>
+            <TabsTrigger value="access">访问与报名</TabsTrigger>
             <TabsTrigger value="registration">报名分组</TabsTrigger>
           </TabsList>
         </div>
@@ -195,18 +206,21 @@ export function ContestForm({
                 />
               </Field>
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <Switch
-                name="require_review"
-                defaultChecked={c?.require_review}
-              />
-              所有报名均需审核
-            </label>
             <GroupsEditor
               initial={c?.groups}
               challengeIds={selected}
               started={started}
               registered={(c?.teams ?? 0) > 0}
+            />
+          </fieldset>
+        </ConfigPanel>
+        <ConfigPanel value="access" active={section}>
+          <fieldset disabled={pending} className="min-w-0 max-w-4xl">
+            <legend className="sr-only">访问与报名</legend>
+            <ContestAccessSettings
+              contest={c}
+              teams={allowedTeams}
+              onTeamsChange={setAllowedTeams}
             />
           </fieldset>
         </ConfigPanel>
