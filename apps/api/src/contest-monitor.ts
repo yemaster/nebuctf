@@ -127,7 +127,7 @@ export function contestMonitorRoutes(app: FastifyInstance, db: DB) {
       page_size: 10,
       total: count!.total,
       items: await db.query(
-        `SELECT e.*,t.name team_name,t.id team_id,u.username,c.title challenge_title,p.title part_title ${from} ORDER BY e.created_at DESC,e.id DESC LIMIT 10 OFFSET $5`,
+        `SELECT e.*,coalesce((SELECT s.contest_practice FROM submissions s WHERE s.id=e.id),false) contest_practice,t.name team_name,t.id team_id,u.username,c.title challenge_title,p.title part_title ${from} ORDER BY e.created_at DESC,e.id DESC LIMIT 10 OFFSET $5`,
         [...params, (p.page - 1) * 10],
       ),
     };

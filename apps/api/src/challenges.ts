@@ -1,3 +1,4 @@
+import { contestCutoff, isContestPractice } from "./contest-practice.js";
 import { recordFlagAnomaly } from "./contest-monitor.js";
 import { notifyContest } from "./activity-events.js";
 import { creditSolve } from "./solve.js";
@@ -21,12 +22,7 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
   app.get("/api/challenges", async (req) => {
     const p = page.parse(req.query);
     const contest = await contestAccess(db, p.scope, req.user ?? undefined);
-    const cutoff =
-      contest?.freeze_at &&
-      new Date(contest.freeze_at).getTime() <= Date.now() &&
-      new Date(contest.ends_at).getTime() > Date.now()
-        ? contest.freeze_at
-        : new Date();
+    const cutoff = contestCutoff(contest);
     if (!req.user && p.scope !== "practice") fail(401, "请先登录");
     const owner = await progressOwnerFor(db, p.scope, req.user ?? undefined);
     const phases = contest && owner ? await teamPhases(db, contest, owner) : [];
@@ -44,18 +40,25 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
       await visibleChallengeIds(db, p.scope, req.user ?? undefined),
     ];
     const rows = await db.query(
-      `SELECT c.*,count(*) OVER()::int total,(SELECT count(*)::int FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.created_at<=$6) solves,EXISTS(SELECT 1 FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.owner_key=$4) solved FROM challenges c WHERE c.published AND (($1='practice' AND c.practice) OR EXISTS(SELECT 1 FROM contest_challenges cc WHERE cc.challenge_id=c.id AND cc.contest_id::text=$1 AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()) AND ($4='' OR CASE WHEN c.challenge_type='objective' THEN 'objective' ELSE 'practical' END=ANY($7::text[])))) AND ($8::uuid[] IS NULL OR c.id=ANY($8::uuid[])) AND ($2='' OR c.title ILIKE '%'||$2||'%') AND ($3='' OR c.category=$3) ORDER BY c.created_at,c.id LIMIT 24 OFFSET $5`,
+      `SELECT c.*,count(*) OVER()::int total,(SELECT count(*)::int FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.created_at<=$6 AND NOT s.contest_practice) solves,EXISTS(SELECT 1 FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.owner_key=$4) solved FROM challenges c WHERE c.published AND (($1='practice' AND c.practice) OR EXISTS(SELECT 1 FROM contest_challenges cc WHERE cc.challenge_id=c.id AND cc.contest_id::text=$1 AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()) AND ($4='' OR CASE WHEN c.challenge_type='objective' THEN 'objective' ELSE 'practical' END=ANY($7::text[])))) AND ($8::uuid[] IS NULL OR c.id=ANY($8::uuid[])) AND ($2='' OR c.title ILIKE '%'||$2||'%') AND ($3='' OR c.category=$3) ORDER BY c.created_at,c.id LIMIT 24 OFFSET $5`,
       args,
     );
     return {
-      items: (await challengeProgress(db, rows, p.scope, owner, cutoff)).map(
-        (c) => ({
-          ...c,
-          description: undefined,
-          hints: undefined,
-          parts: c.parts.map((p) => ({ ...p, description: undefined })),
-        }),
-      ),
+      items: (
+        await challengeProgress(
+          db,
+          rows,
+          p.scope,
+          owner,
+          cutoff,
+          isContestPractice(contest),
+        )
+      ).map((c) => ({
+        ...c,
+        description: undefined,
+        hints: undefined,
+        parts: c.parts.map((p) => ({ ...p, description: undefined })),
+      })),
       total: rows[0]?.total ?? 0,
       page: p.page,
       phases,
@@ -66,12 +69,7 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
       scope = scopeSchema.parse((req.query as any).scope);
     const c = await challengeAccess(db, cid, scope, req.user ?? undefined);
     const contest = await contestAccess(db, scope, req.user ?? undefined);
-    const cutoff =
-      contest?.freeze_at &&
-      new Date(contest.freeze_at).getTime() <= Date.now() &&
-      new Date(contest.ends_at).getTime() > Date.now()
-        ? contest.freeze_at
-        : new Date();
+    const cutoff = contestCutoff(contest);
     const owner = await progressOwnerFor(db, scope, req.user ?? undefined);
     const [count] = await db.query(
       "SELECT coalesce(bool_or(owner_key=$3),false) solved FROM solves WHERE challenge_id=$1 AND scope=$2",
@@ -79,7 +77,7 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
       [cid, scope, owner],
     );
     const [visible] = await db.query(
-      "SELECT count(*)::int n FROM solves WHERE challenge_id=$1 AND scope=$2 AND created_at<=$3",
+      "SELECT count(*)::int n FROM solves WHERE challenge_id=$1 AND scope=$2 AND created_at<=$3 AND NOT contest_practice",
       [cid, scope, cutoff],
     );
     const attachments = await db.query(
@@ -92,6 +90,7 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
       scope,
       owner,
       cutoff,
+      isContestPractice(contest),
     );
     return { ...result, attachments };
   });
@@ -134,7 +133,7 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
       const correct = !!matched,
         submissionId = crypto.randomUUID();
       await tx.query(
-        "INSERT INTO submissions(id,user_id,challenge_id,scope,owner_key,correct,part_id) VALUES($1,$2,$3,$4,$5,$6,$7)",
+        "INSERT INTO submissions(id,user_id,challenge_id,scope,owner_key,correct,part_id,contest_practice) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
         [
           submissionId,
           u.id,
@@ -143,10 +142,11 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
           owner,
           correct,
           matched?.id ?? null,
+          !!c.contest_practice,
         ],
       );
       if (!matched) {
-        if (flagMode(c) === "dynamic")
+        if (flagMode(c) === "dynamic" && !c.contest_practice)
           await recordFlagAnomaly(
             tx,
             submissionId,
@@ -173,7 +173,7 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
     const p = page.parse(req.query);
     return {
       items: await db.query(
-        "SELECT s.id,c.title,s.correct,s.created_at,s.scope,p.title part_title FROM submissions s LEFT JOIN challenge_parts p ON p.id=s.part_id JOIN challenges c ON c.id=s.challenge_id WHERE s.user_id=$1 ORDER BY s.created_at DESC LIMIT 30 OFFSET $2",
+        "SELECT s.id,c.title,s.correct,s.created_at,s.scope,s.contest_practice,p.title part_title FROM submissions s LEFT JOIN challenge_parts p ON p.id=s.part_id JOIN challenges c ON c.id=s.challenge_id WHERE s.user_id=$1 ORDER BY s.created_at DESC LIMIT 30 OFFSET $2",
         [u.id, (p.page - 1) * 30],
       ),
     };

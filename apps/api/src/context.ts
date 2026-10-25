@@ -1,4 +1,5 @@
 import { requireAccepted } from "./registrations.js";
+import { isContestPractice } from "./contest-practice.js";
 import { effectivePoints } from "./competition-rules.js";
 import { questionWindow } from "./contest-timing.js";
 import { publicObjective, resourceProfiles } from "./challenge-model.js";
@@ -37,7 +38,8 @@ export async function contestAccess(
   if (
     active &&
     (new Date(contest!.starts_at).getTime() > Date.now() ||
-      new Date(contest!.ends_at).getTime() <= Date.now())
+      (new Date(contest!.ends_at).getTime() <= Date.now() &&
+        !isContestPractice(contest)))
   )
     fail(403, "比赛尚未开始或已经结束");
   return contest!;
@@ -115,6 +117,9 @@ export async function challengeAccess(
   requirePermission(permissions, "view");
   requirePermission(permissions, permission);
   const phase = await questionWindow(db, contest!, c!, owner);
+  const practice = isContestPractice(contest);
+  if (practice && c!.challenge_type === "awd" && permission !== "view")
+    fail(403, "AWD 对抗已结束，可查看题面和历史轮次");
   // Only an unregistered administrator gets a preview. Registered admins play by the same clock.
   if (active && owner && phase.status !== "active")
     fail(
@@ -130,6 +135,7 @@ export async function challengeAccess(
     ...effectivePoints(c!, link!.scoring),
     contest_scoring: link!.scoring,
     phase,
+    contest_practice: practice,
     permissions,
   };
 }
@@ -153,6 +159,7 @@ export const publicChallenge = (c: Row) => ({
       "hints",
       "created_at",
       "permissions",
+      "contest_practice",
     ].map((k) => [k, c[k]]),
   ),
   objective: c.objective ? publicObjective(c.objective) : null,
@@ -162,5 +169,8 @@ export const publicChallenge = (c: Row) => ({
       : null,
     attachment: !!resourceProfiles(c).attachment,
   },
-  round: c.contest_scoring?.mode === "round" ? c.contest_scoring.round : null,
+  round:
+    !c.contest_practice && c.contest_scoring?.mode === "round"
+      ? c.contest_scoring.round
+      : null,
 });

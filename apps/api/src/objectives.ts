@@ -16,10 +16,13 @@ export function objectiveRoutes(app: FastifyInstance, db: DB) {
     if (challenge.challenge_type !== "objective") fail(400, "此题不是客观题");
     const owner = await ownerFor(db, scope, user);
     const [answer] = await db.query(
-      "SELECT answer,finalized_at,correct FROM objective_answers WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3",
-      [cid, scope, owner],
+      "SELECT answer,finalized_at,correct FROM objective_answers WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3 AND contest_practice=$4",
+      [cid, scope, owner, !!challenge.contest_practice],
     );
-    return answer ?? { answer: {}, finalized_at: null, correct: null };
+    return {
+      ...(answer ?? { answer: {}, finalized_at: null, correct: null }),
+      practice: scope === "practice" || !!challenge.contest_practice,
+    };
   });
   app.post("/api/challenges/:id/answer", async (req) => {
     const user = requireUser(req),
@@ -48,10 +51,14 @@ export function objectiveRoutes(app: FastifyInstance, db: DB) {
         JSON.stringify([input.scope, cid, owner]),
       ]);
       const [old] = await tx.query(
-        "SELECT * FROM objective_answers WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3",
-        [cid, input.scope, owner],
+        "SELECT * FROM objective_answers WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3 AND contest_practice=$4",
+        [cid, input.scope, owner, !!challenge.contest_practice],
       );
-      if (old?.finalized_at && input.scope !== "practice")
+      if (
+        old?.finalized_at &&
+        input.scope !== "practice" &&
+        !challenge.contest_practice
+      )
         return {
           answer: old.answer,
           finalized_at: old.finalized_at,
@@ -62,7 +69,7 @@ export function objectiveRoutes(app: FastifyInstance, db: DB) {
           : null,
         finalized = input.finalize ? new Date() : null;
       const [saved] = await tx.query(
-        "INSERT INTO objective_answers(id,challenge_id,scope,owner_key,user_id,answer,correct,finalized_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(challenge_id,scope,owner_key) DO UPDATE SET answer=excluded.answer,user_id=excluded.user_id,correct=excluded.correct,finalized_at=excluded.finalized_at,updated_at=now() RETURNING answer,correct,finalized_at",
+        "INSERT INTO objective_answers(id,challenge_id,scope,owner_key,user_id,answer,correct,finalized_at,contest_practice) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(challenge_id,scope,owner_key,contest_practice) DO UPDATE SET answer=excluded.answer,user_id=excluded.user_id,correct=excluded.correct,finalized_at=excluded.finalized_at,updated_at=now() RETURNING answer,correct,finalized_at",
         [
           crypto.randomUUID(),
           cid,
@@ -72,17 +79,29 @@ export function objectiveRoutes(app: FastifyInstance, db: DB) {
           JSON.stringify(input.answer),
           correct,
           finalized,
+          !!challenge.contest_practice,
         ],
       );
       if (input.finalize) {
         await tx.query(
-          "INSERT INTO submissions(id,user_id,challenge_id,scope,owner_key,correct) VALUES($1,$2,$3,$4,$5,$6)",
-          [crypto.randomUUID(), user.id, cid, input.scope, owner, correct],
+          "INSERT INTO submissions(id,user_id,challenge_id,scope,owner_key,correct,contest_practice) VALUES($1,$2,$3,$4,$5,$6,$7)",
+          [
+            crypto.randomUUID(),
+            user.id,
+            cid,
+            input.scope,
+            owner,
+            correct,
+            !!challenge.contest_practice,
+          ],
         );
         if (correct)
           await creditSolve(tx, challenge, input.scope, owner, user.id);
       }
-      return saved;
+      return {
+        ...saved,
+        practice: input.scope === "practice" || !!challenge.contest_practice,
+      };
     });
   });
 }

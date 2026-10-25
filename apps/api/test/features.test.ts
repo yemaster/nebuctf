@@ -444,7 +444,9 @@ test("multi-part challenges, collections and contest workflow", async (t) => {
       assert.equal(board.items[0].score, 100);
       assert.equal(board.items[0].solves, 0);
       await db.query(
-        "UPDATE contests SET ends_at=now()-interval '1 second' WHERE id=$1",
+        // End after the latest submission; moving the deadline into its past would
+        // correctly exclude it from the final official score.
+        "UPDATE contests SET ends_at=now() WHERE id=$1",
         [contest],
       );
       assert.equal(

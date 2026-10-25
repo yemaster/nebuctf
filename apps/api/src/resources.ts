@@ -130,7 +130,7 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
       let maximum = new Date(
         Date.now() + (owner === "shared" ? 7 * 86400 : 4 * 3600) * 1000,
       );
-      if (scope !== "practice") {
+      if (scope !== "practice" && !challenge.contest_practice) {
         const [contest] = await tx.query(
           "SELECT ends_at FROM contests WHERE id=$1",
           [scope],

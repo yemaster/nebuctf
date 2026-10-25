@@ -1,4 +1,6 @@
 import { snapshotContestMembers } from "./writeup-config.js";
+import { isContestPractice } from "./contest-practice.js";
+import { publicContest, checkRegistrationScope } from "./contest-entry.js";
 import { registrationRoutes } from "./registrations.js";
 import { notifyContest } from "./activity-events.js";
 import { timingRoutes } from "./contest-timing.js";
@@ -10,7 +12,7 @@ import { audit, lock, type DB } from "./db.js";
 import { requireUser } from "./auth.js";
 import { contestAccess, getTeam } from "./context.js";
 import { id, page, scope as scopeSchema } from "./schemas.js";
-import { fail } from "./security.js";
+import { fail, rate } from "./security.js";
 import { effectivePermissions } from "./group-permissions.js";
 export function contestRoutes(app: FastifyInstance, db: DB) {
   registrationRoutes(app, db);
@@ -43,10 +45,12 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
     );
     return {
       total: count!.total,
-      items: await db.query(
-        `SELECT c.*,(SELECT count(*)::int FROM registrations r WHERE r.contest_id=c.id) teams FROM contests c WHERE ${condition} ORDER BY starts_at DESC,id LIMIT 24 OFFSET $3`,
-        [...values, (p.page - 1) * 24],
-      ),
+      items: (
+        await db.query(
+          `SELECT c.*,(SELECT count(*)::int FROM registrations r WHERE r.contest_id=c.id) teams FROM contests c WHERE ${condition} ORDER BY starts_at DESC,id LIMIT 24 OFFSET $3`,
+          [...values, (p.page - 1) * 24],
+        )
+      ).map((c) => publicContest(c)),
       page: p.page,
     };
   });
@@ -86,14 +90,30 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
     );
     const [registration] = req.user
       ? await db.query(
-          "SELECT r.team_id,r.group_id,r.status,r.review_note,r.reviewed_at,t.captain_id=$2 is_captain,t.name team_name,g.name group_name FROM registrations r JOIN teams t ON t.id=r.team_id JOIN memberships m ON m.team_id=t.id LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id=$1 AND m.user_id=$2 ORDER BY CASE WHEN r.status='accepted' THEN 0 WHEN r.status='suspended' THEN 1 WHEN r.status='pending' THEN 2 ELSE 3 END,r.created_at DESC LIMIT 1",
+          "SELECT r.team_id,r.group_id,r.status,r.practice_only,r.review_note,r.reviewed_at,t.captain_id=$2 is_captain,t.name team_name,g.name group_name FROM registrations r JOIN teams t ON t.id=r.team_id JOIN memberships m ON m.team_id=t.id LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id=$1 AND m.user_id=$2 ORDER BY CASE WHEN r.status='accepted' THEN 0 WHEN r.status='suspended' THEN 1 WHEN r.status='pending' THEN 2 ELSE 3 END,r.created_at DESC LIMIT 1",
           [cid, req.user.id],
         )
       : [];
     return {
-      ...c,
+      ...publicContest(c!),
+      eligible_team_ids:
+        c!.registration_mode === "teams" && req.user
+          ? (
+              await db.query(
+                "SELECT team_id FROM memberships WHERE user_id=$1 AND team_id=ANY($2::uuid[])",
+                [req.user.id, c!.registration_team_ids],
+              )
+            ).map((t) => t.team_id)
+          : null,
       teams: count!.teams,
       registered: registration?.status === "accepted",
+      viewer_role:
+        req.user?.role === "admin"
+          ? "staff"
+          : registration?.status === "accepted"
+            ? "participant"
+            : "spectator",
+      practice_active: isContestPractice(c),
       writeup_access:
         !!c!.writeup?.enabled &&
         !!req.user &&
@@ -113,13 +133,18 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
   app.post("/api/contests/:id/register", async (req) => {
     const u = requireUser(req),
       cid = id.parse((req.params as any).id);
+    await rate(db, `contest-register:${u.id}`, 10, 60);
     return db.transaction(async (tx) => {
       await lock(tx);
       const c = await contestAccess(tx, cid, u, false);
-      if (new Date(c!.ends_at).getTime() <= Date.now())
+      if (new Date(c!.ends_at).getTime() <= Date.now() && !isContestPractice(c))
         fail(403, "比赛已经结束");
       const selection = z
-        .object({ team_id: id.optional(), group_id: id.nullable().optional() })
+        .object({
+          team_id: id.optional(),
+          group_id: id.nullable().optional(),
+          invite_code: z.string().trim().max(128).optional(),
+        })
         .parse(req.body ?? {});
       const mine = await tx.query(
         "SELECT team_id FROM memberships WHERE user_id=$1",
@@ -141,6 +166,7 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
         "SELECT id,permissions FROM contest_groups WHERE contest_id=$1",
         [cid],
       );
+      checkRegistrationScope(c!, t!.id, selection.invite_code);
       if (groups.length && !groups.some((g) => g.id === selection.group_id))
         fail(400, "请选择有效组别");
       if (!groups.length && selection.group_id) fail(400, "此比赛没有该组别");
@@ -177,12 +203,13 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
         effectivePermissions(groups.find((g) => g.id === selection.group_id))
           .require_review;
       await tx.query(
-        "INSERT INTO registrations(contest_id,team_id,group_id,status,accepted_at) VALUES($1,$2,$3,$4,CASE WHEN $4='accepted' THEN now() ELSE NULL END) ON CONFLICT(contest_id,team_id) DO UPDATE SET group_id=$3,status=$4,created_at=now(),review_note='',reviewed_at=NULL,reviewed_by=NULL,accepted_at=CASE WHEN $4='accepted' THEN now() ELSE NULL END",
+        "INSERT INTO registrations(contest_id,team_id,group_id,status,accepted_at,practice_only) VALUES($1,$2,$3,$4,CASE WHEN $4='accepted' THEN now() ELSE NULL END,$5) ON CONFLICT(contest_id,team_id) DO UPDATE SET group_id=$3,status=$4,practice_only=$5,created_at=now(),review_note='',reviewed_at=NULL,reviewed_by=NULL,accepted_at=CASE WHEN $4='accepted' THEN now() ELSE NULL END",
         [
           cid,
           t!.id,
           selection.group_id ?? null,
           pending ? "pending" : "accepted",
+          isContestPractice(c),
         ],
       );
       if (!pending) await snapshotContestMembers(tx, cid, t!.id);

@@ -184,6 +184,17 @@ export const challengeInput = z
 export const contestInput = z
   .object({
     require_review: z.boolean().optional(),
+    practice_mode: z.boolean().optional(),
+    spectator_enabled: z.boolean().optional(),
+    spectator_scoreboard: z.boolean().optional(),
+    registration_mode: z.enum(["public", "invite", "teams"]).optional(),
+    registration_code: z
+      .string()
+      .trim()
+      .max(128)
+      .refine((v) => !v || v.length >= 6, "邀请码至少 6 位")
+      .optional(),
+    registration_team_ids: z.array(id).max(500).optional(),
     writeup: writeupInput.optional(),
     title: z.string().trim().min(1).max(120),
     description: z.string().max(10000).default(""),

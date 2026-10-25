@@ -1,4 +1,5 @@
 import { notifyContest } from "./activity-events.js";
+import { isContestPractice } from "./contest-practice.js";
 import type { DB, Row } from "./db.js";
 import { recordRoundSubmission } from "./rounds.js";
 import { ownerPermissions, requirePermission } from "./group-permissions.js";
@@ -15,6 +16,14 @@ export async function creditSolve(
   const permissions = await ownerPermissions(db, scope, owner, challenge.id);
   requirePermission(permissions, "view");
   requirePermission(permissions, "submit");
+  const [contest] =
+    scope === "practice"
+      ? []
+      : await db.query(
+          "SELECT practice_mode,ends_at FROM contests WHERE id=$1",
+          [scope],
+        );
+  const practice = challenge.contest_practice ?? isContestPractice(contest);
   const parts = await db.query(
     "SELECT id FROM challenge_parts WHERE challenge_id=$1",
     [challenge.id],
@@ -22,19 +31,29 @@ export async function creditSolve(
   let already = false;
   if (unit?.id) {
     const rows = await db.query(
-      "INSERT INTO part_solves(id,part_id,challenge_id,scope,owner_key,user_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING id",
-      [crypto.randomUUID(), unit.id, challenge.id, scope, owner, user],
+      "INSERT INTO part_solves(id,part_id,challenge_id,scope,owner_key,user_id,contest_practice) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING RETURNING id",
+      [
+        crypto.randomUUID(),
+        unit.id,
+        challenge.id,
+        scope,
+        owner,
+        user,
+        practice,
+      ],
     );
     already = !rows.length;
   }
-  const newRoundCredit = await recordRoundSubmission(
-    db,
-    challenge,
-    scope,
-    owner,
-    user,
-    unit?.id ?? challenge.id,
-  );
+  const newRoundCredit =
+    !practice &&
+    (await recordRoundSubmission(
+      db,
+      challenge,
+      scope,
+      owner,
+      user,
+      unit?.id ?? challenge.id,
+    ));
   const [progress] = await db.query(
     "SELECT count(*)::int n FROM part_solves WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3",
     [challenge.id, scope, owner],
@@ -42,8 +61,8 @@ export async function creditSolve(
   const completed = !parts.length || progress!.n === parts.length;
   if (completed) {
     const rows = await db.query(
-      "INSERT INTO solves(id,challenge_id,scope,owner_key,user_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING RETURNING id",
-      [crypto.randomUUID(), challenge.id, scope, owner, user],
+      "INSERT INTO solves(id,challenge_id,scope,owner_key,user_id,contest_practice) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING id",
+      [crypto.randomUUID(), challenge.id, scope, owner, user, practice],
     );
     if (!parts.length) already = !rows.length;
   }
@@ -51,6 +70,7 @@ export async function creditSolve(
   return {
     correct: true,
     already_solved:
+      !practice &&
       challenge.contest_scoring?.mode === "round" &&
       challenge.contest_scoring.round?.carry === false
         ? !newRoundCredit

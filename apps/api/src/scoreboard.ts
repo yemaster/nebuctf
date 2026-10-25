@@ -1,8 +1,10 @@
+import { requireScoreboardAccess } from "./contest-entry.js";
+import { contestCutoff } from "./contest-practice.js";
 import { permissionSQL, visibleChallengeIds } from "./group-permissions.js";
 import { z } from "zod";
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import type { DB } from "./db.js";
-import { contestAccess } from "./context.js";
+import { contestAccess, type User } from "./context.js";
 import { id, page } from "./schemas.js";
 import { fail } from "./security.js";
 
@@ -12,50 +14,38 @@ const query = page.extend({
   page_size: z.coerce.number().int().min(10).max(100).default(30),
 });
 
-export function scoreboardRoutes(app: FastifyInstance, db: DB) {
-  const read = async (req: FastifyRequest, detail = false) => {
-    const p = query.parse(
-      detail
-        ? {
-            ...(req.query as object),
-            participant: id.parse(
-              (req.params as { participant: string }).participant,
-            ),
-            page: 1,
-            q: "",
-          }
-        : req.query,
-    );
-    const contest = await contestAccess(
-      db,
-      p.scope,
-      req.user ?? undefined,
-      false,
-    );
-    const now = Date.now();
-    const started = !contest || new Date(contest.starts_at).getTime() <= now;
-    const frozen =
-      !!contest?.freeze_at &&
-      new Date(contest.freeze_at).getTime() <= now &&
-      new Date(contest.ends_at).getTime() > now;
-    const cutoff = new Date(
-      frozen ? new Date(contest!.freeze_at).getTime() : now,
-    ).toISOString();
-    if (
-      p.group &&
-      !(
-        await db.query(
-          "SELECT 1 FROM contest_groups WHERE id=$1 AND contest_id::text=$2",
-          [p.group, p.scope],
-        )
-      ).length
-    )
-      fail(400, "组别不存在");
-    // One statement gives totals, cells and timelines the same MVCC snapshot.
-    // Score units are flags: legacy whole-challenge solves and multi-part solves
-    // are mutually exclusive, so finishing a multi-part challenge never doubles its score.
-    const [result] = await db.query(
-      `WITH eligible AS (
+export async function readScoreboard(
+  db: DB,
+  input: unknown,
+  user?: User,
+  options: { detail?: boolean; spectator?: boolean } = {},
+) {
+  const p = query.parse(input);
+  const detail = options.detail ?? false;
+  const contest = await contestAccess(db, p.scope, user, false);
+  if (!options.spectator) await requireScoreboardAccess(db, contest, user);
+  const now = Date.now();
+  const started = !contest || new Date(contest.starts_at).getTime() <= now;
+  const frozen =
+    !!contest?.freeze_at &&
+    new Date(contest.freeze_at).getTime() <= now &&
+    new Date(contest.ends_at).getTime() > now;
+  const cutoff = contestCutoff(contest, now).toISOString();
+  if (
+    p.group &&
+    !(
+      await db.query(
+        "SELECT 1 FROM contest_groups WHERE id=$1 AND contest_id::text=$2",
+        [p.group, p.scope],
+      )
+    ).length
+  )
+    fail(400, "组别不存在");
+  // One statement gives totals, cells and timelines the same MVCC snapshot.
+  // Score units are flags: legacy whole-challenge solves and multi-part solves
+  // are mutually exclusive, so finishing a multi-part challenge never doubles its score.
+  const [result] = await db.query(
+    `WITH eligible AS (
       SELECT c.*,coalesce(cc.scoring,'{"mode":"inherit"}'::jsonb) scoring
       FROM challenges c LEFT JOIN contest_challenges cc ON cc.challenge_id=c.id AND cc.contest_id::text=$1
       WHERE c.published AND $7::boolean
@@ -75,10 +65,10 @@ export function scoreboardRoutes(app: FastifyInstance, db: DB) {
         CASE WHEN scoring->>'mode'='inherit' THEN dynamic_score ELSE scoring->>'mode'='dynamic' END dynamic_score,
         scoring->>'mode' mode FROM raw_units u
     ), events AS (
-      SELECT s.id,s.owner_key,s.challenge_id unit_id,s.created_at,s.user_id,${permissionSQL("g", "s.challenge_id", "score")} get_score,${permissionSQL("g", "s.challenge_id", "blood")} get_blood,${permissionSQL("g", "s.challenge_id", "dynamic")} affect_dynamic FROM solves s JOIN units u ON u.unit_id=s.challenge_id AND u.mode<>'round' LEFT JOIN accepted_registrations r ON r.contest_id::text=$1 AND 't:'||r.team_id=s.owner_key LEFT JOIN contest_groups g ON g.id=r.group_id
-      WHERE s.scope=$1 AND s.created_at<=$2 AND ($1='practice' OR r.team_id IS NOT NULL)
+      SELECT s.id,s.owner_key,s.challenge_id unit_id,s.created_at,s.user_id,${permissionSQL("g", "s.challenge_id", "score")} get_score,${permissionSQL("g", "s.challenge_id", "blood")} get_blood,${permissionSQL("g", "s.challenge_id", "dynamic")} affect_dynamic FROM solves s JOIN units u ON u.unit_id=s.challenge_id AND u.mode<>'round' LEFT JOIN ranked_registrations r ON r.contest_id::text=$1 AND 't:'||r.team_id=s.owner_key LEFT JOIN contest_groups g ON g.id=r.group_id
+      WHERE s.scope=$1 AND s.created_at<=$2 AND NOT s.contest_practice AND ($1='practice' OR r.team_id IS NOT NULL)
       UNION ALL
-      SELECT s.id,s.owner_key,s.part_id,s.created_at,s.user_id,${permissionSQL("g", "s.challenge_id", "score")},${permissionSQL("g", "s.challenge_id", "blood")},${permissionSQL("g", "s.challenge_id", "dynamic")} FROM part_solves s JOIN units u ON u.unit_id=s.part_id AND u.mode<>'round' LEFT JOIN accepted_registrations r ON r.contest_id::text=$1 AND 't:'||r.team_id=s.owner_key LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.scope=$1 AND s.created_at<=$2 AND ($1='practice' OR r.team_id IS NOT NULL)
+      SELECT s.id,s.owner_key,s.part_id,s.created_at,s.user_id,${permissionSQL("g", "s.challenge_id", "score")},${permissionSQL("g", "s.challenge_id", "blood")},${permissionSQL("g", "s.challenge_id", "dynamic")} FROM part_solves s JOIN units u ON u.unit_id=s.part_id AND u.mode<>'round' LEFT JOIN ranked_registrations r ON r.contest_id::text=$1 AND 't:'||r.team_id=s.owner_key LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.scope=$1 AND s.created_at<=$2 AND NOT s.contest_practice AND ($1='practice' OR r.team_id IS NOT NULL)
     ), counts AS (
       SELECT unit_id,count(*) FILTER(WHERE affect_dynamic)::numeric n FROM events GROUP BY unit_id
     ), unit_scores AS (
@@ -89,15 +79,15 @@ export function scoreboardRoutes(app: FastifyInstance, db: DB) {
       SELECT e.*,CASE WHEN e.get_score THEN u.points ELSE 0 END points,CASE WHEN e.get_blood THEN count(*) FILTER(WHERE e.get_blood) OVER(PARTITION BY e.unit_id ORDER BY e.created_at,e.id)::int END blood_rank,NULL::int round_number,NULL::jsonb round_details
       FROM events e JOIN unit_scores u ON u.unit_id=e.unit_id
       UNION ALL
-      SELECT r.id,r.owner_key,r.unit_id,r.created_at,r.user_id,true,false,false,r.points,NULL::int,g.number,r.details FROM round_results r JOIN contest_rounds g ON g.id=r.round_id JOIN units u ON u.unit_id=r.unit_id AND u.mode='round' WHERE g.contest_id::text=$1 AND g.status='settled' AND r.created_at<=$2
+      SELECT r.id,r.owner_key,r.unit_id,r.created_at,r.user_id,true,false,false,r.points,NULL::int,g.number,r.details FROM round_results r JOIN contest_rounds g ON g.id=r.round_id JOIN units u ON u.unit_id=r.unit_id AND u.mode='round' WHERE g.contest_id::text=$1 AND g.status='settled' AND r.created_at<=CASE WHEN $11::boolean THEN now() ELSE $2::timestamptz END
     ), totals AS (
       SELECT owner_key,sum(points)::int score,count(DISTINCT unit_id) FILTER(WHERE points>0)::int flags,max(created_at) FILTER(WHERE points>0) last_solve FROM scored GROUP BY owner_key
     ), completed AS (
-      SELECT s.owner_key,count(*)::int solves FROM solves s JOIN eligible c ON c.id=s.challenge_id WHERE s.scope=$1 AND s.created_at<=$2 GROUP BY s.owner_key
+      SELECT s.owner_key,count(*)::int solves FROM solves s JOIN eligible c ON c.id=s.challenge_id WHERE s.scope=$1 AND s.created_at<=$2 AND NOT s.contest_practice GROUP BY s.owner_key
     ), participants AS (
       SELECT u.id,'u:'||u.id owner_key,u.username name,NULL::uuid group_id,NULL::text group_name,true rank_overall FROM users u WHERE $1='practice' AND NOT u.disabled
       UNION ALL
-      SELECT t.id,'t:'||t.id,t.name,r.group_id,g.name,coalesce((g.permissions->>'rank_overall')::boolean,true) FROM teams t JOIN accepted_registrations r ON r.team_id=t.id LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id::text=$1
+      SELECT t.id,'t:'||t.id,t.name,r.group_id,g.name,coalesce((g.permissions->>'rank_overall')::boolean,true) FROM teams t JOIN ranked_registrations r ON r.team_id=t.id LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id::text=$1
     ), ranked AS (
       SELECT CASE WHEN p.rank_overall THEN count(*) FILTER(WHERE p.rank_overall) OVER(ORDER BY coalesce(t.score,0) DESC,t.last_solve ASC NULLS LAST,p.name,p.id)::int END overall_rank,
         p.*,coalesce(t.score,0) score,coalesce(c.solves,0) solves,coalesce(t.flags,0) flags,t.last_solve
@@ -148,48 +138,71 @@ export function scoreboardRoutes(app: FastifyInstance, db: DB) {
       coalesce((SELECT jsonb_agg(jsonb_build_object('id',u.unit_id,'challenge_id',u.challenge_id,'title',u.title,'part_title',u.part_title,'category',u.category,'points',u.points,'solves',u.solve_count,'scoring_mode',u.mode) ORDER BY u.category,u.created_at,u.challenge_id,u.position) FROM unit_scores u WHERE ($10::uuid[] IS NULL OR u.challenge_id=ANY($10::uuid[])) AND (($1<>'practice' AND NOT $9::boolean) OR EXISTS(SELECT 1 FROM scored s JOIN paged p ON p.owner_key=s.owner_key WHERE s.unit_id=u.unit_id))),'[]'::jsonb) columns,
       coalesce((SELECT jsonb_agg(jsonb_build_object('id',t.id,'name',t.name,'score',t.score,'points',s.points) ORDER BY t.rank) FROM top_teams t JOIN series s ON s.owner_key=t.owner_key),'[]'::jsonb) timeline,
       CASE WHEN $9::boolean THEN coalesce((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.name,r.id) FROM roster r),'[]'::jsonb) ELSE NULL END members`,
-      [
-        p.scope,
-        cutoff,
-        (p.page - 1) * p.page_size,
-        p.group ?? null,
-        p.q.trim(),
-        p.page_size,
-        started,
-        p.participant ?? null,
-        detail,
-        await visibleChallengeIds(db, p.scope, req.user ?? undefined),
-      ],
-    );
-    const metadata = {
-      scope: p.scope,
-      frozen,
-      started,
+    [
+      p.scope,
       cutoff,
-      starts_at: contest?.starts_at ?? null,
-      ends_at: contest?.ends_at ?? null,
-    };
-    if (detail) {
-      const row = result!.items[0];
-      if (!row) fail(404, "排名不存在");
-      return {
-        ...metadata,
-        ...row,
-        columns: result!.columns,
-        details_limited: result!.details_limited,
-        ...contributions(row.cells, result!.columns, result!.members),
-      };
-    }
-    const { members: _members, ...board } = result!;
-    return {
-      ...board,
-      ...metadata,
-      page: p.page,
-      page_size: p.page_size,
-    };
+      (p.page - 1) * p.page_size,
+      p.group ?? null,
+      p.q.trim(),
+      p.page_size,
+      started,
+      p.participant ?? null,
+      detail,
+      await visibleChallengeIds(
+        db,
+        p.scope,
+        options.spectator ? undefined : user,
+      ),
+      !!contest && now >= new Date(contest.ends_at).getTime(),
+    ],
+  );
+  const metadata = {
+    scope: p.scope,
+    frozen,
+    started,
+    cutoff,
+    starts_at: contest?.starts_at ?? null,
+    ends_at: contest?.ends_at ?? null,
   };
-  app.get("/api/scoreboard", (req) => read(req));
-  app.get("/api/scoreboard/:participant", (req) => read(req, true));
+  if (detail) {
+    const row = result!.items[0];
+    if (!row) fail(404, "排名不存在");
+    return {
+      ...metadata,
+      ...row,
+      columns: result!.columns,
+      details_limited: result!.details_limited,
+      ...contributions(row.cells, result!.columns, result!.members),
+    };
+  }
+  const { members: _members, ...board } = result!;
+  return {
+    ...board,
+    ...metadata,
+    page: p.page,
+    page_size: p.page_size,
+  };
+}
+
+export function scoreboardRoutes(app: FastifyInstance, db: DB) {
+  app.get("/api/scoreboard", (req) =>
+    readScoreboard(db, req.query, req.user ?? undefined),
+  );
+  app.get("/api/scoreboard/:participant", (req) =>
+    readScoreboard(
+      db,
+      {
+        ...(req.query as object),
+        participant: id.parse(
+          (req.params as { participant: string }).participant,
+        ),
+        page: 1,
+        q: "",
+      },
+      req.user ?? undefined,
+      { detail: true },
+    ),
+  );
 }
 
 type CategoryScore = { category: string; score: number; flags: number };

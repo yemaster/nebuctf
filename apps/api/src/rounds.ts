@@ -1,4 +1,5 @@
 import type { DB, Row } from "./db.js";
+import { notifyContest } from "./activity-events.js";
 import { effectivePoints, phaseWindow } from "./competition-rules.js";
 import { score } from "./security.js";
 import { permissionSQL } from "./group-permissions.js";
@@ -105,11 +106,11 @@ export async function settleRound(
     const eligible =
       round.settings.round.carry !== false
         ? await db.query(
-            `SELECT s.owner_key,s.user_id,${permissionSQL("g", "$4::uuid", "score")} get_score,${permissionSQL("g", "$4::uuid", "dynamic")} affect_dynamic FROM ${part ? "part_solves" : "solves"} s JOIN accepted_registrations r ON 't:'||r.team_id=s.owner_key AND r.contest_id=$2 LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.${part ? "part_id" : "challenge_id"}=$1 AND s.scope=$2::text AND s.created_at<$3 AND r.created_at<$3`,
+            `SELECT s.owner_key,s.user_id,${permissionSQL("g", "$4::uuid", "score")} get_score,${permissionSQL("g", "$4::uuid", "dynamic")} affect_dynamic FROM ${part ? "part_solves" : "solves"} s JOIN ranked_registrations r ON 't:'||r.team_id=s.owner_key AND r.contest_id=$2 LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.${part ? "part_id" : "challenge_id"}=$1 AND s.scope=$2::text AND NOT s.contest_practice AND s.created_at<$3 AND r.created_at<$3`,
             [raw.id, round.contest_id, round.ends_at, challenge.id],
           )
         : await db.query(
-            `SELECT s.owner_key,s.user_id,${permissionSQL("g", "$4::uuid", "score")} get_score,${permissionSQL("g", "$4::uuid", "dynamic")} affect_dynamic FROM round_submissions s JOIN accepted_registrations r ON 't:'||r.team_id=s.owner_key AND r.contest_id=$3 LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.round_id=$1 AND s.unit_id=$2`,
+            `SELECT s.owner_key,s.user_id,${permissionSQL("g", "$4::uuid", "score")} get_score,${permissionSQL("g", "$4::uuid", "dynamic")} affect_dynamic FROM round_submissions s JOIN ranked_registrations r ON 't:'||r.team_id=s.owner_key AND r.contest_id=$3 LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.round_id=$1 AND s.unit_id=$2`,
             [round.id, raw.id, round.contest_id, challenge.id],
           );
     const points = effectivePoints(
@@ -163,6 +164,7 @@ export async function settleRound(
     "UPDATE contest_rounds SET status='settled',settled_at=$2 WHERE id=$1",
     [round.id, new Date(now)],
   );
+  await notifyContest(db, round.contest_id);
   return true;
 }
 

@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { audit, lock, type DB } from "./db.js";
-import { requireUser } from "./auth.js";
-import { id } from "./schemas.js";
+import { requireUser, requireAdmin } from "./auth.js";
+import { id, page } from "./schemas.js";
 import { getTeam } from "./context.js";
 import { digest, fail, rate, token } from "./security.js";
 import { consumeCaptcha } from "./captcha.js";
@@ -18,6 +18,29 @@ async function unlocked(db: DB, team: string) {
     fail(409, "已报名未结束的比赛，暂不能变更成员");
 }
 export function teamRoutes(app: FastifyInstance, db: DB) {
+  app.get("/api/admin/teams", async (req) => {
+    requireAdmin(req);
+    const p = page
+      .extend({ ids: z.string().max(19000).optional() })
+      .parse(req.query);
+    const ids = p.ids ? z.array(id).max(500).parse(p.ids.split(",")) : null;
+    const args = [p.q.trim(), ids];
+    const where =
+      "($1='' OR strpos(lower(t.name),lower($1))>0) AND ($2::uuid[] IS NULL OR t.id=ANY($2::uuid[]))";
+    const [count] = await db.query(
+      `SELECT count(*)::int total FROM teams t WHERE ${where}`,
+      args,
+    );
+    return {
+      total: count!.total,
+      page: p.page,
+      page_size: ids ? 500 : 10,
+      items: await db.query(
+        `SELECT t.id,t.name,u.username captain,(SELECT count(*)::int FROM memberships m WHERE m.team_id=t.id) members FROM teams t JOIN users u ON u.id=t.captain_id WHERE ${where} ORDER BY t.name,t.id LIMIT $3 OFFSET $4`,
+        [...args, ids ? 500 : 10, ids ? 0 : (p.page - 1) * 10],
+      ),
+    };
+  });
   app.get("/api/team", async (req) => {
     const u = requireUser(req),
       team = await getTeam(

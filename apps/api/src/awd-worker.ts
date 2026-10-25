@@ -1,4 +1,5 @@
 import { permissionSQL } from "./group-permissions.js";
+import { notifyContest } from "./activity-events.js";
 import { resourceUsage } from "./resource-usage.js";
 import type { DB, Row } from "./db.js";
 import { DockerEngine } from "./docker.js";
@@ -88,7 +89,7 @@ export class AwdWorker {
     await this.db.transaction(async (tx) => {
       await tx.query("SELECT pg_advisory_xact_lock(760002)");
       const teams = await tx.query(
-        `SELECT r.team_id,t.captain_id FROM accepted_registrations r JOIN teams t ON t.id=r.team_id LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id=$1 AND ${permissionSQL("g", "$2::uuid", "view")} AND ${permissionSQL("g", "$2::uuid", "resources")} AND NOT EXISTS(SELECT 1 FROM instances i WHERE i.challenge_id=$2 AND i.scope=$1::text AND i.owner_key='t:'||r.team_id AND (i.status=ANY($3::text[]) OR (i.status='failed' AND i.updated_at>now()-interval '60 seconds'))) ORDER BY r.created_at`,
+        `SELECT r.team_id,t.captain_id FROM ranked_registrations r JOIN teams t ON t.id=r.team_id LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id=$1 AND ${permissionSQL("g", "$2::uuid", "view")} AND ${permissionSQL("g", "$2::uuid", "resources")} AND NOT EXISTS(SELECT 1 FROM instances i WHERE i.challenge_id=$2 AND i.scope=$1::text AND i.owner_key='t:'||r.team_id AND (i.status=ANY($3::text[]) OR (i.status='failed' AND i.updated_at>now()-interval '60 seconds'))) ORDER BY r.created_at`,
         [link.contest_id, link.challenge_id, activeStatuses],
       );
       const usage = await resourceUsage(tx);
@@ -246,7 +247,7 @@ export class AwdWorker {
       );
       if (pending) return;
       const attacks = await tx.query(
-        "SELECT a.*,f.owner_key defender FROM awd_attacks a JOIN awd_flags f ON f.flag_hash=a.flag_hash JOIN accepted_registrations attacker ON attacker.contest_id=$2 AND 't:'||attacker.team_id=a.attacker_key JOIN accepted_registrations defender ON defender.contest_id=$2 AND 't:'||defender.team_id=f.owner_key WHERE f.round_id=$1",
+        "SELECT a.*,f.owner_key defender FROM awd_attacks a JOIN awd_flags f ON f.flag_hash=a.flag_hash JOIN ranked_registrations attacker ON attacker.contest_id=$2 AND 't:'||attacker.team_id=a.attacker_key JOIN ranked_registrations defender ON defender.contest_id=$2 AND 't:'||defender.team_id=f.owner_key WHERE f.round_id=$1",
         [round.id, link.contest_id],
       );
       const checks = await tx.query(
@@ -254,7 +255,7 @@ export class AwdWorker {
         [round.id],
       );
       const teams = await tx.query(
-        `SELECT r.team_id,${permissionSQL("g", "$3::uuid", "score")} get_score,${permissionSQL("g", "$3::uuid", "dynamic")} affect_dynamic FROM accepted_registrations r LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id=$1 AND r.created_at<$2`,
+        `SELECT r.team_id,${permissionSQL("g", "$3::uuid", "score")} get_score,${permissionSQL("g", "$3::uuid", "dynamic")} affect_dynamic FROM ranked_registrations r LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id=$1 AND r.created_at<$2`,
         [link.contest_id, round.ends_at, link.challenge_id],
       );
       const rules = round.settings.round,
@@ -318,6 +319,7 @@ export class AwdWorker {
         "UPDATE contest_rounds SET status='settled',settled_at=now() WHERE id=$1",
         [round.id],
       );
+      await notifyContest(tx, link.contest_id);
     });
   }
 }

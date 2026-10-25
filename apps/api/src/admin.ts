@@ -1,3 +1,4 @@
+import { publicContest, registrationCodeHash } from "./contest-entry.js";
 import { validateWriteup, writeupInput } from "./writeup-config.js";
 import { recordContestNotice } from "./activity-events.js";
 import { isDeepStrictEqual } from "node:util";
@@ -344,10 +345,12 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
       [p.q],
     );
     return {
-      items: await db.query(
-        `${contestSummary} WHERE ($1='' OR c.title ILIKE '%'||$1||'%') ORDER BY c.starts_at DESC,c.id LIMIT $2 OFFSET $3`,
-        [p.q, p.page_size, (p.page - 1) * p.page_size],
-      ),
+      items: (
+        await db.query(
+          `${contestSummary} WHERE ($1='' OR c.title ILIKE '%'||$1||'%') ORDER BY c.starts_at DESC,c.id LIMIT $2 OFFSET $3`,
+          [p.q, p.page_size, (p.page - 1) * p.page_size],
+        )
+      ).map((c) => publicContest(c, true)),
       total: count!.total,
       page: p.page,
       page_size: p.page_size,
@@ -359,7 +362,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
       id.parse((req.params as any).id),
     ]);
     if (!contest) fail(404, "比赛不存在");
-    return contest;
+    return publicContest(contest!, true);
   });
   for (const method of ["POST", "PUT"] as const)
     app.route({
@@ -496,7 +499,30 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
             writeupInput.parse(data.writeup ?? old?.writeup ?? {}),
             data,
           );
+          const mode =
+            data.registration_mode ?? old?.registration_mode ?? "public";
+          const codeHash = data.registration_code
+            ? registrationCodeHash(data.registration_code)
+            : (old?.registration_code_hash ?? "");
+          const allowedTeams = [
+            ...new Set(
+              data.registration_team_ids ?? old?.registration_team_ids ?? [],
+            ),
+          ];
+          if (mode === "invite" && !codeHash) fail(400, "请设置报名邀请码");
+          if (mode === "teams" && !allowedTeams.length)
+            fail(400, "请至少选择一支允许报名的战队");
+          if (
+            allowedTeams.length &&
+            (
+              await tx.query("SELECT id FROM teams WHERE id=ANY($1::uuid[])", [
+                allowedTeams,
+              ])
+            ).length !== allowedTeams.length
+          )
+            fail(400, "指定的战队不存在");
           const {
+            registration_code,
             challenge_ids,
             challenge_settings,
             groups,
@@ -506,6 +532,8 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
           } = data;
           const fields = {
             ...otherFields,
+            registration_code_hash: codeHash,
+            registration_team_ids: allowedTeams,
             timing: JSON.stringify(timing),
             ...(writeup ? { writeup: JSON.stringify(writeup) } : {}),
           };
@@ -713,7 +741,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
       page_size: 10,
       total: (await db.query("SELECT count(*)::int n FROM submissions"))[0]!.n,
       items: await db.query(
-        "SELECT s.id,u.username,c.title,s.scope,s.correct,s.created_at,p.title part_title FROM submissions s LEFT JOIN challenge_parts p ON p.id=s.part_id JOIN users u ON u.id=s.user_id JOIN challenges c ON c.id=s.challenge_id ORDER BY s.created_at DESC,s.id DESC LIMIT 10 OFFSET $1",
+        "SELECT s.id,u.username,c.title,s.scope,s.correct,s.created_at,s.contest_practice,p.title part_title FROM submissions s LEFT JOIN challenge_parts p ON p.id=s.part_id JOIN users u ON u.id=s.user_id JOIN challenges c ON c.id=s.challenge_id ORDER BY s.created_at DESC,s.id DESC LIMIT 10 OFFSET $1",
         [(p.page - 1) * 10],
       ),
     };

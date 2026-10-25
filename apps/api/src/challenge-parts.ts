@@ -17,6 +17,7 @@ export async function challengeProgress(
   scope: string,
   owner: string,
   cutoff: Date | string,
+  practice = false,
 ) {
   if (!challenges.length) return [];
   const [group] =
@@ -27,7 +28,7 @@ export async function challengeProgress(
           [scope, owner],
         );
   const counts = await db.query(
-    `SELECT s.challenge_id,count(*) FILTER(WHERE ${permissionSQL("g", "s.challenge_id", "dynamic")})::int dynamic_solves FROM solves s LEFT JOIN accepted_registrations r ON r.contest_id::text=$2 AND 't:'||r.team_id=s.owner_key LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.challenge_id=ANY($1::uuid[]) AND s.scope=$2 AND s.created_at<=$3 AND ($2='practice' OR r.team_id IS NOT NULL) GROUP BY s.challenge_id`,
+    `SELECT s.challenge_id,count(*) FILTER(WHERE ${permissionSQL("g", "s.challenge_id", "dynamic")})::int dynamic_solves FROM solves s LEFT JOIN accepted_registrations r ON r.contest_id::text=$2 AND 't:'||r.team_id=s.owner_key LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.challenge_id=ANY($1::uuid[]) AND s.scope=$2 AND s.created_at<=$3 AND NOT s.contest_practice AND ($2='practice' OR r.team_id IS NOT NULL) GROUP BY s.challenge_id`,
     [challenges.map((c) => c.id), scope, cutoff],
   );
   const links =
@@ -38,8 +39,8 @@ export async function challengeProgress(
           [scope, challenges.map((c) => c.id)],
         );
   const rows = await db.query(
-    `SELECT p.*, (SELECT count(*)::int FROM part_solves s WHERE s.part_id=p.id AND s.scope=$2 AND s.created_at<=$4) solves,
-      (SELECT count(*)::int FROM part_solves s LEFT JOIN accepted_registrations r ON r.contest_id::text=$2 AND 't:'||r.team_id=s.owner_key LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.part_id=p.id AND s.scope=$2 AND s.created_at<=$4 AND ($2='practice' OR r.team_id IS NOT NULL) AND ${permissionSQL("g", "p.challenge_id", "dynamic")}) dynamic_solves,
+    `SELECT p.*, (SELECT count(*)::int FROM part_solves s WHERE s.part_id=p.id AND s.scope=$2 AND s.created_at<=$4 AND NOT s.contest_practice) solves,
+      (SELECT count(*)::int FROM part_solves s LEFT JOIN accepted_registrations r ON r.contest_id::text=$2 AND 't:'||r.team_id=s.owner_key LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.part_id=p.id AND s.scope=$2 AND s.created_at<=$4 AND NOT s.contest_practice AND ($2='practice' OR r.team_id IS NOT NULL) AND ${permissionSQL("g", "p.challenge_id", "dynamic")}) dynamic_solves,
       EXISTS(SELECT 1 FROM part_solves s WHERE s.part_id=p.id AND s.scope=$2 AND s.owner_key=$3) solved
      FROM challenge_parts p WHERE p.challenge_id=ANY($1::uuid[]) ORDER BY p.position,p.id`,
     [challenges.map((c) => c.id), scope, owner, cutoff],
@@ -49,7 +50,14 @@ export async function challengeProgress(
     const c: Row = {
       ...effectivePoints(original, scoring),
       contest_scoring: scoring,
-      permissions: effectivePermissions(group, original.id),
+      contest_practice: practice,
+      permissions: {
+        ...effectivePermissions(group, original.id),
+        ...(practice ? { score: false, blood: false, dynamic: false } : {}),
+        ...(practice && original.challenge_type === "awd"
+          ? { submit: false, resources: false }
+          : {}),
+      },
     };
     const parts = rows
       .filter((p) => p.challenge_id === c.id)

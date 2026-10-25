@@ -280,7 +280,11 @@ export class JudgeWorker {
           if (!defense) throw Error("防守计分配置缺失");
           await creditSolve(
             tx,
-            { ...challenge, contest_scoring: job.spec.contest_scoring },
+            {
+              ...challenge,
+              contest_scoring: job.spec.contest_scoring,
+              contest_practice: job.spec.contest_practice,
+            },
             job.scope,
             job.owner_key,
             job.requested_by,

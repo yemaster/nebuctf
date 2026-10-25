@@ -7,6 +7,7 @@ import { challengeAccess, ownerFor } from "./context.js";
 import { id, scope as scopeSchema } from "./schemas.js";
 import { fail, flagHash, rate } from "./security.js";
 import { resourceCooldown } from "./resources.js";
+import { notifyContest } from "./activity-events.js";
 export function awdRoutes(app: FastifyInstance, db: DB) {
   app.get("/api/challenges/:id/rounds", async (req) => {
     const user = requireUser(req),
@@ -87,6 +88,7 @@ export function awdRoutes(app: FastifyInstance, db: DB) {
         "INSERT INTO awd_attacks(id,flag_hash,attacker_key,user_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id",
         [crypto.randomUUID(), hash, owner, user.id],
       );
+      if (inserted.length) await notifyContest(tx, input.scope);
       return {
         correct: true,
         already_solved: !inserted.length,

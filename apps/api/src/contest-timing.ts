@@ -5,8 +5,17 @@ import { contestAccess, ownerFor } from "./context.js";
 import { challengePhase, phaseName, phaseWindow } from "./competition-rules.js";
 import { id } from "./schemas.js";
 import { fail } from "./security.js";
+import { isContestPractice } from "./contest-practice.js";
 
 export async function teamPhases(db: DB, contest: Row, owner: string) {
+  if (isContestPractice(contest))
+    return (["objective", "practical"] as const).map((section) => ({
+      ...phaseWindow(contest, section),
+      mode: "inherit" as const,
+      status: "active" as const,
+      practice: true,
+      deadline_at: null,
+    }));
   const attempts = owner.startsWith("t:")
     ? await db.query(
         "SELECT * FROM contest_attempts WHERE contest_id=$1 AND team_id=$2",
@@ -54,6 +63,7 @@ export function timingRoutes(app: FastifyInstance, db: DB) {
       section = phaseName.parse((req.params as any).section);
     return db.transaction(async (tx) => {
       const contest = (await contestAccess(tx, scope, user))!;
+      if (isContestPractice(contest)) fail(403, "赛后练习无需开始计时");
       const owner = await ownerFor(tx, scope, user);
       await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
         `attempt:${scope}:${owner}:${section}`,

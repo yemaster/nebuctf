@@ -68,7 +68,7 @@ export async function snapshotContestMembers(
   )
     return;
   await db.query(
-    "INSERT INTO contest_members(contest_id,team_id,user_id) SELECT $1,m.team_id,m.user_id FROM memberships m WHERE m.team_id=$2 ON CONFLICT DO NOTHING",
+    "INSERT INTO contest_members(contest_id,team_id,user_id) SELECT $1,m.team_id,m.user_id FROM memberships m JOIN registrations r ON r.team_id=m.team_id AND r.contest_id=$1 WHERE m.team_id=$2 AND NOT r.practice_only ON CONFLICT DO NOTHING",
     [contest, team],
   );
 }

@@ -55,7 +55,7 @@ const filters = page.extend({
     .optional(),
 });
 const listFrom = `FROM registrations r JOIN teams t ON t.id=r.team_id LEFT JOIN contest_groups g ON g.id=r.group_id LEFT JOIN contest_writeups w ON w.contest_id=r.contest_id AND w.team_id=r.team_id LEFT JOIN users u ON u.id=w.submitted_by LEFT JOIN users reviewer ON reviewer.id=w.reviewed_by`;
-const listWhere = `r.contest_id=$1 AND (r.accepted_at IS NOT NULL OR r.status IN ('accepted','suspended')) AND ($2='' OR strpos(lower(t.name),lower($2))>0) AND ($3::uuid IS NULL OR r.group_id=$3) AND ($4::text IS NULL OR ($4='missing' AND w.team_id IS NULL) OR w.status=$4)`;
+const listWhere = `r.contest_id=$1 AND NOT r.practice_only AND (r.accepted_at IS NOT NULL OR r.status IN ('accepted','suspended')) AND ($2='' OR strpos(lower(t.name),lower($2))>0) AND ($3::uuid IS NULL OR r.group_id=$3) AND ($4::text IS NULL OR ($4='missing' AND w.team_id IS NULL) OR w.status=$4)`;
 export function writeupRoutes(app: FastifyInstance, db: DB) {
   app.get("/api/contests/:id/writeup", async (req) => {
     const user = requireUser(req),

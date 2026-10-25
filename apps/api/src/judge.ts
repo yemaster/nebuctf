@@ -94,6 +94,7 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
               patch: current.patch_config,
               type: current.challenge_type,
               contest_scoring: current.contest_scoring,
+              contest_practice: !!current.contest_practice,
               submitted_before: end,
             }),
             deadline,

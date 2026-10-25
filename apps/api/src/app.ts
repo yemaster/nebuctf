@@ -1,3 +1,4 @@
+import { contestSpectatorRoutes } from "./contest-spectator.js";
 import { writeupRoutes } from "./writeups.js";
 import { captchaRoutes } from "./captcha.js";
 import { contestMonitorRoutes, recordIssuedFlags } from "./contest-monitor.js";
@@ -94,6 +95,7 @@ export async function buildApp(db: DB, logging = false) {
   awdRoutes(app, db);
   contestRoutes(app, db);
   contestRealtimeRoutes(app, db);
+  contestSpectatorRoutes(app, db);
   contestMonitorRoutes(app, db);
   // Upgrade existing successfully issued resources without persisting their secrets.
   let cursor = "00000000-0000-0000-0000-000000000000";
