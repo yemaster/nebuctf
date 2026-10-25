@@ -20,7 +20,7 @@ const env = z
       .min(32)
       .default("development-only-change-this-secret-32chars"),
     COOKIE_SECURE: z.enum(["true", "false"]).default("false"),
-    CAPTCHA_DIFFICULTY: z.coerce.number().int().min(12).max(22).default(20),
+    CAPTCHA_DIFFICULTY: z.coerce.number().int().min(12).max(22).default(22),
     TRUST_PROXY: z.string().default(""),
     CHALLENGE_DOMAIN: z
       .string()

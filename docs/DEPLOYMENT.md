@@ -35,7 +35,7 @@ API、数据库、Worker 不发布主机端口。数据库只在平台网络可�
 
 ## 登录与战队安全验证
 
-登录、注册、创建和加入战队默认要求计算验证码。`CAPTCHA_DIFFICULTY` 为 SHA-256 前导零位数，默认 20，允许 12–22；相较原先的 18 位，平均计算量增加约 4 倍。实际耗时受设备性能和随机求解影响，不设置固定等待时间。修改后重新创建 API 容器使配置生效。无需第三方账号、站点密钥或部署域名，HTTP 与 HTTPS 都能运行。
+登录、注册、创建和加入战队默认要求计算验证码。`CAPTCHA_DIFFICULTY` 为 SHA-256 前导零位数，默认 22，允许 12–22；相较原先的 18 位，平均计算量增加约 16 倍。实际耗时受设备性能和随机求解影响，不设置固定等待时间。修改后重新创建 API 容器使配置生效。无需第三方账号、站点密钥或部署域名，HTTP 与 HTTPS 都能运行。
 
 验证方案参考 [GZCTF HashPow](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/Services/CaptchaService.cs)，浏览器使用 [noble-hashes](https://github.com/paulmillr/noble-hashes) 的 SHA-256。计算放在独立 Worker，页面仍可操作；Worker 静态资源需与前端一同部署，并由同源 CSP 允许加载。PoW 增加自动请求的成本，平台同时保留频率限制。
 
