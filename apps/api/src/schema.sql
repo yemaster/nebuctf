@@ -222,4 +222,6 @@ CREATE TABLE IF NOT EXISTS ai_routes(id uuid PRIMARY KEY,name varchar(80) NOT NU
 CREATE TABLE IF NOT EXISTS ai_calls(id uuid PRIMARY KEY,route_id uuid NOT NULL REFERENCES ai_routes(id) ON DELETE CASCADE,model text NOT NULL,protocol text NOT NULL,status integer NOT NULL DEFAULT 0,input_tokens integer NOT NULL DEFAULT 0,output_tokens integer NOT NULL DEFAULT 0,elapsed_ms integer NOT NULL DEFAULT 0,created_at timestamptz NOT NULL DEFAULT now(),expires_at timestamptz NOT NULL);
 CREATE INDEX IF NOT EXISTS ai_calls_route_time ON ai_calls(route_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS ai_calls_pending ON ai_calls(route_id,expires_at) WHERE status=0;
+CREATE INDEX IF NOT EXISTS ai_calls_retention ON ai_calls(created_at);
+CREATE INDEX IF NOT EXISTS ai_calls_expired ON ai_calls(expires_at) WHERE status=0;
 INSERT INTO schema_migrations(version) VALUES(20) ON CONFLICT DO NOTHING;

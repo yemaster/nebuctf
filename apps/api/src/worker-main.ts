@@ -55,8 +55,13 @@ while (running) {
         "INSERT INTO system_settings(key,value) VALUES('worker_heartbeat','{}') ON CONFLICT(key) DO UPDATE SET updated_at=now()",
       );
       await db.query("DELETE FROM email_verifications WHERE expires_at<now()");
+    }
+    if (iteration % 30 === 0) {
       await db.query(
-        "DELETE FROM ai_calls WHERE created_at<now()-interval '90 days'",
+        "UPDATE ai_calls SET status=504,elapsed_ms=LEAST(2147483647,extract(epoch FROM (expires_at-created_at))*1000)::int WHERE id IN (SELECT id FROM ai_calls WHERE status=0 AND expires_at<now() ORDER BY expires_at LIMIT 5000)",
+      );
+      await db.query(
+        "DELETE FROM ai_calls WHERE id IN (SELECT id FROM ai_calls WHERE created_at<now()-interval '90 days' ORDER BY created_at LIMIT 5000)",
       );
     }
   } catch (e) {
