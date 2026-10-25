@@ -1,3 +1,4 @@
+import { verified } from "./helpers/captcha.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { openDB } from "../src/db.js";
@@ -14,14 +15,14 @@ test("admin pages, pagination, registration counts and scheduled publishing", as
     await db.close();
   });
   const get = (path: string, cookie = "") =>
-    app.inject({ url: `/api${path}`, headers: { cookie } });
+    verified(app, { url: `/api${path}`, headers: { cookie } });
   const write = (
     path: string,
     cookie: string,
     payload: unknown,
     method: "POST" | "PUT" = "POST",
   ) =>
-    app.inject({
+    verified(app, {
       url: `/api${path}`,
       method,
       headers: { cookie, origin: config.APP_ORIGIN, "x-csrf-protection": "1" },

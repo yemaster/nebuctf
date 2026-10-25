@@ -1,3 +1,4 @@
+import { verified } from "./helpers/captcha.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -198,14 +199,14 @@ test(
       await rm(temp, { recursive: true, force: true });
     });
     const get = (path: string, cookie = "") =>
-      app.inject({ url: `/api${path}`, headers: { cookie } });
+      verified(app, { url: `/api${path}`, headers: { cookie } });
     const write = (
       path: string,
       cookie: string,
       payload: unknown = {},
       method: "POST" | "PUT" = "POST",
     ) =>
-      app.inject({
+      verified(app, {
         url: `/api${path}`,
         method,
         headers: {
@@ -268,7 +269,7 @@ test(
         );
         assert.equal(
           (
-            await app.inject({
+            await verified(app, {
               url: "/api/admin/images/pull",
               method: "POST",
               headers: { cookie: admin.cookie },

@@ -1,3 +1,4 @@
+import { captchaPurpose, solveCaptcha } from "./captcha.mjs";
 // Explicit local demo fixtures. Does not create accounts or submit answers.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -11,6 +12,11 @@ async function request(
   body,
   method = body === undefined ? "GET" : "POST",
 ) {
+  const purpose = captchaPurpose(path);
+  if (method === "POST" && purpose) {
+    const challenge = await request("/captcha/challenge", { purpose });
+    body = { ...body, captcha: solveCaptcha(challenge) };
+  }
   const response = await fetch(`${base}/api${path}`, {
     method,
     headers: {

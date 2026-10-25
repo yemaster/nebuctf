@@ -5,6 +5,7 @@ import { requireUser } from "./auth.js";
 import { id } from "./schemas.js";
 import { getTeam } from "./context.js";
 import { digest, fail, rate, token } from "./security.js";
+import { consumeCaptcha } from "./captcha.js";
 async function unlocked(db: DB, team: string) {
   if (
     (
@@ -50,6 +51,7 @@ export function teamRoutes(app: FastifyInstance, db: DB) {
       data = z
         .object({ name: z.string().trim().min(2).max(48) })
         .parse(req.body);
+    await consumeCaptcha(db, req, "team-create");
     await rate(db, `team:${u.id}`, 10, 3600);
     const invite = token(),
       tid = crypto.randomUUID();
@@ -75,6 +77,7 @@ export function teamRoutes(app: FastifyInstance, db: DB) {
       { invite } = z
         .object({ invite: z.string().min(20).max(100) })
         .parse(req.body);
+    await consumeCaptcha(db, req, "team-join");
     await rate(db, `join:${u.id}`, 10, 600);
     return db.transaction(async (tx) => {
       await lock(tx);

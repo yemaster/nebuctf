@@ -1,3 +1,4 @@
+import { captchaPurpose, solveCaptcha } from "./captcha.mjs";
 // Explicitly creates/reuses local demonstration accounts and challenges. Never run against production.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -21,6 +22,13 @@ async function request(
   method = body === undefined ? "GET" : "POST",
   retries = 0,
 ) {
+  const purpose = captchaPurpose(path);
+  if (method === "POST" && purpose) {
+    const { value: challenge } = await request("/captcha/challenge", cookie, {
+      purpose,
+    });
+    body = { ...body, captcha: solveCaptcha(challenge) };
+  }
   const r = await fetch(`${base}/api${path}`, {
     method,
     headers: {

@@ -1,3 +1,4 @@
+import { captchaPurpose, solveCaptcha } from "./captcha.mjs";
 // Explicit, stateful acceptance checks against a running demonstration server.
 // Creates real accounts, teams and submissions; never writes scores directly.
 import assert from "node:assert/strict";
@@ -50,6 +51,11 @@ async function request(
     binary = false,
   } = {},
 ) {
+  const purpose = captchaPurpose(path);
+  if (method === "POST" && purpose) {
+    const challenge = await request(actor, "/captcha/challenge", { purpose });
+    body = { ...body, captcha: solveCaptcha(challenge) };
+  }
   await delay(90);
   const response = await fetch(`${origin}/api${path}`, {
     method,

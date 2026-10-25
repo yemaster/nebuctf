@@ -1,3 +1,4 @@
+import { verified } from "./helpers/captcha.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, access, readFile } from "node:fs/promises";
@@ -24,14 +25,14 @@ test("admin attachment downloads and confirmed deletion are scoped and audited",
     payload: unknown = {},
     method: "POST" | "DELETE" = "POST",
   ) =>
-    app.inject({
+    verified(app, {
       url: "/api" + path,
       method,
       headers: { cookie, origin: config.APP_ORIGIN, "x-csrf-protection": "1" },
       payload: payload as any,
     });
   const get = (path: string, cookie = "") =>
-    app.inject({ url: "/api" + path, headers: { cookie } });
+    verified(app, { url: "/api" + path, headers: { cookie } });
   async function user(name: string) {
     const r = await write("/auth/register", "", {
       username: name,
@@ -61,7 +62,7 @@ test("admin attachment downloads and confirmed deletion are scoped and audited",
   const bytes = Buffer.from(
     `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="draft.txt"\r\nContent-Type: text/plain\r\n\r\nprivate content\r\n--${boundary}--\r\n`,
   );
-  const uploaded = await app.inject({
+  const uploaded = await verified(app, {
     url: `/api/admin/challenges/${c.json().id}/attachments`,
     method: "POST",
     headers: {
@@ -108,7 +109,7 @@ test("admin attachment downloads and confirmed deletion are scoped and audited",
       );
       assert.equal(
         (
-          await app.inject({
+          await verified(app, {
             url: "/api" + path,
             method: "DELETE",
             headers: { cookie: admin.cookie },

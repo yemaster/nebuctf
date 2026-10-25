@@ -12,6 +12,7 @@ import {
   verifyPassword,
 } from "./security.js";
 import type { User } from "./context.js";
+import { consumeCaptcha } from "./captcha.js";
 declare module "fastify" {
   interface FastifyRequest {
     user: User | null;
@@ -50,6 +51,7 @@ export async function authRoutes(app: FastifyInstance, db: DB) {
   app.get("/api/me", async (req) => ({ user: req.user }));
   app.post("/api/auth/register", async (req, reply) => {
     const data = register.parse(req.body);
+    await consumeCaptcha(db, req, "register");
     await rate(db, `register:${req.ip}`, 5, 3600);
     const hash = await hashPassword(data.password);
     const uid = crypto.randomUUID();
@@ -82,6 +84,7 @@ export async function authRoutes(app: FastifyInstance, db: DB) {
   const dummy = await hashPassword(token());
   app.post("/api/auth/login", async (req, reply) => {
     const data = credentials.parse(req.body);
+    await consumeCaptcha(db, req, "login");
     await rate(db, `login-ip:${req.ip}`, 30, 900);
     await rate(db, `login-account:${digest(data.email)}`, 10, 900);
     const [user] = await db.query("SELECT * FROM users WHERE lower(email)=$1", [

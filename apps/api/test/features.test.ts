@@ -1,3 +1,4 @@
+import { verified } from "./helpers/captcha.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
@@ -27,14 +28,14 @@ test("multi-part challenges, collections and contest workflow", async (t) => {
     cookie: string,
     payload: unknown,
   ) =>
-    app.inject({
+    verified(app, {
       method,
       url: `/api${url}`,
       headers: { ...headers, cookie },
       payload: payload as any,
     });
   const get = (url: string, cookie = "") =>
-    app.inject({ url: `/api${url}`, headers: { cookie } });
+    verified(app, { url: `/api${url}`, headers: { cookie } });
   async function user(name: string) {
     const r = await request("POST", "/auth/register", "", {
       username: name,
@@ -568,7 +569,7 @@ test("multi-part challenges, collections and contest workflow", async (t) => {
       );
       const upload = async (content: Buffer) => {
         const boundary = "FeatureBoundary";
-        return app.inject({
+        return verified(app, {
           method: "POST",
           url: `/api/admin/contests/${id}/poster`,
           headers: {

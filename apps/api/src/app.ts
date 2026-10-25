@@ -1,4 +1,5 @@
 import { writeupRoutes } from "./writeups.js";
+import { captchaRoutes } from "./captcha.js";
 import { contestMonitorRoutes, recordIssuedFlags } from "./contest-monitor.js";
 import websocket from "@fastify/websocket";
 import { contestRealtimeRoutes } from "./contest-realtime.js";
@@ -85,6 +86,7 @@ export async function buildApp(db: DB, logging = false) {
     });
   });
   await authRoutes(app, db);
+  captchaRoutes(app, db);
   teamRoutes(app, db);
   challengeRoutes(app, db);
   objectiveRoutes(app, db);

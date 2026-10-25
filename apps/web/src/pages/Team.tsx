@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { Captcha } from "@/components/captcha";
+import { useCaptcha } from "@/lib/use-captcha";
 import {
   Link,
   useSearchParams,
@@ -317,6 +319,8 @@ function TeamList() {
 
 export function TeamJoin() {
   const user = useUser();
+  const createVerification = useCaptcha("team-create");
+  const joinVerification = useCaptcha("team-join");
   const [params] = useSearchParams();
   const next = safeLocalPath(params.get("next"), "");
   const navigate = useNavigate();
@@ -325,8 +329,8 @@ export function TeamJoin() {
       const result = await api<{ id: string; invite: string }>(
         "/teams",
         "POST",
-        { name },
-      );
+        { name, captcha: createVerification.proof },
+      ).finally(createVerification.reset);
       navigate(teamPath(result.id, next), {
         replace: true,
         state: { invite: { team: result.id, code: result.invite } },
@@ -339,7 +343,8 @@ export function TeamJoin() {
     async (invite: string) => {
       const result = await api<{ id: string }>("/team/join", "POST", {
         invite,
-      });
+        captcha: joinVerification.proof,
+      }).finally(joinVerification.reset);
       navigate(teamPath(result.id, next), { replace: true });
     },
     undefined,
@@ -360,14 +365,28 @@ export function TeamJoin() {
             className="space-y-6"
             onSubmit={(e) => {
               e.preventDefault();
+              if (!createVerification.proof || create.isPending) return;
               create.mutate(String(new FormData(e.currentTarget).get("name")));
             }}
           >
             <h1 className="text-2xl font-semibold">创建战队</h1>
             <Field label="战队名称">
-              <Input name="name" minLength={2} maxLength={48} required />
+              <Input
+                name="name"
+                minLength={2}
+                maxLength={48}
+                required
+                disabled={create.isPending}
+              />
             </Field>
-            <Button className="w-full" disabled={create.isPending}>
+            <Captcha
+              verification={createVerification}
+              disabled={create.isPending}
+            />
+            <Button
+              className="w-full"
+              disabled={create.isPending || !createVerification.proof}
+            >
               {create.isPending ? "创建中" : "创建战队"}
             </Button>
             {create.error && <ActionError error={create.error} />}
@@ -382,6 +401,7 @@ export function TeamJoin() {
             className="space-y-6"
             onSubmit={(e) => {
               e.preventDefault();
+              if (!joinVerification.proof || join.isPending) return;
               join.mutate(String(new FormData(e.currentTarget).get("invite")));
             }}
           >
@@ -393,12 +413,17 @@ export function TeamJoin() {
                 maxLength={100}
                 required
                 autoComplete="off"
+                disabled={join.isPending}
               />
             </Field>
+            <Captcha
+              verification={joinVerification}
+              disabled={join.isPending}
+            />
             <Button
               variant="secondary"
               className="w-full"
-              disabled={join.isPending}
+              disabled={join.isPending || !joinVerification.proof}
             >
               {join.isPending ? "加入中" : "加入战队"}
             </Button>

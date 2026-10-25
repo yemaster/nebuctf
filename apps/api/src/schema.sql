@@ -186,3 +186,7 @@ CREATE INDEX IF NOT EXISTS contest_writeups_feed ON contest_writeups(contest_id,
 CREATE TABLE IF NOT EXISTS writeup_history(id uuid PRIMARY KEY,contest_id uuid NOT NULL REFERENCES contests(id),team_id uuid NOT NULL REFERENCES teams(id),version integer NOT NULL,actor_id uuid NOT NULL REFERENCES users(id),action text NOT NULL CHECK(action IN ('submitted','accepted','changes_requested')),name varchar(180) NOT NULL,note varchar(1000) NOT NULL DEFAULT '',created_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS writeup_history_team ON writeup_history(contest_id,team_id,created_at DESC,id);
 INSERT INTO schema_migrations(version) VALUES(16) ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS captcha_uses(id uuid PRIMARY KEY,expires_at timestamptz NOT NULL);
+CREATE INDEX IF NOT EXISTS captcha_uses_expiry ON captcha_uses(expires_at);
+INSERT INTO schema_migrations(version) VALUES(17) ON CONFLICT DO NOTHING;

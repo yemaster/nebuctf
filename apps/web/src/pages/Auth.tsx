@@ -39,23 +39,18 @@ import {
   Pagination,
 } from "@/components/shared";
 import { useState } from "react";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
+import { Captcha } from "@/components/captcha";
+import { useCaptcha } from "@/lib/use-captcha";
 import { toast } from "sonner";
 export function Auth({ register = false }: { register?: boolean }) {
-  const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const next = safeLocalPath(params.get("next"));
-  const [showPassword, setShowPassword] = useState(false);
-  const action = useMutation({
-    mutationFn: (d: Record<string, FormDataEntryValue>) =>
-      api(`/auth/${register ? "register" : "login"}`, "POST", d),
-    onSuccess: () => {
-      void client.resetQueries();
-      navigate(next, { replace: true });
-    },
-  });
+  const reduced = useReducedMotion();
   return (
-    <div className="grid h-full overflow-y-auto lg:grid-cols-2">
-      <aside className="hidden flex-col justify-center gap-16 bg-card p-12 lg:flex xl:p-20">
+    <div className="grid h-full min-h-0 grid-rows-1 lg:grid-cols-2">
+      <aside
+        data-auth-brand
+        className="hidden flex-col justify-center gap-16 bg-card p-12 lg:flex xl:p-20"
+      >
         <div className="space-y-6">
           <p className="text-sm text-muted-foreground">Capture the Flag</p>
           <p className="text-7xl font-semibold xl:text-8xl">NebuCTF</p>
@@ -82,111 +77,143 @@ export function Auth({ register = false }: { register?: boolean }) {
           ))}
         </nav>
       </aside>
-      <section className="flex min-h-full items-center justify-center px-6 py-12 sm:px-12 lg:py-16">
-        <div className="w-full max-w-md space-y-10">
-          <div className="space-y-5">
-            <h1 className="text-4xl font-semibold sm:text-5xl">
-              {register ? "创建账户" : "登录"}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {register ? "已有账户？" : "还没有账户？"}{" "}
-              <Link
-                className="text-primary hover:underline underline-offset-4"
-                to={`${register ? "/login" : "/register"}${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}
-              >
-                {register ? "登录" : "注册"}
-              </Link>
-            </p>
-          </div>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              action.mutate(Object.fromEntries(new FormData(e.currentTarget)));
-            }}
+      <section className="flex min-h-0 flex-col items-center overflow-y-auto px-6 py-12 sm:px-12 lg:py-16">
+        <AnimatePresence mode="wait" initial={false}>
+          <m.div
+            key={register ? "register" : "login"}
+            initial={{ opacity: 0, y: reduced ? 0 : 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduced ? 0 : 0.16, ease: "easeOut" }}
+            className="my-auto w-full max-w-md shrink-0"
+            data-auth-panel={register ? "register" : "login"}
           >
-            <FieldGroup className="gap-6">
-              {register && (
-                <FormField>
-                  <FieldLabel htmlFor="auth-username">用户名</FieldLabel>
-                  <Input
-                    id="auth-username"
-                    className="h-12"
-                    name="username"
-                    required
-                    minLength={2}
-                    maxLength={32}
-                    autoComplete="username"
-                    disabled={action.isPending}
-                  />
-                </FormField>
-              )}
-              <FormField>
-                <FieldLabel htmlFor="auth-email">邮箱</FieldLabel>
-                <Input
-                  id="auth-email"
-                  className="h-12"
-                  name="email"
-                  required
-                  type="email"
-                  autoComplete="email"
-                  disabled={action.isPending}
-                />
-              </FormField>
-              <FormField>
-                <FieldLabel htmlFor="auth-password">密码</FieldLabel>
-                <InputGroup className="h-12">
-                  <InputGroupInput
-                    id="auth-password"
-                    name="password"
-                    required
-                    type={showPassword ? "text" : "password"}
-                    minLength={register ? 8 : 1}
-                    maxLength={128}
-                    autoComplete={
-                      register ? "new-password" : "current-password"
-                    }
-                    placeholder={register ? "至少 8 位" : undefined}
-                    disabled={action.isPending}
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupButton
-                      size="icon-sm"
-                      aria-label={showPassword ? "隐藏密码" : "显示密码"}
-                      aria-pressed={showPassword}
-                      onClick={() => setShowPassword((v) => !v)}
-                    >
-                      {showPassword ? <EyeOff /> : <Eye />}
-                    </InputGroupButton>
-                  </InputGroupAddon>
-                </InputGroup>
-              </FormField>
-              {action.error && (
-                <Alert
-                  variant="destructive"
-                  className="border-0 bg-destructive/10"
-                >
-                  <CircleAlert />
-                  <AlertTitle>{action.error.message}</AlertTitle>
-                </Alert>
-              )}
-              <Button
-                className="mt-2 h-12 w-full text-base"
-                disabled={action.isPending}
-              >
-                {action.isPending ? <Loader2 className="animate-spin" /> : null}
-                {action.isPending
-                  ? register
-                    ? "注册中"
-                    : "登录中"
-                  : register
-                    ? "注册"
-                    : "登录"}
-                {!action.isPending && <ArrowRight className="ml-auto" />}
-              </Button>
-            </FieldGroup>
-          </form>
-        </div>
+            <AuthForm register={register} />
+          </m.div>
+        </AnimatePresence>
       </section>
+    </div>
+  );
+}
+
+function AuthForm({ register }: { register: boolean }) {
+  const navigate = useNavigate();
+  const verification = useCaptcha(register ? "register" : "login");
+  const [params] = useSearchParams();
+  const next = safeLocalPath(params.get("next"));
+  const [showPassword, setShowPassword] = useState(false);
+  const action = useMutation({
+    mutationFn: (d: Record<string, unknown>) =>
+      api(`/auth/${register ? "register" : "login"}`, "POST", d),
+    onSettled: verification.reset,
+    onSuccess: () => {
+      void client.resetQueries();
+      navigate(next, { replace: true });
+    },
+  });
+  return (
+    <div className="w-full max-w-md space-y-10">
+      <div className="space-y-5">
+        <h1 className="text-4xl font-semibold sm:text-5xl">
+          {register ? "创建账户" : "登录"}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {register ? "已有账户？" : "还没有账户？"}{" "}
+          <Link
+            className="text-primary hover:underline underline-offset-4"
+            to={`${register ? "/login" : "/register"}${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}
+          >
+            {register ? "登录" : "注册"}
+          </Link>
+        </p>
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!verification.proof || action.isPending) return;
+          action.mutate({
+            ...Object.fromEntries(new FormData(e.currentTarget)),
+            captcha: verification.proof,
+          });
+        }}
+      >
+        <FieldGroup className="gap-6">
+          {register && (
+            <FormField>
+              <FieldLabel htmlFor="auth-username">用户名</FieldLabel>
+              <Input
+                id="auth-username"
+                className="h-12"
+                name="username"
+                required
+                minLength={2}
+                maxLength={32}
+                autoComplete="username"
+                disabled={action.isPending}
+              />
+            </FormField>
+          )}
+          <FormField>
+            <FieldLabel htmlFor="auth-email">邮箱</FieldLabel>
+            <Input
+              id="auth-email"
+              className="h-12"
+              name="email"
+              required
+              type="email"
+              autoComplete="email"
+              disabled={action.isPending}
+            />
+          </FormField>
+          <FormField>
+            <FieldLabel htmlFor="auth-password">密码</FieldLabel>
+            <InputGroup className="h-12">
+              <InputGroupInput
+                id="auth-password"
+                name="password"
+                required
+                type={showPassword ? "text" : "password"}
+                minLength={register ? 8 : 1}
+                maxLength={128}
+                autoComplete={register ? "new-password" : "current-password"}
+                placeholder={register ? "至少 8 位" : undefined}
+                disabled={action.isPending}
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  size="icon-sm"
+                  aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((v) => !v)}
+                >
+                  {showPassword ? <EyeOff /> : <Eye />}
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+          </FormField>
+          <Captcha verification={verification} disabled={action.isPending} />
+          {action.error && (
+            <Alert variant="destructive" className="border-0 bg-destructive/10">
+              <CircleAlert />
+              <AlertTitle>{action.error.message}</AlertTitle>
+            </Alert>
+          )}
+          <Button
+            className="mt-2 h-12 w-full text-base"
+            disabled={action.isPending || !verification.proof}
+          >
+            {action.isPending ? <Loader2 className="animate-spin" /> : null}
+            {action.isPending
+              ? register
+                ? "注册中"
+                : "登录中"
+              : register
+                ? "注册"
+                : "登录"}
+            {!action.isPending && <ArrowRight className="ml-auto" />}
+          </Button>
+        </FieldGroup>
+      </form>
     </div>
   );
 }

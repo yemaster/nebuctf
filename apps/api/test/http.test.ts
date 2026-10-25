@@ -1,3 +1,4 @@
+import { verified } from "./helpers/captcha.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildApp } from "../src/app.js";
@@ -14,6 +15,8 @@ const db: DB = {
   query: async (sql, params) => {
     if (sql.includes("FROM sessions") && params?.[0] === digest("test-session"))
       return [user] as any;
+    if (sql.includes("INSERT INTO captcha_uses"))
+      return [{ id: params?.[0] }] as any;
     if (sql.includes("INSERT INTO rate_limits")) return [{ hits: 1 }] as any;
     return [];
   },
@@ -27,7 +30,7 @@ test("HTTP security boundaries and input validation", async (t) => {
   await t.test("cross-origin and missing-CSRF writes are denied", async () => {
     assert.equal(
       (
-        await app.inject({
+        await verified(app, {
           method: "POST",
           url: "/api/auth/logout",
           headers: { origin: "https://evil.example", "x-csrf-protection": "1" },
@@ -37,7 +40,7 @@ test("HTTP security boundaries and input validation", async (t) => {
     );
     assert.equal(
       (
-        await app.inject({
+        await verified(app, {
           method: "POST",
           url: "/api/auth/logout",
           headers: { origin: config.APP_ORIGIN },
@@ -55,7 +58,7 @@ test("HTTP security boundaries and input validation", async (t) => {
         "/api/admin/challenges",
         "/api/admin/articles",
       ])
-        assert.equal((await app.inject({ url })).statusCode, 401);
+        assert.equal((await verified(app, { url })).statusCode, 401);
     },
   );
   await t.test(
@@ -69,7 +72,7 @@ test("HTTP security boundaries and input validation", async (t) => {
       ])
         assert.equal(
           (
-            await app.inject({
+            await verified(app, {
               url,
               headers: { cookie: "nebu_session=test-session" },
             })
@@ -82,12 +85,12 @@ test("HTTP security boundaries and input validation", async (t) => {
     "invalid identifiers, excessive bodies and weak credentials fail before persistence",
     async () => {
       assert.equal(
-        (await app.inject({ url: "/api/challenges/not-a-uuid" })).statusCode,
+        (await verified(app, { url: "/api/challenges/not-a-uuid" })).statusCode,
         400,
       );
       assert.equal(
         (
-          await app.inject({
+          await verified(app, {
             method: "POST",
             url: "/api/auth/register",
             headers,
@@ -98,7 +101,7 @@ test("HTTP security boundaries and input validation", async (t) => {
       );
       assert.equal(
         (
-          await app.inject({
+          await verified(app, {
             method: "POST",
             url: "/api/auth/login",
             headers,
@@ -112,7 +115,7 @@ test("HTTP security boundaries and input validation", async (t) => {
   await t.test(
     "session and response headers do not expose secrets",
     async () => {
-      const res = await app.inject({
+      const res = await verified(app, {
         url: "/api/me",
         headers: { cookie: "nebu_session=test-session" },
       });
@@ -124,7 +127,7 @@ test("HTTP security boundaries and input validation", async (t) => {
     },
   );
   await t.test("invalid login gives a generic credential error", async () => {
-    const res = await app.inject({
+    const res = await verified(app, {
       method: "POST",
       url: "/api/auth/login",
       headers,

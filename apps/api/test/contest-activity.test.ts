@@ -1,3 +1,4 @@
+import { verified } from "./helpers/captcha.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { openDB } from "../src/db.js";
@@ -18,14 +19,14 @@ test("contest announcements and activity isolation", async (t) => {
     payload: unknown,
     method: "POST" | "PUT" = "POST",
   ) =>
-    app.inject({
+    verified(app, {
       method,
       url: `/api${url}`,
       headers: { ...headers, cookie },
       payload: payload as any,
     });
   const get = (url: string, cookie = "") =>
-    app.inject({ url: `/api${url}`, headers: { cookie } });
+    verified(app, { url: `/api${url}`, headers: { cookie } });
   async function user(name: string) {
     const r = await write("/auth/register", "", {
       username: name,

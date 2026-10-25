@@ -138,7 +138,9 @@ function AppShell() {
               custom={instant}
             >
               <m.div
-                key={adminPage ? "admin" : location.pathname}
+                key={
+                  adminPage ? "admin" : authPage ? "auth" : location.pathname
+                }
                 initial={instant ? false : { opacity: 0, y: transition.y }}
                 animate={{ opacity: 1, y: 0 }}
                 variants={{

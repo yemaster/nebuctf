@@ -1,3 +1,4 @@
+import { verified } from "./helpers/captcha.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { openDB } from "../src/db.js";
@@ -12,14 +13,14 @@ test("administrators participate in practice and registered team scoring", async
     await db.close();
   });
   const post = (path: string, cookie: string, payload: unknown) =>
-    app.inject({
+    verified(app, {
       method: "POST",
       url: `/api${path}`,
       headers: { origin: config.APP_ORIGIN, "x-csrf-protection": "1", cookie },
       payload: payload as any,
     });
   const get = (path: string, cookie = "") =>
-    app.inject({ url: `/api${path}`, headers: { cookie } });
+    verified(app, { url: `/api${path}`, headers: { cookie } });
   async function account(username: string) {
     const res = await post("/auth/register", "", {
       username,

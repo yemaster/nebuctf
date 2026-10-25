@@ -9,6 +9,7 @@ const gc = setInterval(
     db
       .query("DELETE FROM sessions WHERE expires_at<now()")
       .then(() => db.query("DELETE FROM rate_limits WHERE expires_at<now()"))
+      .then(() => db.query("DELETE FROM captcha_uses WHERE expires_at<now()"))
       .catch((err) => app.log.error(err)),
   300000,
 );

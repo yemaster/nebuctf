@@ -1,3 +1,4 @@
+import { verified } from "./helpers/captcha.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -30,7 +31,7 @@ test(
     });
     const base = { origin: config.APP_ORIGIN, "x-csrf-protection": "1" };
     async function createUser(name: string) {
-      const r = await app.inject({
+      const r = await verified(app, {
         method: "POST",
         url: "/api/auth/register",
         headers: base,
@@ -50,7 +51,7 @@ test(
       bob = await createUser("bob"),
       carol = await createUser("carol");
     const send = (path: string, cookie: string, payload: unknown = {}) =>
-      app.inject({
+      verified(app, {
         method: "POST",
         url: `/api${path}`,
         headers: { ...base, cookie },
@@ -93,7 +94,7 @@ test(
         await send(`/challenges/${cid}/submit`, bob.cookie, {
           flag: "flag{correct}",
         });
-        const res = await app.inject("/api/scoreboard");
+        const res = await verified(app, "/api/scoreboard");
         assert.equal(res.statusCode, 200, res.body);
         assert.equal(res.json().items[0].score, res.json().items[1].score);
         assert.equal(res.json().items[0].solves, 1);
@@ -131,7 +132,7 @@ test(
         );
         assert.equal(
           (
-            await app.inject({
+            await verified(app, {
               url: `/api/challenges?scope=${contest}`,
               headers: { cookie: alice.cookie },
             })
@@ -188,7 +189,7 @@ test(
         assert.equal(stop.statusCode, 429);
         assert.ok(Number(stop.headers["retry-after"]) > 0);
         assert.ok(stop.json().retry_after <= 60);
-        const policy = await app.inject({
+        const policy = await verified(app, {
           url: `/api/challenges/${dynamic}/instance-policy`,
           headers: { cookie: alice.cookie },
         });
@@ -249,7 +250,7 @@ test(
           ],
         );
         const get = (suffix: string) =>
-          app.inject({
+          verified(app, {
             url: `/api/instances${suffix}`,
             headers: { cookie: alice.cookie },
           });
@@ -337,7 +338,10 @@ test(
           "INSERT INTO articles(id,slug,title,category,kind,body) VALUES($1,'draft','draft','Misc','tutorial','secret')",
           [aid],
         );
-        assert.equal((await app.inject("/api/articles/draft")).statusCode, 404);
+        assert.equal(
+          (await verified(app, "/api/articles/draft")).statusCode,
+          404,
+        );
         assert.equal(
           (await send(`/articles/${aid}/complete`, alice.cookie)).statusCode,
           404,
@@ -349,7 +353,7 @@ test(
         );
         assert.equal(
           (
-            await app.inject({
+            await verified(app, {
               url: "/api/articles/draft",
               headers: { cookie: alice.cookie },
             })
@@ -418,12 +422,12 @@ test(
             "INSERT INTO solves(id,challenge_id,scope,owner_key,user_id,created_at) VALUES($1,$2,$3,$4,$5,now()-$6*interval '1 minute')",
             [crypto.randomUUID(), cid, contest, owner, uid, minutes],
           );
-        const board = await app.inject(`/api/scoreboard?scope=${contest}`);
+        const board = await verified(app, `/api/scoreboard?scope=${contest}`);
         assert.equal(board.statusCode, 200, board.body);
         assert.equal(board.json().frozen, true);
         assert.equal(board.json().items[0].score, 499);
         assert.equal(board.json().items[1].score, 0);
-        const detail = await app.inject({
+        const detail = await verified(app, {
           url: `/api/challenges/${cid}?scope=${contest}`,
           headers: { cookie: alice.cookie },
         });
@@ -461,7 +465,7 @@ test(
         };
         const created = await send("/admin/challenges", carol.cookie, data);
         assert.equal(created.statusCode, 200, created.body);
-        const changed = await app.inject({
+        const changed = await verified(app, {
           method: "PUT",
           url: `/api/admin/challenges/${created.json().id}`,
           headers: { ...base, cookie: carol.cookie },
@@ -487,7 +491,10 @@ test(
         for (const value of [alice.cookie, cookie])
           assert.equal(
             (
-              await app.inject({ url: "/api/me", headers: { cookie: value } })
+              await verified(app, {
+                url: "/api/me",
+                headers: { cookie: value },
+              })
             ).json().user,
             null,
           );
@@ -500,7 +507,7 @@ test(
         assert.equal((await send("/auth/logout", fresh)).statusCode, 200);
         assert.equal(
           (
-            await app.inject({ url: "/api/me", headers: { cookie: fresh } })
+            await verified(app, { url: "/api/me", headers: { cookie: fresh } })
           ).json().user,
           null,
         );
