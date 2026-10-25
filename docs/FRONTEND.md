@@ -25,7 +25,7 @@
 
 ### 导航与主题设置
 
-导航栏外框统一为 56 px，内部保留 44 px 按钮、16 px 文字和水平内边距，当前项通过完整底色与柔和阴影标记；登录和注册只在对应路由选中。比赛仍为单层导航，账户操作保留在最右侧。宽度不足时改用 Sheet，不缩小文字挤进一行。学习与账户菜单继续点击展开，并共用 Dropdown Menu。
+导航栏外框统一为 56 px，内部保留 44 px 按钮、16 px 文字和水平内边距。参考 [shadcn Navigation Menu](https://ui.shadcn.com/docs/components/radix/navigation-menu) 的状态表达，当前项与展开项通过底色和文字颜色区分，不使用导航项阴影，保留键盘焦点环；登录和注册只在对应路由选中。比赛仍为单层导航，账户操作保留在最右侧。宽度不足时改用 Sheet，不缩小文字挤进一行。学习与账户菜单继续点击展开，并共用 Dropdown Menu。
 
 右上角「主题设置」参考 [shadcn Popover](https://ui.shadcn.com/docs/components/radix/popover)、[Toggle Group](https://ui.shadcn.com/docs/components/radix/toggle-group) 和 [Radix 主题配置](https://www.radix-ui.com/themes/docs/theme/overview)，用同一面板并列展示外观和主题色。外观提供亮色、暗色、跟随系统；色块使用单选语义、名称与选中勾，不用下拉选择。点击即时生效，切换后面板保持打开；支持 Escape、焦点恢复、刷新保留及跨标签页同步。外部启动脚本在首帧前同时应用外观和主题色；存储不可用时仍可切换。
 

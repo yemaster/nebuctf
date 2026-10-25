@@ -56,9 +56,9 @@ const account = [
 ];
 const navigationClass = (selected = false) =>
   cn(
-    "h-11 rounded-lg px-4 text-base has-[>svg]:px-4 transition-[background-color,color,box-shadow] duration-150 data-[state=open]:bg-accent data-[state=open]:text-foreground data-[state=open]:shadow-md",
+    "h-11 rounded-lg px-4 text-base has-[>svg]:px-4 transition-colors duration-150 data-[state=open]:bg-accent data-[state=open]:text-foreground",
     selected
-      ? "bg-accent text-foreground shadow-md shadow-black/10 hover:bg-accent dark:shadow-black/25 dark:hover:bg-accent"
+      ? "bg-accent text-foreground hover:bg-accent dark:hover:bg-accent"
       : "text-muted-foreground hover:text-foreground",
   );
 
@@ -288,7 +288,7 @@ export function SiteHeader({
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="h-11 rounded-lg px-3 text-base has-[>svg]:px-3 data-[state=open]:bg-accent data-[state=open]:shadow-md"
+                  className="h-11 rounded-lg px-3 text-base has-[>svg]:px-3 data-[state=open]:bg-accent"
                   aria-label="账户菜单"
                 >
                   <UserRound className="size-5" />
