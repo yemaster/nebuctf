@@ -380,3 +380,12 @@ PDF 通过现有管理员文件接口鉴权读取，预览携带版本号；文�
 `ContestAccessSettings` 集中访问权限、报名范围、审核和练习开关；`contestCapabilities` 决定各身份菜单，服务端独立鉴权。`useSpectatorRealtime` 负责初始快照、重连、页面隐藏时断开及 1008 撤权；错误时整个大屏由错误视图替换。排行等待下一页时保留旧页，不切换为空白加载块。
 
 三维渲染最多 30 FPS、像素比 1.5、60 个战队节点与 12 个事件；离开时销毁 WebGL 资源。首个快照不播放历史攻击，已处理事件不会因重复推送重播，减少动态效果设置关闭非必要动效。按需加载独立 `spectator-3d` chunk，普通比赛/管理页面不下载 Three.js。
+
+
+## 比赛管理侧栏与观战场景调整
+
+参考实际查看的 [i春秋未来世界赛况图](https://www.integritytech.com.cn/html/News/News_525_1.html)、[永信至诚赛事展示](https://www.integritytech.com.cn/html/News/News_150_1.html)、[shadcn Sidebar](https://ui.shadcn.com/docs/components/radix/sidebar) 和 [Three.js 泛光示例](https://threejs.org/examples/webgl_postprocessing_unreal_bloom.html)。科技感效果集中在观战 3D 场景，普通页面继续使用现有 shadcn/ui、字体、图标与主题，没有新增全局 CSS。
+
+顶部观战项移除，概览保留观战入口；管理从下拉改为直接链接。比赛管理使用 12rem 常驻侧栏，支持收缩和移动端 Sheet。共享路由外壳在切换时保留，设置按需加载，局部加载和错误不替换侧栏。旧后台管理链接重定向到本场管理页，保留查询条件；WriteUp 提交设置也在同一外壳中打开。
+
+观战场景分离为渲染控制、共享场景模型和短时事件特效三个模块。中心全息球体与分类悬浮区域建立层次，外围战队节点对应真实队伍，轨迹连接正确目标。详细性能界限与行为见 [比赛观战与赛后练习](CONTEST-SPECTATING.md)。未报名预览在作答区直接显示报名入口，不让用户先提交再得知限制；客观题与防守补丁同样受控。通用 ActionError 的图标与整块内容垂直居中。
