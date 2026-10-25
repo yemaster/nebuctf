@@ -1,4 +1,4 @@
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   BookOpen,
@@ -133,7 +133,7 @@ export function SiteHeader({
       className="relative z-40 shrink-0 bg-card"
       style={{ viewTransitionName: "site-header" }}
     >
-      <div className="mx-auto flex h-16 w-full max-w-[1680px] items-center gap-2 px-3 sm:h-18 sm:px-6 lg:gap-4 lg:px-10">
+      <div className="mx-auto flex h-14 w-full max-w-[1680px] items-center gap-2 px-3 sm:px-6 lg:gap-4 lg:px-10">
         {contestId && (
           <Button
             variant="ghost"
@@ -371,34 +371,5 @@ export function SiteHeader({
         </div>
       </div>
     </header>
-  );
-}
-
-export function SiteFooter({ contestId }: { contestId?: string }) {
-  const links = contestId
-    ? [
-        { to: `/contests/${contestId}/announcements`, name: "公告" },
-        { to: `/contests/${contestId}`, name: "规则" },
-      ]
-    : secondary;
-  return (
-    <footer className="flex min-h-10 shrink-0 items-center justify-between gap-4 px-4 text-xs text-muted-foreground sm:px-6">
-      <span className="whitespace-nowrap">
-        © {new Date().getFullYear()} NebuCTF
-      </span>
-      <nav aria-label="页脚导航" className="flex items-center gap-1">
-        {links.map((item) => (
-          <Button
-            key={item.to}
-            variant="ghost"
-            size="sm"
-            className="text-xs font-normal"
-            asChild
-          >
-            <NavLink to={item.to}>{item.name}</NavLink>
-          </Button>
-        ))}
-      </nav>
-    </footer>
   );
 }

@@ -25,7 +25,8 @@ import {
   useCardTransition,
 } from "./components/card-transition";
 import { ThemeProvider, ThemedToaster } from "./components/theme-provider";
-import { SiteHeader, SiteFooter } from "./components/site-shell";
+import { SiteHeader } from "./components/site-shell";
+import { SiteFooter } from "./components/site-footer";
 
 import { Challenges } from "./pages/Challenges";
 import { Announcements } from "./pages/Announcements";
@@ -254,7 +255,7 @@ function AppShell() {
               )}
             </AnimatePresence>
           </main>
-          <SiteFooter contestId={contestId} />
+          <SiteFooter contestId={contestId} user={user} />
           {contestId && (
             <ContestActivity
               scope={contestId}
