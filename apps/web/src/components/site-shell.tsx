@@ -57,7 +57,7 @@ const account = [
 ];
 const navigationClass = (selected = false) =>
   cn(
-    "relative h-11 rounded-md px-4 text-base has-[>svg]:px-4 transition-colors duration-200 motion-reduce:transition-none hover:bg-muted dark:hover:bg-secondary data-[state=open]:bg-muted data-[state=open]:text-foreground dark:data-[state=open]:bg-secondary",
+    "relative h-full rounded-none px-4 text-base has-[>svg]:px-4 transition-colors duration-200 motion-reduce:transition-none hover:bg-muted dark:hover:bg-secondary data-[state=open]:bg-muted data-[state=open]:text-foreground dark:data-[state=open]:bg-secondary",
     selected
       ? "bg-muted text-foreground dark:bg-secondary"
       : "text-muted-foreground hover:text-foreground",
@@ -139,7 +139,7 @@ export function SiteHeader({
           <Button
             variant="ghost"
             asChild
-            className="size-11 shrink-0 rounded-md p-0 transition-colors duration-200 motion-reduce:transition-none hover:bg-muted dark:hover:bg-secondary 2xl:w-auto 2xl:px-4"
+            className="h-full w-11 shrink-0 rounded-none p-0 transition-colors duration-200 motion-reduce:transition-none hover:bg-muted dark:hover:bg-secondary 2xl:w-auto 2xl:px-4"
           >
             <Link to="/contests">
               <ArrowLeft />
@@ -154,7 +154,7 @@ export function SiteHeader({
               variant="ghost"
               size="icon"
               className={cn(
-                "size-11 rounded-md transition-colors duration-200 motion-reduce:transition-none hover:bg-muted dark:hover:bg-secondary",
+                "h-full w-11 rounded-none transition-colors duration-200 motion-reduce:transition-none hover:bg-muted dark:hover:bg-secondary",
                 contestId ? "xl:hidden" : "lg:hidden",
               )}
               aria-label="打开导航"
@@ -181,7 +181,7 @@ export function SiteHeader({
                     asChild
                     className={cn(
                       navigationClass(active(item.to)),
-                      "h-12 justify-start",
+                      "h-12 justify-start rounded-md",
                     )}
                   >
                     <Link
@@ -218,7 +218,7 @@ export function SiteHeader({
           key={contestId ?? "main"}
           aria-label={contestId ? "比赛导航" : "主导航"}
           className={cn(
-            "relative shrink-0 items-center gap-1 xl:gap-2",
+            "relative h-full shrink-0 items-stretch gap-1 xl:gap-2",
             contestId ? "hidden xl:flex" : "hidden lg:flex",
           )}
         >
@@ -299,7 +299,7 @@ export function SiteHeader({
             activeKey={`${pathname}:${items.map((item) => item.to).join(",")}:${management.length}`}
           />
         </nav>
-        <div className="relative ml-auto flex shrink-0 items-center gap-1">
+        <div className="relative ml-auto flex h-full shrink-0 items-stretch gap-1">
           <ThemeSettings />
           {user ? (
             <DropdownMenu>
