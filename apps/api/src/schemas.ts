@@ -19,20 +19,41 @@ import {
 export const id = z.string().uuid();
 export const scope = z.union([z.literal("practice"), id]).default("practice");
 export const password = z.string().min(8, "密码至少 8 位").max(128);
-export const credentials = z.object({
-  email: z
-    .email()
-    .max(254)
-    .transform((v) => v.toLowerCase()),
-  password: z.string().min(1).max(128),
-});
-export const register = credentials.extend({
+const email = z
+  .email()
+  .max(254)
+  .transform((v) => v.toLowerCase());
+export const credentials = z
+  .object({
+    identifier: z
+      .string()
+      .trim()
+      .min(1, "请输入用户名或邮箱")
+      .max(254)
+      .optional(),
+    // Keep existing clients and deployment scripts using { email, password } working.
+    email: z.string().trim().pipe(email).optional(),
+    password: z.string().min(1).max(128),
+  })
+  .refine(
+    (data) => (data.identifier !== undefined) !== (data.email !== undefined),
+    {
+      message: "请提供用户名或邮箱",
+      path: ["identifier"],
+    },
+  )
+  .transform((data) => ({
+    identifier: data.identifier ?? data.email!,
+    password: data.password,
+  }));
+export const register = z.object({
   username: z
     .string()
     .regex(
       /^[\p{L}\p{N}_-]{2,32}$/u,
       "用户名为 2–32 位字母、数字、中文或下划线",
     ),
+  email,
   password,
 });
 export const partInput = z

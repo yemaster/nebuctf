@@ -26,6 +26,12 @@ Flag 提交请求：`{ "flag": "flag{...}", "scope": "practice" }`，返回 `cor
 
 分页：题库、文档、比赛、题单、题单内题目以及管理题目/资源/比赛/题单/文档/技能树/公告默认每页 24 条；个人提交与榜单 30，审计/用户/管理提交 50。管理列表接受 page 与 q，返回 items、total、page；资源没有搜索，用户/审计/管理提交沿用原接口。题目与比赛管理另接受 page_size（1–100），榜单接受 page_size（10–100）。比赛内题目目录保持完整。
 
+## 登录
+
+`POST /auth/login` 接受 `{ identifier, password, captcha }`，`identifier` 可以是用户名或邮箱，忽略大小写和两端空白；密码保持原值。为兼容旧客户端，仍接受 `{ email, password, captcha }`，但 `identifier` 和 `email` 不能同时传入。注册仍要求独立的合法邮箱。
+
+用户名与邮箱共用同一账户的登录限流（每 15 分钟 10 次），并保留每 IP 每 15 分钟 30 次的限制及计算验证码。不存在、停用的账户或错误密码均返回 401「账号或密码错误」。查询复用用户名、邮箱的现有不区分大小写唯一索引，无需数据库迁移。
+
 ## 计算验证码
 
 四个写接口 `/auth/login`、`/auth/register`、`/teams`、`/team/join` 都必须携带 `captcha: { token, nonce }`。先向 `POST /captcha/challenge` 提交 `{ purpose }`，purpose 分别为 `login`、`register`、`team-create`、`team-join`；战队用途要求已登录。

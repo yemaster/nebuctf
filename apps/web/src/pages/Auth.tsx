@@ -154,14 +154,19 @@ function AuthForm({ register }: { register: boolean }) {
             </FormField>
           )}
           <FormField>
-            <FieldLabel htmlFor="auth-email">邮箱</FieldLabel>
+            <FieldLabel htmlFor={register ? "auth-email" : "auth-identifier"}>
+              {register ? "邮箱" : "用户名或邮箱"}
+            </FieldLabel>
             <Input
-              id="auth-email"
+              id={register ? "auth-email" : "auth-identifier"}
               className="h-12"
-              name="email"
+              name={register ? "email" : "identifier"}
               required
-              type="email"
-              autoComplete="email"
+              type={register ? "email" : "text"}
+              maxLength={254}
+              autoComplete={register ? "email" : "username"}
+              autoCapitalize="none"
+              spellCheck={false}
               disabled={action.isPending}
             />
           </FormField>

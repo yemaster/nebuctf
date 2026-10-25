@@ -86,15 +86,24 @@ export async function authRoutes(app: FastifyInstance, db: DB) {
     const data = credentials.parse(req.body);
     await consumeCaptcha(db, req, "login");
     await rate(db, `login-ip:${req.ip}`, 30, 900);
-    await rate(db, `login-account:${digest(data.email)}`, 10, 900);
-    const [user] = await db.query("SELECT * FROM users WHERE lower(email)=$1", [
-      data.email,
-    ]);
+    const [user] = await db.query(
+      data.identifier.includes("@")
+        ? "SELECT id,username,email,password_hash,role,disabled FROM users WHERE lower(email)=lower($1)"
+        : "SELECT id,username,email,password_hash,role,disabled FROM users WHERE lower(username)=lower($1)",
+      [data.identifier],
+    );
+    // Both identifiers share the existing email-based account limit.
+    await rate(
+      db,
+      `login-account:${digest((user?.email ?? data.identifier).toLowerCase())}`,
+      10,
+      900,
+    );
     const valid = await verifyPassword(
       user?.password_hash ?? dummy,
       data.password,
     );
-    if (!valid || !user || user.disabled) fail(401, "邮箱或密码错误");
+    if (!valid || !user || user.disabled) fail(401, "账号或密码错误");
     const t = token();
     await db.transaction(async (tx) => {
       const [fresh] = await tx.query(
@@ -106,7 +115,7 @@ export async function authRoutes(app: FastifyInstance, db: DB) {
         fresh.disabled ||
         fresh.password_hash !== user!.password_hash
       )
-        fail(401, "邮箱或密码错误");
+        fail(401, "账号或密码错误");
       await tx.query(
         "INSERT INTO sessions VALUES($1,$2,now()+interval '7 days')",
         [digest(t), user!.id],

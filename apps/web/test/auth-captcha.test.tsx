@@ -136,7 +136,7 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
           {
             error:
               path === "/auth/login"
-                ? "邮箱或密码错误"
+                ? "账号或密码错误"
                 : path === "/teams"
                   ? "战队名称已存在"
                   : "邀请码无效",
@@ -211,10 +211,19 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
       async () => {
         await mount("/login?next=%2Fteam");
         const form = container.querySelector("form")!;
-        const email = form.querySelector<HTMLInputElement>('[name="email"]')!;
+        const identifier = form.querySelector<HTMLInputElement>(
+          '[name="identifier"]',
+        )!;
         const password =
           form.querySelector<HTMLInputElement>('[name="password"]')!;
-        email.value = "someone@example.test";
+        identifier.value = "someone";
+        assert.equal(identifier.type, "text");
+        assert.equal(identifier.autocomplete, "username");
+        assert.equal(
+          identifier.checkValidity(),
+          true,
+          "usernames pass native form validation",
+        );
         password.value = "eight888";
         assert.equal(submitButton(form).disabled, true);
         await submit(form);
@@ -222,11 +231,13 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
         await solve();
         assert.equal(submitButton(form).disabled, false);
         await submit(form);
-        await settle(() => !!container.textContent?.includes("邮箱或密码错误"));
+        await settle(() => !!container.textContent?.includes("账号或密码错误"));
         assert.equal(submitButton(form).disabled, true);
-        assert.equal(email.value, "someone@example.test");
+        assert.equal(identifier.value, "someone");
         assert.equal(password.value, "eight888");
         const request = writes.find((w) => w.path === "/auth/login")!;
+        assert.equal(request.body.identifier, "someone");
+        assert.equal(request.body.email, undefined);
         assert.match(request.body.captcha.token, /^login-/);
         assert.match(request.body.captcha.nonce, /^[a-f0-9]{16}$/);
         await cleanup();
@@ -261,6 +272,11 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
           container.querySelector<HTMLInputElement>('[name="password"]')!
             .minLength,
           8,
+        );
+        assert.equal(
+          container.querySelector<HTMLInputElement>('[name="email"]')!.type,
+          "email",
+          "registration still requires an email address",
         );
         await solve();
         await submit(container.querySelector("form")!);

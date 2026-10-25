@@ -134,6 +134,6 @@ test("HTTP security boundaries and input validation", async (t) => {
       payload: { email: "absent@example.test", password: "invalid-password" },
     });
     assert.equal(res.statusCode, 401);
-    assert.equal(res.json().error, "邮箱或密码错误");
+    assert.equal(res.json().error, "账号或密码错误");
   });
 });
