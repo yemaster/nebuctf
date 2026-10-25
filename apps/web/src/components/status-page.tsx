@@ -1,6 +1,12 @@
 import { Component, type ReactNode } from "react";
-import { ArrowLeft, LogIn, RotateCw } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import {
+  ArrowLeft,
+  Home,
+  LayoutDashboard,
+  LogIn,
+  RotateCw,
+} from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import {
   Empty,
@@ -24,6 +30,16 @@ export function StatusPage({
   action?: { label: string; href: string };
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const inContest = location.pathname.startsWith("/contests/");
+  const fallback = inContest
+    ? location.pathname.split("/").slice(0, 3).join("/")
+    : "/";
+  const goBack = () => {
+    // Only traverse history created by this router; direct links stay on site.
+    if (window.history.state?.idx > 0) void navigate(-1);
+    else void navigate(fallback, { replace: true });
+  };
   const title =
     status === 401
       ? "请先登录"
@@ -84,18 +100,14 @@ export function StatusPage({
             </Button>
           )
         )}
-        <Button size="lg" variant="secondary" asChild>
-          <Link
-            to={
-              location.pathname.startsWith("/contests/")
-                ? location.pathname.split("/").slice(0, 3).join("/")
-                : "/"
-            }
-          >
-            <ArrowLeft />
-            {location.pathname.startsWith("/contests/")
-              ? "比赛概览"
-              : "返回首页"}
+        <Button size="lg" variant="secondary" type="button" onClick={goBack}>
+          <ArrowLeft />
+          返回上一页
+        </Button>
+        <Button size="lg" variant="ghost" asChild>
+          <Link to={fallback}>
+            {inContest ? <LayoutDashboard /> : <Home />}
+            {inContest ? "比赛概览" : "返回首页"}
           </Link>
         </Button>
       </EmptyContent>
@@ -104,11 +116,19 @@ export function StatusPage({
 }
 
 // A route failure keeps the global navigation available and never exposes a stack trace.
-export class PageBoundary extends Component<
-  { children: ReactNode },
-  { failed: boolean }
+class RouteErrorBoundary extends Component<
+  { children: ReactNode; resetKey: string },
+  { failed: boolean; resetKey: string }
 > {
-  state = { failed: false };
+  state = { failed: false, resetKey: this.props.resetKey };
+  static getDerivedStateFromProps(
+    props: { resetKey: string },
+    state: { resetKey: string },
+  ) {
+    return props.resetKey === state.resetKey
+      ? null
+      : { failed: false, resetKey: props.resetKey };
+  }
   static getDerivedStateFromError() {
     return { failed: true };
   }
@@ -123,4 +143,11 @@ export class PageBoundary extends Component<
       this.props.children
     );
   }
+}
+
+export function PageBoundary({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  return (
+    <RouteErrorBoundary resetKey={location.key}>{children}</RouteErrorBoundary>
+  );
 }
