@@ -1,3 +1,7 @@
+import {
+  contestResourcePolicy,
+  requireContestResourceSlot,
+} from "./contest-resource-limits.js";
 import { permissionSQL } from "./group-permissions.js";
 import { flagEnvironmentSpec } from "./flag-environment.js";
 import { resourceUsage } from "./resource-usage.js";
@@ -109,6 +113,7 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
         [cid, scope, owner, activeStatuses, c.resource_type],
       );
       if (existing) return existing;
+      await requireContestResourceSlot(tx, scope, owner, c.resource_type);
       const usage = await resourceUsage(tx, owner);
       if (
         usage!.n >= config.MAX_INSTANCES ||
@@ -225,7 +230,10 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
         `resource:${owner}:${scope}:${cid}${c.resource_type === "attachment" ? ":attachment" : ""}`,
       ],
     );
-    return { next_operation_at: row?.expires_at ?? null };
+    return {
+      next_operation_at: row?.expires_at ?? null,
+      quota: await contestResourcePolicy(db, scope, owner, c.resource_type),
+    };
   });
   async function owned(tx: DB, iid: string, u: ReturnType<typeof requireUser>) {
     const [i] = await tx.query(

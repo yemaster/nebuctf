@@ -1,3 +1,4 @@
+import { contestResourceLimitsInput } from "./contest-resource-limits.js";
 import { writeupInput } from "./writeup-config.js";
 import {
   flagEnvironmentName,
@@ -187,6 +188,8 @@ export const contestInput = z
     practice_mode: z.boolean().optional(),
     spectator_enabled: z.boolean().optional(),
     spectator_scoreboard: z.boolean().optional(),
+    visibility: z.enum(["public", "private"]).optional(),
+    resource_limits: contestResourceLimitsInput.optional(),
     registration_mode: z.enum(["public", "invite", "teams"]).optional(),
     registration_code: z
       .string()

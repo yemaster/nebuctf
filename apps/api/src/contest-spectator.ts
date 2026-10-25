@@ -1,3 +1,4 @@
+import { contestVisibilitySQL } from "./contest-entry.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { WebSocket } from "ws";
 import type { DB, Row } from "./db.js";
@@ -212,28 +213,44 @@ export function contestSpectatorRoutes(app: FastifyInstance, db: DB) {
         }
         // Public availability is checked for every push, including already-open sockets.
         const peers = [...room.peers];
-        let staff: Row[] = [];
-        if (!contest.published || !contest.spectator_enabled)
-          staff = await db.query(
-            "SELECT s.token_hash FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=ANY($1::text[]) AND s.expires_at>now() AND NOT u.disabled AND u.role='admin'",
-            [peers.map((p) => digest(p.request.cookies[sessionCookie] ?? ""))],
+        let authorized: Row[] = [];
+        const publicAccess =
+          contest.published &&
+          contest.spectator_enabled &&
+          contest.visibility !== "private";
+        if (!publicAccess)
+          authorized = await db.query(
+            `SELECT s.token_hash,u.id,u.username,u.email,u.role FROM sessions s JOIN users u ON u.id=s.user_id
+              JOIN contests c ON c.id=$2 WHERE s.token_hash=ANY($1::text[]) AND s.expires_at>now() AND NOT u.disabled
+              AND (u.role='admin' OR (c.published AND c.spectator_enabled AND ${contestVisibilitySQL("c", "u.id", "false")}))`,
+            [
+              peers.map((p) => digest(p.request.cookies[sessionCookie] ?? "")),
+              scope,
+            ],
           );
-        const allowed = peers.filter(
-          (p) =>
-            (contest.published && contest.spectator_enabled) ||
-            staff.some(
-              (s) =>
-                s.token_hash === digest(p.request.cookies[sessionCookie] ?? ""),
-            ),
-        );
+        const allowed = peers.filter((p) => {
+          if (publicAccess) return true;
+          const user = authorized.find(
+            (u) =>
+              u.token_hash === digest(p.request.cookies[sessionCookie] ?? ""),
+          );
+          if (!user) return false;
+          p.request.user = {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+          };
+          return true;
+        });
         for (const p of peers)
           if (!allowed.includes(p))
             p.socket.close(1008, "Spectating unavailable");
         if (!allowed.length) break;
         const data = await snapshot(
           contest,
-          allowed.find((p) => p.request.user?.role === "admin")?.request.user ??
-            undefined,
+          (allowed.find((p) => p.request.user?.role === "admin") ?? allowed[0])
+            ?.request.user ?? undefined,
         );
         const message = JSON.stringify({ type: "spectator", data });
         const signature = digest(message);

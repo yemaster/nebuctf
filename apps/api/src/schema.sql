@@ -207,3 +207,8 @@ ALTER TABLE objective_answers ADD COLUMN IF NOT EXISTS contest_practice boolean 
 ALTER TABLE objective_answers DROP CONSTRAINT IF EXISTS objective_answers_challenge_id_scope_owner_key_key;
 CREATE UNIQUE INDEX IF NOT EXISTS objective_answers_context ON objective_answers(challenge_id,scope,owner_key,contest_practice);
 INSERT INTO schema_migrations(version) VALUES(18) ON CONFLICT DO NOTHING;
+
+ALTER TABLE contests ADD COLUMN IF NOT EXISTS visibility text NOT NULL DEFAULT 'public' CHECK(visibility IN ('public','private'));
+ALTER TABLE contests ADD COLUMN IF NOT EXISTS resource_limits jsonb NOT NULL DEFAULT '{}' CHECK(jsonb_typeof(resource_limits)='object');
+CREATE INDEX IF NOT EXISTS instances_contest_resource_quota ON instances(scope,resource_type,owner_key) WHERE status IN ('queued','starting','running','ready','stopping');
+INSERT INTO schema_migrations(version) VALUES(19) ON CONFLICT DO NOTHING;

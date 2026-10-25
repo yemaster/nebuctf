@@ -1,3 +1,4 @@
+import { canViewContest } from "./contest-entry.js";
 import { requireAccepted } from "./registrations.js";
 import { isContestPractice } from "./contest-practice.js";
 import { effectivePoints } from "./competition-rules.js";
@@ -35,6 +36,7 @@ export async function contestAccess(
   ]);
   if (!contest || (!contest.published && user?.role !== "admin"))
     fail(404, "比赛不存在");
+  if (!(await canViewContest(db, contest!, user))) fail(404, "比赛不存在");
   if (
     active &&
     (new Date(contest!.starts_at).getTime() > Date.now() ||

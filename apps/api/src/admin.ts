@@ -501,6 +501,9 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
           );
           const mode =
             data.registration_mode ?? old?.registration_mode ?? "public";
+          const visibility = data.visibility ?? old?.visibility ?? "public";
+          if (visibility === "private" && mode !== "teams")
+            fail(400, "私密比赛请选择允许参赛的战队");
           const codeHash = data.registration_code
             ? registrationCodeHash(data.registration_code)
             : (old?.registration_code_hash ?? "");
@@ -528,6 +531,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
             groups,
             timing,
             writeup,
+            resource_limits,
             ...otherFields
           } = data;
           const fields = {
@@ -535,6 +539,9 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
             registration_code_hash: codeHash,
             registration_team_ids: allowedTeams,
             timing: JSON.stringify(timing),
+            ...(resource_limits
+              ? { resource_limits: JSON.stringify(resource_limits) }
+              : {}),
             ...(writeup ? { writeup: JSON.stringify(writeup) } : {}),
           };
           const keys = Object.keys(fields),

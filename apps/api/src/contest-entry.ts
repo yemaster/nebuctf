@@ -65,3 +65,27 @@ export async function requireScoreboardAccess(
     href: `/contests/${contest.id}`,
   });
 }
+
+// Arguments are internal SQL identifiers/placeholders, never request values.
+export function contestVisibilitySQL(
+  alias: string,
+  user: string,
+  admin: string,
+) {
+  return `(${alias}.visibility='public' OR ${admin} OR (${user} IS NOT NULL AND EXISTS(
+    SELECT 1 FROM memberships visibility_members WHERE visibility_members.user_id=${user}
+      AND (visibility_members.team_id=ANY(${alias}.registration_team_ids) OR EXISTS(
+        SELECT 1 FROM registrations visibility_registration WHERE visibility_registration.contest_id=${alias}.id
+          AND visibility_registration.team_id=visibility_members.team_id AND visibility_registration.status IN ('pending','accepted','suspended')
+      )))))`;
+}
+export async function canViewContest(db: DB, contest: Row, user?: User) {
+  if (contest.visibility !== "private" || user?.role === "admin") return true;
+  if (!user) return false;
+  return !!(
+    await db.query(
+      `SELECT 1 FROM contests c WHERE c.id=$1 AND ${contestVisibilitySQL("c", "$2::uuid", "false")}`,
+      [contest.id, user.id],
+    )
+  ).length;
+}

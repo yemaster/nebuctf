@@ -1,3 +1,4 @@
+import { contestResourcePolicy } from "./contest-resource-limits.js";
 import { permissionSQL } from "./group-permissions.js";
 import { notifyContest } from "./activity-events.js";
 import { resourceUsage } from "./resource-usage.js";
@@ -101,6 +102,13 @@ export class AwdWorker {
         )
           break;
         const owner = "t:" + team.team_id;
+        const quota = await contestResourcePolicy(
+          tx,
+          link.contest_id,
+          owner,
+          "container",
+        );
+        if (quota?.blocked) continue;
         const [patch] = await tx.query(
           "SELECT id,result->>'image' image FROM judge_jobs WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3 AND status='passed' AND result->>'image' IS NOT NULL ORDER BY finished_at DESC LIMIT 1",
           [link.challenge_id, link.contest_id, owner],

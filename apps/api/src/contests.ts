@@ -1,6 +1,10 @@
 import { snapshotContestMembers } from "./writeup-config.js";
 import { isContestPractice } from "./contest-practice.js";
-import { publicContest, checkRegistrationScope } from "./contest-entry.js";
+import {
+  publicContest,
+  checkRegistrationScope,
+  contestVisibilitySQL,
+} from "./contest-entry.js";
 import { registrationRoutes } from "./registrations.js";
 import { notifyContest } from "./activity-events.js";
 import { timingRoutes } from "./contest-timing.js";
@@ -36,18 +40,22 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
           Date.parse(filter.to) - Date.parse(filter.from) > 42 * 86400000))
     )
       fail(400, "日历范围不得超过 42 天");
-    const values = [filter.from ?? null, filter.to ?? null];
-    const condition =
-      "published AND ($1::timestamptz IS NULL OR ends_at>$1) AND ($2::timestamptz IS NULL OR starts_at<$2)";
+    const values = [
+      filter.from ?? null,
+      filter.to ?? null,
+      req.user?.id ?? null,
+      req.user?.role === "admin",
+    ];
+    const condition = `c.published AND ($1::timestamptz IS NULL OR c.ends_at>$1) AND ($2::timestamptz IS NULL OR c.starts_at<$2) AND ${contestVisibilitySQL("c", "$3::uuid", "$4::boolean")}`;
     const [count] = await db.query(
-      `SELECT count(*)::int total FROM contests WHERE ${condition}`,
+      `SELECT count(*)::int total FROM contests c WHERE ${condition}`,
       values,
     );
     return {
       total: count!.total,
       items: (
         await db.query(
-          `SELECT c.*,(SELECT count(*)::int FROM registrations r WHERE r.contest_id=c.id) teams FROM contests c WHERE ${condition} ORDER BY starts_at DESC,id LIMIT 24 OFFSET $3`,
+          `SELECT c.*,(SELECT count(*)::int FROM registrations r WHERE r.contest_id=c.id) teams FROM contests c WHERE ${condition} ORDER BY starts_at DESC,id LIMIT 24 OFFSET $5`,
           [...values, (p.page - 1) * 24],
         )
       ).map((c) => publicContest(c)),
@@ -75,9 +83,15 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
     return {
       days: await db.query(
         `SELECT to_char(d.bucket,'YYYY-MM-DD') AS "day",count(c.id)::int count FROM generate_series($1::date::timestamp,$2::date::timestamp,interval '1 day') d(bucket)
-      LEFT JOIN contests c ON c.published AND c.starts_at<((d.bucket+interval '1 day') AT TIME ZONE $3) AND c.ends_at>(d.bucket AT TIME ZONE $3)
+      LEFT JOIN contests c ON c.published AND ${contestVisibilitySQL("c", "$4::uuid", "$5::boolean")} AND c.starts_at<((d.bucket+interval '1 day') AT TIME ZONE $3) AND c.ends_at>(d.bucket AT TIME ZONE $3)
       GROUP BY d.bucket ORDER BY d.bucket`,
-        [p.from, p.to, p.zone],
+        [
+          p.from,
+          p.to,
+          p.zone,
+          req.user?.id ?? null,
+          req.user?.role === "admin",
+        ],
       ),
     };
   });

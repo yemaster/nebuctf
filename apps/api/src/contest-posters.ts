@@ -91,7 +91,12 @@ export function contestPosterRoutes(app: FastifyInstance, db: DB) {
     if (!c?.poster_id) fail(404, "未设置比赛海报");
     return reply
       .type(c!.poster_mime)
-      .header("Cache-Control", "private, max-age=300")
+      .header(
+        "Cache-Control",
+        c!.visibility === "private" || !c!.published
+          ? "private, no-store"
+          : "private, max-age=300",
+      )
       .send(createReadStream(join(storage(), `poster-${c!.poster_id}`)));
   });
 }

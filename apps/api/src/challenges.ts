@@ -1,3 +1,4 @@
+import { contestVisibilitySQL } from "./contest-entry.js";
 import { contestCutoff, isContestPractice } from "./contest-practice.js";
 import { recordFlagAnomaly } from "./contest-monitor.js";
 import { notifyContest } from "./activity-events.js";
@@ -180,7 +181,8 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
   });
   app.get("/api/stats", async (req) => {
     const [stats] = await db.query(
-      `SELECT (SELECT count(*)::int FROM challenges WHERE published AND practice) challenges,(SELECT count(*)::int FROM contests WHERE published AND ends_at>now()) contests,(SELECT count(*)::int FROM teams) teams,(SELECT count(*)::int FROM solves WHERE scope='practice') solves`,
+      `SELECT (SELECT count(*)::int FROM challenges WHERE published AND practice) challenges,(SELECT count(*)::int FROM contests c WHERE published AND ends_at>now() AND ${contestVisibilitySQL("c", "$1::uuid", "$2::boolean")}) contests,(SELECT count(*)::int FROM teams) teams,(SELECT count(*)::int FROM solves WHERE scope='practice') solves`,
+      [req.user?.id ?? null, req.user?.role === "admin"],
     );
     const activity = await db.query(
       `SELECT u.username,c.title,s.created_at FROM solves s JOIN users u ON u.id=s.user_id JOIN challenges c ON c.id=s.challenge_id WHERE s.scope='practice' AND c.published AND c.practice ORDER BY s.created_at DESC LIMIT 6`,

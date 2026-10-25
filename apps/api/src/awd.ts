@@ -1,3 +1,4 @@
+import { contestResourcePolicy } from "./contest-resource-limits.js";
 import { permissionSQL, ownerPermissions } from "./group-permissions.js";
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
@@ -49,7 +50,18 @@ export function awdRoutes(app: FastifyInstance, db: DB) {
       "SELECT r.number,s.points,s.details,s.created_at FROM round_results s JOIN contest_rounds r ON r.id=s.round_id WHERE r.contest_id=$1 AND r.challenge_id=$2 AND s.owner_key=$3 ORDER BY r.number DESC LIMIT 20",
       [scope, cid, owner],
     );
-    return { round: round ?? null, items, history };
+    const hasEnvironment = items.some(
+      (i) => i.own && i.instance_id && i.status !== "failed",
+    );
+    return {
+      round: round ?? null,
+      items,
+      history,
+      resource_blocked: hasEnvironment
+        ? null
+        : ((await contestResourcePolicy(db, scope, owner, "container"))
+            ?.blocked ?? null),
+    };
   });
   app.post("/api/challenges/:id/attack", async (req) => {
     const user = requireUser(req),
