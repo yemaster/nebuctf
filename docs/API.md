@@ -34,7 +34,7 @@ Flag 提交请求：`{ "flag": "flag{...}", "scope": "practice" }`，返回 `cor
 
 ## 计算验证码
 
-四个写接口 `/auth/login`、`/auth/register`、`/teams`、`/team/join` 都必须携带 `captcha: { token, nonce }`。先向 `POST /captcha/challenge` 提交 `{ purpose }`，purpose 分别为 `login`、`register`、`team-create`、`team-join`；战队用途要求已登录。
+四个写接口 `/auth/login`、`/auth/register`、`/teams`、`/team/join` 默认都必须携带 `captcha: { token, nonce }`。开启注册邮箱验证时，注册用途证明在 `/auth/email-code` 消费，`/auth/register` 改用一次性邮箱证明。先向 `POST /captcha/challenge` 提交 `{ purpose }`，purpose 分别为 `login`、`register`、`team-create`、`team-join`；战队用途要求已登录。
 
 返回 `{ token, salt, difficulty, expires_at, expires_in }`。salt 是 32 字节的十六进制串，nonce 是 8 字节的小写十六进制串；求解条件为 `SHA256(hexDecode(salt) || hexDecode(nonce))` 的前 difficulty 位为零。token 为服务端签名的不透明字符串，原样提交。有效期 300 秒；前端按返回的有效秒数扣除请求与计算耗时，不依赖设备时钟与服务器时钟一致。
 
@@ -335,3 +335,32 @@ WebSocket 按组复用快照，每次发布重新验证会话、报名与题目�
 queued/starting/running/ready/stopping 均占名额，failed/stopped 不占；已经生成的附件在删除或到期清理前占名额，普通静态附件下载不计数。公共靶机不占每队名额，AWD 自动分配的每队环境按一台靶机计数，判题/巡检临时容器只计入平台资源池。限制仅阻止新建，已有环境的幂等创建、续期、释放和附件下载保持原有规则。AWD 重启先按替换一台的数量核对配额，限额不足时拒绝并保留原环境，不会先销毁后失败。
 
 创建和比赛配置修改使用同一事务锁，按比赛、资源类型和所有者核对后预占排队名额，防止并发超额。到限返回 409 与资源管理 action；`GET /challenges/:id/instance-policy` 新增 `quota`（team_limit/total_limit/team_used/total_used/blocked），练习场为 null。blocked 包含 message 和 action；前端据此在操作前提示，并在名额释放后恢复按钮。AWD arena 的 resource_blocked 表示本队环境尚未分配时的数量限制。
+
+## 基础管理与邮件验证
+
+- `GET /site` 仅返回系统名称、页脚文本/链接与 `email_verification`，不返回邮件服务器或密钥。
+- `GET /admin/overview?days=7|30` 返回用户、战队、题目、当前比赛、待审核报名、UTC 日提交趋势、资源配额占用、Worker 心跳、最近环境异常、AI 调用统计。
+- `GET|PUT /admin/settings/site`：`name,footer_text,footer_link_label,footer_link_url`。
+- `GET|PUT /admin/settings/containers`：`default_ttl,renew_limit,renew_seconds,auto_destroy`，时间单位秒，限制为 60–86400 秒、续期次数 0–100。
+- `GET|PUT /admin/settings/mail`：`require_verification,allowed_emails,host,port,security,username,from_address,from_name`。写入可附 `password` 或 `clear_password`，读取只有 `password_set`。security 为 `tls|starttls|none`。
+- `POST /admin/settings/mail/test`：空对象仅测试连接，指定 `{recipient}` 才发送邮件。必须显式管理员请求与 CSRF。
+- `POST /auth/email-code`：`{email,captcha}`，返回 `{id,expires_in:600,resend_after:60}`。
+- 验证开启时 `POST /auth/register` 使用 `{username,email,password,email_verification:{id,code}}`。验证码绑定邮箱、有效期和最多 5 次尝试，注册事务原子消费；密码不在邮件任务中保存。既有注册限流仍生效。
+
+普通靶机创建可能返回 `{requires_confirmation:true,replacements:[{id,title}]}`，此时不修改任何实例。确认后重新发送原创建参数及 `replace_ids`；服务端在资源锁中重新计算替换名单，名单改变则再次要求确认。只允许同一所有者、同一范围、冷却已结束的普通独立靶机。Worker 等旧实例终态后才能启动新实例，物理清理失败时保持等待。实例列表增加 `renew_count,renew_limit,max_expires_at`；续期按快照累加，并在到达次数或截止时间时返回 409。
+
+## AI 路由
+
+管理员接口：
+
+- `GET /admin/ai-routes?page=1`，每页 10 条，包含 24 小时调用与失败次数。
+- `POST /admin/ai-routes`、`GET|PUT|DELETE /admin/ai-routes/:id`。
+- `PATCH /admin/ai-routes/:id` 使用 `{enabled}`。
+- `POST /admin/ai-routes/:id/rotate` 返回新的 `access_key`，旧密钥立即不可用于新请求。
+- `POST /admin/ai-routes/:id/test` 以已保存的凭据查询上游 `/models`。
+
+创建/编辑字段为 `name,enabled,protocol,base_url,api_key?,models:[{alias,upstream}],rpm,daily_limit,concurrency,max_tokens,timeout_seconds`。协议为 `openai|anthropic`，timeout_seconds 为 5–300。编辑时 api_key 留空保留原值。创建时必须设置上游密钥，响应 `{id,access_key}`；上游密钥不回显，访问密钥仅创建/轮换时返回。请求日志与审计不记录凭据、提示词或回复。
+
+对外 `GET /ai/:route/v1/models`、`POST /ai/:route/v1/chat/completions`、`POST /ai/:route/v1/messages`。仅这些路由不使用会话/CSRF，独立验证 `Authorization: Bearer ...` 或 `x-api-key`；管理员会话不能替代密钥。请求正文上限 1 MiB，响应/流累计上限 16 MiB、单事件缓冲上限 1 MiB；不跟随上游重定向。模型别名必须存在于路由配置，输出 tokens 不能超过上限。并发通过数据库行锁和请求租约跨进程约束，断开连接取消上游。
+
+两种协议的非流式与 SSE 转换、SDK 基础地址、功能边界及接入示例见 [基础管理教程](SYSTEM-SETTINGS.md)。AI 转发只执行上游模型调用，不执行模型返回的工具操作。

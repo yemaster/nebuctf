@@ -16,6 +16,7 @@
 - CPU、内存、PID、实例数、TTL 配额，排队、续期、销毁、到期自动释放与对账回收。
 - Markdown 知识库与教程、阅读进度、技能树、前置技能和练习联动。
 - 题目、赛事、公告、文档、技能树、资源、用户、审计管理。
+- 基础概览、系统名称与页脚、容器续期与确认替换、SMTP 注册验证与邮箱白名单、OpenAI/Anthropic AI 路由转发，见 [基础管理教程](docs/SYSTEM-SETTINGS.md)。
 
 题型配置、计分公式、检查器协议与实时动态见 [比赛规则](docs/COMPETITION-RULES.md)，攻防出题模板见 [示例](examples/attack-defense/README.md)。
 
