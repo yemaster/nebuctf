@@ -202,7 +202,7 @@ test(
       frozen: false,
       cutoff: new Date().toISOString(),
       stats: { teams: 11, challenges: 1, solves: 1, attacks: 0 },
-      leaders: Array.from({ length: 11 }, (_, i) => team(i)),
+      leaders: Array.from({ length: 10 }, (_, i) => team(i)),
       challenges: [],
       events: [event("first", Date.now())],
       groups: [],

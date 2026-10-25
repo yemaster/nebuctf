@@ -60,6 +60,7 @@ function Spectator({ scope }: { scope: string }) {
   const [paused, setPaused] = useState(false),
     [selected, setSelected] = useState<string | null>(null),
     [fullscreen, setFullscreen] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState<SpectatorTeam | null>(null);
   const screen = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const update = () =>
@@ -88,7 +89,9 @@ function Spectator({ scope }: { scope: string }) {
     );
   const data = feed.data,
     ended = Date.parse(data.contest.ends_at) <= Date.now();
-  const focus = data.leaders.find((t) => t.id === selected);
+  const focus =
+    data.leaders.find((t) => t.id === selected) ??
+    (selectedTeam?.id === selected ? selectedTeam : undefined);
   return (
     <div
       ref={screen}
@@ -156,7 +159,7 @@ function Spectator({ scope }: { scope: string }) {
       </div>
       <div className="grid min-h-0 flex-1 overflow-y-auto border-t lg:grid-cols-[320px_minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside
-          className="order-2 flex min-h-0 flex-col bg-card lg:order-first lg:border-r"
+          className="order-2 flex min-h-0 flex-col bg-card lg:order-first lg:overflow-y-auto lg:border-r"
           aria-label="观战数据"
         >
           <Leaderboard
@@ -164,7 +167,10 @@ function Spectator({ scope }: { scope: string }) {
             groups={data.groups}
             reduced={reduced}
             selected={selected}
-            onSelect={setSelected}
+            onSelect={(team) => {
+              setSelected(team.id);
+              setSelectedTeam(team);
+            }}
           />
           <EventFeed
             events={data.events}
@@ -262,7 +268,7 @@ function Leaderboard({
   groups: SpectatorData["groups"];
   reduced: boolean;
   selected: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (team: SpectatorTeam) => void;
 }) {
   const [page, setPage] = useState(1),
     [group, setGroup] = useState(""),
@@ -360,7 +366,7 @@ function Leaderboard({
                   type="button"
                   variant="ghost"
                   className={`h-8 w-full justify-start gap-3 rounded-md px-2 text-sm ${selected === team.id ? "bg-accent" : ""}`}
-                  onClick={() => onSelect(team.id)}
+                  onClick={() => onSelect(team)}
                   aria-label={`查看 ${team.name}，第 ${team.rank} 名，${team.score} 分`}
                 >
                   <span
@@ -427,7 +433,7 @@ function EventFeed({
 }) {
   return (
     <section
-      className="flex min-h-56 flex-1 flex-col border-t lg:min-h-0"
+      className="flex min-h-56 flex-1 flex-col border-t lg:min-h-40"
       aria-label="解题与攻防动态"
     >
       <div className="flex items-center justify-between px-4 py-3">
