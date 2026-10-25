@@ -57,9 +57,9 @@ const account = [
 ];
 const navigationClass = (selected = false) =>
   cn(
-    "relative h-full rounded-none px-4 text-base has-[>svg]:px-4 transition-colors duration-200 motion-reduce:transition-none hover:bg-muted dark:hover:bg-secondary data-[state=open]:bg-muted data-[state=open]:text-foreground dark:data-[state=open]:bg-secondary",
+    "relative h-full rounded-none px-4 text-base has-[>svg]:px-4 transition-colors duration-200 motion-reduce:transition-none hover:bg-transparent dark:hover:bg-transparent data-[state=open]:text-foreground",
     selected
-      ? "bg-muted text-foreground dark:bg-secondary"
+      ? "text-foreground"
       : "text-muted-foreground hover:text-foreground",
   );
 
@@ -139,7 +139,7 @@ export function SiteHeader({
           <Button
             variant="ghost"
             asChild
-            className="h-full w-11 shrink-0 rounded-none p-0 transition-colors duration-200 motion-reduce:transition-none hover:bg-muted dark:hover:bg-secondary 2xl:w-auto 2xl:px-4"
+            className="h-full w-11 shrink-0 rounded-none p-0 transition-colors duration-200 motion-reduce:transition-none hover:bg-transparent dark:hover:bg-transparent 2xl:w-auto 2xl:px-4"
           >
             <Link to="/contests">
               <ArrowLeft />
@@ -154,7 +154,7 @@ export function SiteHeader({
               variant="ghost"
               size="icon"
               className={cn(
-                "h-full w-11 rounded-none transition-colors duration-200 motion-reduce:transition-none hover:bg-muted dark:hover:bg-secondary",
+                "h-full w-11 rounded-none transition-colors duration-200 motion-reduce:transition-none hover:bg-transparent dark:hover:bg-transparent",
                 contestId ? "xl:hidden" : "lg:hidden",
               )}
               aria-label="打开导航"

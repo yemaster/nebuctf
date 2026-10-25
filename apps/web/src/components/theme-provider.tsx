@@ -114,7 +114,7 @@ export function ThemeSettings() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-full w-11 rounded-none transition-colors duration-200 motion-reduce:transition-none hover:bg-muted dark:hover:bg-secondary data-[state=open]:bg-muted dark:data-[state=open]:bg-secondary"
+          className="h-full w-11 rounded-none transition-colors duration-200 motion-reduce:transition-none hover:bg-transparent dark:hover:bg-transparent"
           aria-label="主题设置"
           title="主题设置"
         >
