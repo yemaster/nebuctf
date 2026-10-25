@@ -16,7 +16,7 @@ import { useAPI } from "@/lib/api";
 import type { Contest, User } from "@/lib/types";
 import { useContestCapabilities } from "@/lib/contest-access";
 import { cn } from "@/lib/utils";
-import { ThemeMenu } from "./theme-provider";
+import { ThemeSettings } from "./theme-provider";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -54,6 +54,13 @@ const account = [
   { to: "/instances", name: "我的靶机", icon: Server },
   { to: "/account", name: "账户设置", icon: UserRound },
 ];
+const navigationClass = (selected = false) =>
+  cn(
+    "h-11 rounded-lg px-4 text-base has-[>svg]:px-4 transition-[background-color,color,box-shadow] duration-150 data-[state=open]:bg-accent data-[state=open]:text-foreground data-[state=open]:shadow-md",
+    selected
+      ? "bg-accent text-foreground shadow-md shadow-black/10 hover:bg-accent dark:shadow-black/25 dark:hover:bg-accent"
+      : "text-muted-foreground hover:text-foreground",
+  );
 
 export function SiteHeader({
   user,
@@ -126,13 +133,17 @@ export function SiteHeader({
       className="relative z-40 shrink-0 bg-card"
       style={{ viewTransitionName: "site-header" }}
     >
-      <div className="mx-auto flex h-16 w-full max-w-[1680px] items-center gap-3 px-4 sm:px-6 lg:px-10">
+      <div className="mx-auto flex h-16 w-full max-w-[1680px] items-center gap-2 px-3 sm:h-18 sm:px-6 lg:gap-4 lg:px-10">
         {contestId && (
-          <Button variant="ghost" size="sm" asChild className="shrink-0">
+          <Button
+            variant="ghost"
+            asChild
+            className="size-11 shrink-0 rounded-lg p-0 2xl:w-auto 2xl:px-4"
+          >
             <Link to="/contests">
               <ArrowLeft />
-              <span className="hidden xl:inline">返回大厅</span>
-              <span className="sr-only xl:hidden">返回大厅</span>
+              <span className="hidden 2xl:inline">返回大厅</span>
+              <span className="sr-only 2xl:hidden">返回大厅</span>
             </Link>
           </Button>
         )}
@@ -141,7 +152,10 @@ export function SiteHeader({
             <Button
               variant="ghost"
               size="icon"
-              className={contestId ? "lg:hidden" : "md:hidden"}
+              className={cn(
+                "size-11 rounded-lg",
+                contestId ? "xl:hidden" : "lg:hidden",
+              )}
               aria-label="打开导航"
             >
               <Menu />
@@ -155,7 +169,7 @@ export function SiteHeader({
             <SheetHeader>
               <SheetTitle>{title}</SheetTitle>
             </SheetHeader>
-            <nav aria-label="移动端导航" className="grid gap-1 px-4 pb-6">
+            <nav aria-label="移动端导航" className="grid gap-2 px-4 pb-6">
               {(contestId
                 ? [...items, ...management]
                 : [...items, ...learning, secondary[0]!]
@@ -165,8 +179,8 @@ export function SiteHeader({
                     variant="ghost"
                     asChild
                     className={cn(
-                      "h-11 justify-start",
-                      active(item.to) && "bg-accent",
+                      navigationClass(active(item.to)),
+                      "h-12 justify-start",
                     )}
                   >
                     <Link
@@ -187,8 +201,8 @@ export function SiteHeader({
           className={cn(
             "min-w-0 truncate rounded-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring",
             contestId
-              ? "flex-1 text-base lg:flex-none lg:max-w-40 xl:max-w-64"
-              : "mr-4 shrink-0 text-xl",
+              ? "flex-1 text-base xl:flex-none xl:max-w-40 2xl:max-w-64"
+              : "text-lg sm:text-xl lg:mr-2 xl:mr-6",
           )}
         >
           {title}
@@ -196,17 +210,16 @@ export function SiteHeader({
         <nav
           aria-label={contestId ? "比赛导航" : "主导航"}
           className={cn(
-            "items-center gap-1",
-            contestId ? "hidden lg:flex" : "hidden md:flex",
+            "shrink-0 items-center gap-1 xl:gap-2",
+            contestId ? "hidden xl:flex" : "hidden lg:flex",
           )}
         >
           {items.map((item) => (
             <Button
               key={item.to}
-              variant={active(item.to) ? "secondary" : "ghost"}
-              size="sm"
+              variant="ghost"
               asChild
-              className="px-3"
+              className={navigationClass(active(item.to))}
             >
               <Link
                 to={item.to}
@@ -220,10 +233,10 @@ export function SiteHeader({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
-                  variant={
-                    management.some((m) => active(m.to)) ? "secondary" : "ghost"
-                  }
-                  size="sm"
+                  variant="ghost"
+                  className={navigationClass(
+                    management.some((m) => active(m.to)),
+                  )}
                 >
                   管理
                   <ChevronDown />
@@ -243,9 +256,8 @@ export function SiteHeader({
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className={cn(
-                    learning.some((item) => active(item.to)) && "bg-accent",
+                  className={navigationClass(
+                    learning.some((item) => active(item.to)),
                   )}
                   aria-label="学习菜单"
                 >
@@ -270,12 +282,16 @@ export function SiteHeader({
           )}
         </nav>
         <div className="ml-auto flex shrink-0 items-center gap-1">
-          <ThemeMenu />
+          <ThemeSettings />
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" aria-label="账户菜单">
-                  <UserRound />
+                <Button
+                  variant="ghost"
+                  className="h-11 rounded-lg px-3 text-base has-[>svg]:px-3 data-[state=open]:bg-accent data-[state=open]:shadow-md"
+                  aria-label="账户菜单"
+                >
+                  <UserRound className="size-5" />
                   <span className="hidden max-w-28 truncate md:block">
                     {user.username}
                   </span>
@@ -312,8 +328,16 @@ export function SiteHeader({
             </DropdownMenu>
           ) : (
             <>
-              <Button variant="ghost" size="sm" asChild>
+              <Button
+                variant="ghost"
+                className={cn(
+                  navigationClass(pathname === "/login"),
+                  "px-2 text-sm sm:px-4 sm:text-base",
+                )}
+                asChild
+              >
                 <Link
+                  aria-current={pathname === "/login" ? "page" : undefined}
                   to={
                     contestId
                       ? `/login?next=${encodeURIComponent(pathname + search)}`
@@ -323,8 +347,16 @@ export function SiteHeader({
                   登录
                 </Link>
               </Button>
-              <Button variant="secondary" size="sm" asChild>
+              <Button
+                variant="ghost"
+                className={cn(
+                  navigationClass(pathname === "/register"),
+                  "px-2 text-sm sm:px-4 sm:text-base",
+                )}
+                asChild
+              >
                 <Link
+                  aria-current={pathname === "/register" ? "page" : undefined}
                   to={
                     contestId
                       ? `/register?next=${encodeURIComponent(pathname + search)}`

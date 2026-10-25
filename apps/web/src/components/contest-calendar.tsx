@@ -39,7 +39,7 @@ export function ContestCalendar({
             !!data.data?.days.some((v) => v.day === dayKey(d) && v.count > 0),
         }}
         modifiersClassNames={{
-          event: "bg-primary/10 text-primary font-semibold",
+          event: "bg-primary/10 text-foreground font-semibold",
         }}
         className="w-full min-w-0 bg-transparent p-0 [--cell-size:--spacing(8)]"
       />

@@ -42,13 +42,13 @@
   --background: #f6f7f8;
   --card: #ffffff;
   --foreground: #202629;
-  --primary: #137766;
+  --primary: #007f6e;
   --primary-foreground: #ffffff;
   --secondary: #e8ecee;
   --secondary-foreground: #344147;
   --muted: #eff2f3;
   --muted-foreground: #5d6a70;
-  --accent: #e4efeb;
+  --accent: #e0f0ee;
   --destructive: #bf3041;
   --success: #187346;
   --warning: #886005;
@@ -64,17 +64,48 @@
   --background: #141414;
   --card: #1e1e1e;
   --foreground: #e5e9eb;
-  --primary: #69cbb7;
-  --primary-foreground: #102923;
+  --primary: #2ae5b5;
+  --primary-foreground: #141414;
   --secondary: #2c2c2c;
   --secondary-foreground: #b9c2c7;
   --muted: #181818;
   --muted-foreground: #a2adb4;
-  --accent: #2b3937;
+  --accent: #203a33;
   --destructive: #ff8d94;
   --success: #79d3a8;
   --warning: #edc378;
   --border: #343434;
+}
+/* CTF reference palettes; source colors and contrast mappings: docs/FRONTEND.md. */
+:root[data-theme-color="glacier"] {
+  --primary: #0774be;
+  --primary-foreground: #ffffff;
+  --accent: #e1eef7;
+}
+:root.dark[data-theme-color="glacier"] {
+  --primary: #0991ed;
+  --primary-foreground: #000000;
+  --accent: #1b2e3b;
+}
+:root[data-theme-color="ocean"] {
+  --primary: #0a58ca;
+  --primary-foreground: #ffffff;
+  --accent: #e2ebf9;
+}
+:root.dark[data-theme-color="ocean"] {
+  --primary: #6ea8fe;
+  --primary-foreground: #141414;
+  --accent: #29313d;
+}
+:root[data-theme-color="lime"] {
+  --primary: #507800;
+  --primary-foreground: #ffffff;
+  --accent: #eaefe0;
+}
+:root.dark[data-theme-color="lime"] {
+  --primary: #9fef00;
+  --primary-foreground: #141414;
+  --accent: #303b1a;
 }
 @layer base {
   * {
