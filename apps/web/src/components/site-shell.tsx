@@ -17,6 +17,7 @@ import type { Contest, User } from "@/lib/types";
 import { useContestCapabilities } from "@/lib/contest-access";
 import { cn } from "@/lib/utils";
 import { ThemeSettings } from "./theme-provider";
+import { NavigationIndicator } from "./navigation-indicator";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -56,9 +57,9 @@ const account = [
 ];
 const navigationClass = (selected = false) =>
   cn(
-    "h-11 rounded-lg px-4 text-base has-[>svg]:px-4 transition-colors duration-150 data-[state=open]:bg-accent data-[state=open]:text-foreground",
+    "relative h-11 rounded-md px-4 text-base has-[>svg]:px-4 transition-colors duration-200 motion-reduce:transition-none hover:bg-muted dark:hover:bg-secondary data-[state=open]:bg-muted data-[state=open]:text-foreground dark:data-[state=open]:bg-secondary",
     selected
-      ? "bg-accent text-foreground hover:bg-accent dark:hover:bg-accent"
+      ? "bg-muted text-foreground dark:bg-secondary"
       : "text-muted-foreground hover:text-foreground",
   );
 
@@ -138,7 +139,7 @@ export function SiteHeader({
           <Button
             variant="ghost"
             asChild
-            className="size-11 shrink-0 rounded-lg p-0 2xl:w-auto 2xl:px-4"
+            className="size-11 shrink-0 rounded-md p-0 transition-colors duration-200 motion-reduce:transition-none hover:bg-muted dark:hover:bg-secondary 2xl:w-auto 2xl:px-4"
           >
             <Link to="/contests">
               <ArrowLeft />
@@ -153,7 +154,7 @@ export function SiteHeader({
               variant="ghost"
               size="icon"
               className={cn(
-                "size-11 rounded-lg",
+                "size-11 rounded-md transition-colors duration-200 motion-reduce:transition-none hover:bg-muted dark:hover:bg-secondary",
                 contestId ? "xl:hidden" : "lg:hidden",
               )}
               aria-label="打开导航"
@@ -188,6 +189,12 @@ export function SiteHeader({
                       aria-current={active(item.to) ? "page" : undefined}
                     >
                       {item.name}
+                      {active(item.to) && (
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute bottom-0 left-4 h-0.5 w-6 rounded-full bg-primary"
+                        />
+                      )}
                     </Link>
                   </Button>
                 </SheetClose>
@@ -208,9 +215,10 @@ export function SiteHeader({
           {title}
         </Link>
         <nav
+          key={contestId ?? "main"}
           aria-label={contestId ? "比赛导航" : "主导航"}
           className={cn(
-            "shrink-0 items-center gap-1 xl:gap-2",
+            "relative shrink-0 items-center gap-1 xl:gap-2",
             contestId ? "hidden xl:flex" : "hidden lg:flex",
           )}
         >
@@ -223,6 +231,7 @@ export function SiteHeader({
             >
               <Link
                 to={item.to}
+                data-nav-active={active(item.to) || undefined}
                 aria-current={active(item.to) ? "page" : undefined}
               >
                 {item.name}
@@ -237,6 +246,9 @@ export function SiteHeader({
                   className={navigationClass(
                     management.some((m) => active(m.to)),
                   )}
+                  data-nav-active={
+                    management.some((m) => active(m.to)) || undefined
+                  }
                 >
                   管理
                   <ChevronDown />
@@ -259,6 +271,9 @@ export function SiteHeader({
                   className={navigationClass(
                     learning.some((item) => active(item.to)),
                   )}
+                  data-nav-active={
+                    learning.some((item) => active(item.to)) || undefined
+                  }
                   aria-label="学习菜单"
                 >
                   学习
@@ -280,15 +295,29 @@ export function SiteHeader({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          <NavigationIndicator
+            activeKey={`${pathname}:${items.map((item) => item.to).join(",")}:${management.length}`}
+          />
         </nav>
-        <div className="ml-auto flex shrink-0 items-center gap-1">
+        <div className="relative ml-auto flex shrink-0 items-center gap-1">
           <ThemeSettings />
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="h-11 rounded-lg px-3 text-base has-[>svg]:px-3 data-[state=open]:bg-accent"
+                  className={cn(
+                    navigationClass(
+                      account.some((item) => active(item.to)) ||
+                        active("/admin"),
+                    ),
+                    "px-3 has-[>svg]:px-3",
+                  )}
+                  data-nav-active={
+                    account.some((item) => active(item.to)) ||
+                    active("/admin") ||
+                    undefined
+                  }
                   aria-label="账户菜单"
                 >
                   <UserRound className="size-5" />
@@ -337,6 +366,7 @@ export function SiteHeader({
                 asChild
               >
                 <Link
+                  data-nav-active={pathname === "/login" || undefined}
                   aria-current={pathname === "/login" ? "page" : undefined}
                   to={
                     contestId
@@ -356,6 +386,7 @@ export function SiteHeader({
                 asChild
               >
                 <Link
+                  data-nav-active={pathname === "/register" || undefined}
                   aria-current={pathname === "/register" ? "page" : undefined}
                   to={
                     contestId
@@ -368,6 +399,9 @@ export function SiteHeader({
               </Button>
             </>
           )}
+          <NavigationIndicator
+            activeKey={`${pathname}:${user?.id ?? "guest"}`}
+          />
         </div>
       </div>
     </header>
