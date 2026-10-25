@@ -61,7 +61,6 @@ export function CaptchaLabel({
     if (working || characters.current.length !== target.length)
       characters.current = target.map(randomCharacter);
     let fixed = 0,
-      cursor = 0,
       ticks = 0;
     let timer: ReturnType<typeof setInterval> | undefined;
     const update = () =>
@@ -75,8 +74,8 @@ export function CaptchaLabel({
       if (finish && ticks % 2 === 0) {
         characters.current[fixed] = target[fixed]!;
         fixed++;
-      } else {
-        const index = fixed + (cursor++ % (target.length - fixed));
+      }
+      for (let index = fixed; index < target.length; index++) {
         characters.current[index] = randomCharacter(characters.current[index]);
       }
       update();

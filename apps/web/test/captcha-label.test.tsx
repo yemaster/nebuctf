@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import React, { act } from "react";
 import { JSDOM } from "jsdom";
 
-test("captcha characters shuffle individually and settle only after verification", async (t) => {
+test("captcha characters shuffle together and settle only after verification", async (t) => {
   const dom = new JSDOM("<!doctype html><div id='root'></div>", {
     pretendToBeVisual: true,
   });
@@ -68,7 +68,7 @@ test("captcha characters shuffle individually and settle only after verification
     await advance(60);
     assert.equal(
       characters().filter((value, index) => value !== initial[index]).length,
-      1,
+      4,
     );
     await advance(6000);
     assert.equal(fixed(), 0, "elapsed time cannot claim a successful proof");
