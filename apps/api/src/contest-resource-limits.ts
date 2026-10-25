@@ -19,6 +19,7 @@ export async function contestResourcePolicy(
   scope: string,
   owner: string,
   type: "container" | "attachment",
+  replacing?: string,
 ) {
   if (scope === "practice" || scope === "test") return null;
   const [contest] = await db.query(
@@ -33,8 +34,8 @@ export async function contestResourcePolicy(
   const totalLimit: number | null = limits[`${prefix}_total`] ?? null;
   const [usage] = await db.query(
     `SELECT count(*)::int total,count(*) FILTER(WHERE owner_key=$2)::int owned FROM instances
-      WHERE scope=$1 AND resource_type=$3 AND status IN ('queued','starting','running','ready','stopping')`,
-    [scope, owner, type],
+      WHERE scope=$1 AND resource_type=$3 AND ($4::uuid IS NULL OR id<>$4) AND status IN ('queued','starting','running','ready','stopping')`,
+    [scope, owner, type, replacing ?? null],
   );
   const name = type === "container" ? "靶机" : "动态附件";
   const blocked =
@@ -74,8 +75,9 @@ export async function requireContestResourceSlot(
   scope: string,
   owner: string,
   type: "container" | "attachment",
+  replacing?: string,
 ) {
-  const policy = await contestResourcePolicy(db, scope, owner, type);
+  const policy = await contestResourcePolicy(db, scope, owner, type, replacing);
   if (policy?.blocked) fail(409, policy.blocked.message, policy.blocked.action);
   return policy;
 }

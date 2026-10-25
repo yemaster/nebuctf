@@ -475,6 +475,48 @@ test(
           1,
           "checker reservation is not another contestant lab",
         );
+        await db.query(
+          "UPDATE challenges SET challenge_type='awd' WHERE id=$1",
+          [container1],
+        );
+        await db.query("UPDATE instances SET status='running' WHERE scope=$1", [
+          scope,
+        ]);
+        await db.query("UPDATE contests SET resource_limits=$2 WHERE id=$1", [
+          scope,
+          JSON.stringify({ containers_per_team: 0 }),
+        ]);
+        assert.equal(
+          (
+            await request(`/challenges/${container1}/restart`, outsider, {
+              scope,
+            })
+          ).statusCode,
+          409,
+        );
+        assert.equal(
+          (
+            await db.query("SELECT status FROM instances WHERE scope=$1", [
+              scope,
+            ])
+          )[0]!.status,
+          "running",
+          "refused restart preserves the live environment",
+        );
+        await db.query("UPDATE contests SET resource_limits=$2 WHERE id=$1", [
+          scope,
+          JSON.stringify({ containers_per_team: 1, containers_total: 1 }),
+        ]);
+        await ok(`/challenges/${container1}/restart`, outsider, { scope });
+        assert.equal(
+          (
+            await db.query("SELECT status FROM instances WHERE scope=$1", [
+              scope,
+            ])
+          )[0]!.status,
+          "stopping",
+          "replacement of the same slot remains allowed at capacity",
+        );
       },
     );
   },

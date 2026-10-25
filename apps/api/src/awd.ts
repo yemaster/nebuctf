@@ -1,4 +1,7 @@
-import { contestResourcePolicy } from "./contest-resource-limits.js";
+import {
+  contestResourcePolicy,
+  requireContestResourceSlot,
+} from "./contest-resource-limits.js";
 import { permissionSQL, ownerPermissions } from "./group-permissions.js";
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
@@ -117,6 +120,18 @@ export function awdRoutes(app: FastifyInstance, db: DB) {
       if (c.challenge_type !== "awd") fail(400, "此题不是 AWD 题");
       const owner = await ownerFor(tx, scope, user);
       await tx.query("SELECT pg_advisory_xact_lock(760002)");
+      const [current] = await tx.query(
+        "SELECT id FROM instances WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3 AND status IN ('queued','starting','running') FOR UPDATE",
+        [cid, scope, owner],
+      );
+      // Check replacement capacity before destroying a working service after a limit was lowered.
+      await requireContestResourceSlot(
+        tx,
+        scope,
+        owner,
+        "container",
+        current?.id,
+      );
       await resourceCooldown(tx, owner, scope, cid);
       await tx.query(
         "UPDATE instances SET status='stopping',updated_at=now() WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3 AND status IN ('queued','starting','running')",

@@ -332,6 +332,6 @@ WebSocket 按组复用快照，每次发布重新验证会话、报名与题目�
 
 各值为 0–10000 的整数或 null。null 不附加比赛限制，0 禁止新建；省略整个对象保留旧配置，发送空对象清空四项附加限制。平台数量、每所有者合计数量、CPU/内存配额和操作冷却始终生效。
 
-queued/starting/running/ready/stopping 均占名额，failed/stopped 不占；已经生成的附件在删除或到期清理前占名额，普通静态附件下载不计数。公共靶机不占每队名额，AWD 自动分配的每队环境按一台靶机计数，判题/巡检临时容器只计入平台资源池。限制仅阻止新建，已有环境的幂等创建、续期、释放和附件下载保持原有规则。
+queued/starting/running/ready/stopping 均占名额，failed/stopped 不占；已经生成的附件在删除或到期清理前占名额，普通静态附件下载不计数。公共靶机不占每队名额，AWD 自动分配的每队环境按一台靶机计数，判题/巡检临时容器只计入平台资源池。限制仅阻止新建，已有环境的幂等创建、续期、释放和附件下载保持原有规则。AWD 重启先按替换一台的数量核对配额，限额不足时拒绝并保留原环境，不会先销毁后失败。
 
 创建和比赛配置修改使用同一事务锁，按比赛、资源类型和所有者核对后预占排队名额，防止并发超额。到限返回 409 与资源管理 action；`GET /challenges/:id/instance-policy` 新增 `quota`（team_limit/total_limit/team_used/total_used/blocked），练习场为 null。blocked 包含 message 和 action；前端据此在操作前提示，并在名额释放后恢复按钮。AWD arena 的 resource_blocked 表示本队环境尚未分配时的数量限制。
