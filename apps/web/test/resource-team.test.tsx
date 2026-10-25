@@ -545,6 +545,62 @@ test(
         },
       );
       await t.test(
+        "resource quota guidance prevents a request and clears when a slot is released",
+        async () => {
+          const policy = `/challenges/${id}/instance-policy?scope=practice&resource_type=container`;
+          await mount(`/challenges?challenge=${id}`, {
+            [`/challenges/${id}?scope=practice`]: {
+              ...challenge,
+              kind: "dynamic_container",
+            },
+            "/instances?scope=practice": { items: [] },
+            [policy]: {
+              next_operation_at: null,
+              quota: {
+                team_used: 1,
+                team_limit: 1,
+                total_used: 1,
+                total_limit: 3,
+                blocked: {
+                  message: "本队靶机已达上限（1）",
+                  action: { label: "管理靶机", href: "/instances" },
+                },
+              },
+            },
+          });
+          try {
+            const start = () =>
+              [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+                (b) => b.textContent === "启动靶机",
+              );
+            await settle(() => !!start());
+            assert(start()!.disabled);
+            assert(container.textContent!.includes("本队 1 / 1"));
+            assert(container.querySelector('a[href="/instances"]'));
+            await click(start());
+            assert(
+              !requests.some((path) => path === `/challenges/${id}/instances`),
+            );
+            await act(async () =>
+              cache.setQueryData([policy], {
+                next_operation_at: null,
+                quota: {
+                  team_used: 0,
+                  team_limit: 1,
+                  total_used: 0,
+                  total_limit: 3,
+                  blocked: null,
+                },
+              }),
+            );
+            await settle(() => !!start() && !start()!.disabled);
+            assert(!container.textContent!.includes("已达上限"));
+          } finally {
+            await cleanup();
+          }
+        },
+      );
+      await t.test(
         "administrators have an enabled flag submit control and receive solve feedback",
         async () => {
           await mount(`/challenges?challenge=${id}`, {

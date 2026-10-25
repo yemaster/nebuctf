@@ -221,7 +221,7 @@ test("unregistered staff preview shows registration before any flag or patch sub
       [],
       { role: "admin", challenge: { challenge_type: type } },
     );
-    assert(html.includes("当前为预览，报名后即可作答。"), type);
+    assert(html.includes("报名比赛后即可作答"), type);
     assert(html.includes("前往报名"), type);
     assert(!html.includes(`id="flag-${id}"`), type);
     assert(
@@ -261,7 +261,7 @@ test("objective preview uses the same registration notice instead of answer cont
       },
     },
   );
-  assert(html.includes("当前为预览，报名后即可作答。"));
+  assert(html.includes("报名比赛后即可作答"));
   assert(!html.includes('role="radiogroup"'));
   assert(!html.includes("确认提交"));
 });

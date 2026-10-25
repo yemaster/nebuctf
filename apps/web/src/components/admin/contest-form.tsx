@@ -1,3 +1,4 @@
+import { ContestResourceSettings } from "./contest-resource-settings";
 import { ContestAccessSettings } from "./contest-access-settings";
 import { useSearchParams } from "react-router-dom";
 import { ContestPosterEditor } from "./contest-poster-editor";
@@ -77,6 +78,18 @@ export function ContestForm({
           practice_mode: f.has("practice_mode"),
           spectator_enabled: f.has("spectator_enabled"),
           spectator_scoreboard: f.has("spectator_scoreboard"),
+          visibility: f.get("visibility"),
+          resource_limits: Object.fromEntries(
+            [
+              "containers_per_team",
+              "attachments_per_team",
+              "containers_total",
+              "attachments_total",
+            ].map((key) => [
+              key,
+              f.get(key) === "" ? null : Number(f.get(key)),
+            ]),
+          ),
           registration_mode: f.get("registration_mode"),
           registration_code: f.get("registration_code") ?? "",
           registration_team_ids: allowedTeams,
@@ -101,6 +114,7 @@ export function ContestForm({
             <TabsTrigger value="writeup">WriteUp 提交</TabsTrigger>
             <TabsTrigger value="challenges">赛题设置</TabsTrigger>
             <TabsTrigger value="timing">时间规则</TabsTrigger>
+            <TabsTrigger value="resources">资源限制</TabsTrigger>
             <TabsTrigger value="access">访问与报名</TabsTrigger>
             <TabsTrigger value="registration">报名分组</TabsTrigger>
           </TabsList>
@@ -212,6 +226,12 @@ export function ContestForm({
               started={started}
               registered={(c?.teams ?? 0) > 0}
             />
+          </fieldset>
+        </ConfigPanel>
+        <ConfigPanel value="resources" active={section}>
+          <fieldset disabled={pending}>
+            <legend className="sr-only">资源限制</legend>
+            <ContestResourceSettings contest={c} />
           </fieldset>
         </ConfigPanel>
         <ConfigPanel value="access" active={section}>

@@ -94,6 +94,13 @@ export interface ContestGroup {
   rank_overall?: boolean;
 }
 export interface Contest {
+  visibility?: "public" | "private";
+  resource_limits?: {
+    containers_per_team: number | null;
+    attachments_per_team: number | null;
+    containers_total: number | null;
+    attachments_total: number | null;
+  };
   practice_mode?: boolean;
   practice_active?: boolean;
   spectator_enabled?: boolean;

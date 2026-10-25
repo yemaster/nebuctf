@@ -186,6 +186,9 @@ export function ContestDetail() {
                         {c.title}
                       </h1>
                       <ContestStatusBadge contest={c} />
+                      {c.visibility === "private" && (
+                        <Badge variant="secondary">私密</Badge>
+                      )}
                       {access.practice && (
                         <Badge variant="secondary">练习开放</Badge>
                       )}

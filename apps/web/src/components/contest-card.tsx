@@ -1,5 +1,5 @@
 import { DetailLink } from "./detail-link";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, LockKeyhole } from "lucide-react";
 import type { Contest } from "@/lib/types";
 import { date } from "@/lib/utils";
 import { ContestStatusBadge } from "./contest-status-badge";
@@ -42,6 +42,12 @@ export function ContestCard({ contest: c }: { contest: Contest }) {
           </div>
           <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <span>{c.teams} 支战队</span>
+            {c.visibility === "private" && (
+              <span className="inline-flex items-center gap-1">
+                <LockKeyhole className="size-3" />
+                私密
+              </span>
+            )}
             <span>{c.team_limit} 人制</span>
           </div>
         </CardContent>

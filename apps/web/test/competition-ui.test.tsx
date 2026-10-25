@@ -544,6 +544,83 @@ test(
         },
       );
       await t.test(
+        "private visibility and independent resource limits persist across tabs",
+        async () => {
+          saved = undefined;
+          await mount(
+            <ContestForm
+              contest={
+                {
+                  title: "Private",
+                  description: "",
+                  starts_at: new Date(Date.now() + 3600000).toISOString(),
+                  ends_at: new Date(Date.now() + 7200000).toISOString(),
+                  team_limit: 4,
+                  groups: [],
+                  challenge_ids: [],
+                } as any
+              }
+              pending={false}
+              save={(value) => {
+                saved = value;
+              }}
+            />,
+          );
+          await tab("访问与报名");
+          await click(host().querySelector('[role="radio"][value="private"]')!);
+          assert.equal(
+            host()
+              .querySelector('[role="radio"][value="teams"]')!
+              .getAttribute("data-state"),
+            "checked",
+          );
+          assert(
+            (
+              host().querySelector(
+                '[role="radio"][value="invite"]',
+              ) as HTMLButtonElement
+            ).disabled,
+          );
+          await settle(() => !!button("添加"));
+          await click(button("添加"));
+          await tab("资源限制");
+          await change(
+            host().querySelector('[name="containers_per_team"]')!,
+            "2",
+          );
+          await change(
+            host().querySelector('[name="attachments_per_team"]')!,
+            "0",
+          );
+          await change(host().querySelector('[name="containers_total"]')!, "8");
+          await tab("基本信息");
+          await click(button("保存比赛"));
+          assert.equal(saved.visibility, "private");
+          assert.equal(saved.registration_mode, "teams");
+          assert.deepEqual(saved.registration_team_ids, ["team-a"]);
+          assert.deepEqual(saved.resource_limits, {
+            containers_per_team: 2,
+            attachments_per_team: 0,
+            containers_total: 8,
+            attachments_total: null,
+          });
+          saved = undefined;
+          await tab("资源限制");
+          await change(
+            host().querySelector('[name="containers_per_team"]')!,
+            "-1",
+          );
+          await tab("基本信息");
+          await click(button("保存比赛"));
+          assert.equal(saved, undefined);
+          assert.equal(
+            host().querySelector('[role="tab"][aria-selected="true"]')!
+              .textContent,
+            "资源限制",
+          );
+        },
+      );
+      await t.test(
         "multipart scores stay together and off-page invalid settings reveal the right question",
         async () => {
           saved = undefined;

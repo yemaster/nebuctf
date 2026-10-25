@@ -84,9 +84,22 @@ function ResourceLaunch({
     !!user,
     5000,
   );
-  const policy = useAPI<{ next_operation_at: string | null }>(
+  const policy = useAPI<{
+    next_operation_at: string | null;
+    quota?: {
+      team_used: number;
+      team_limit: number | null;
+      total_used: number;
+      total_limit: number | null;
+      blocked: {
+        message: string;
+        action: { label: string; href: string };
+      } | null;
+    } | null;
+  }>(
     `/challenges/${c.id}/instance-policy?scope=${scope}&resource_type=${type}`,
     !!user,
+    5000,
   );
   const start = useAction(
     () =>
@@ -172,6 +185,12 @@ function ResourceLaunch({
                       </Badge>
                     )}
                   </ItemTitle>
+                  {policy.data?.quota?.team_limit != null && (
+                    <p className="text-xs text-muted-foreground">
+                      本队 {policy.data.quota.team_used} /{" "}
+                      {policy.data.quota.team_limit}
+                    </p>
+                  )}
                 </ItemContent>
                 <ItemActions className="ml-auto max-sm:w-full max-sm:justify-end">
                   <Button
@@ -180,7 +199,8 @@ function ResourceLaunch({
                       start.isPending ||
                       cooldown > 0 ||
                       policy.isLoading ||
-                      policy.isError
+                      policy.isError ||
+                      !!policy.data?.quota?.blocked
                     }
                     onClick={() => start.mutate()}
                   >
@@ -211,7 +231,22 @@ function ResourceLaunch({
                     label={attachment ? "正在准备生成" : "正在准备环境"}
                     completeLabel="已加入队列"
                   />
-                  {error && !start.isPending && <ResourceError error={error} />}{" "}
+                  {error &&
+                    !start.isPending &&
+                    !policy.data?.quota?.blocked && (
+                      <ResourceError error={error} />
+                    )}{" "}
+                  {policy.data?.quota?.blocked && (
+                    <ResourceError
+                      error={
+                        new ApiError(
+                          policy.data.quota.blocked.message,
+                          409,
+                          policy.data.quota.blocked.action,
+                        )
+                      }
+                    />
+                  )}
                   {policy.error && (
                     <>
                       <ResourceError error={policy.error} />

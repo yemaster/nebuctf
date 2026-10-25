@@ -19,12 +19,41 @@ export function ContestAccessSettings({
   teams: string[];
   onTeamsChange: (ids: string[]) => void;
 }) {
+  const [visibility, setVisibility] = useState(contest?.visibility ?? "public");
   const [mode, setMode] = useState(contest?.registration_mode ?? "public");
   return (
     <div className="space-y-7">
+      <section className="space-y-4" aria-labelledby="contest-visibility">
+        <h2 id="contest-visibility" className="font-medium">
+          比赛可见性
+        </h2>
+        <RadioGroup
+          name="visibility"
+          value={visibility}
+          onValueChange={(value) => {
+            setVisibility(value as typeof visibility);
+            if (value === "private") setMode("teams");
+          }}
+          className="flex gap-6"
+        >
+          <label className="flex items-center gap-2 text-sm">
+            <RadioGroupItem value="public" />
+            公开
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <RadioGroupItem value="private" />
+            私密
+          </label>
+        </RadioGroup>
+        {visibility === "private" && (
+          <p className="text-xs text-muted-foreground">
+            仅指定战队、已报名成员和管理员可见
+          </p>
+        )}
+      </section>
       <section className="space-y-4" aria-labelledby="spectator-settings">
         <h2 id="spectator-settings" className="font-medium">
-          观战者可访问
+          观战页面
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {[
@@ -51,7 +80,7 @@ export function ContestAccessSettings({
       </section>
       <section className="space-y-4" aria-labelledby="registration-scope">
         <h2 id="registration-scope" className="font-medium">
-          报名范围
+          参赛范围
         </h2>
         <RadioGroup
           name="registration_mode"
@@ -60,12 +89,15 @@ export function ContestAccessSettings({
           className="flex flex-wrap gap-5"
         >
           {[
-            ["public", "公开报名"],
+            ["public", "不限"],
             ["invite", "邀请码"],
             ["teams", "指定战队"],
           ].map(([value, label]) => (
             <label key={value} className="flex items-center gap-2 text-sm">
-              <RadioGroupItem value={value!} />
+              <RadioGroupItem
+                value={value!}
+                disabled={visibility === "private" && value !== "teams"}
+              />
               {label}
             </label>
           ))}

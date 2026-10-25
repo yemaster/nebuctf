@@ -61,6 +61,7 @@ export function ContestAdmin() {
           "开始 / 结束",
           "赛题",
           "战队 / 人数上限",
+          "访问 / 参赛范围",
           "状态",
           "封榜时间",
           "操作",
@@ -86,6 +87,16 @@ export function ContestAdmin() {
             <TableCell>{c.challenge_ids.length} 题</TableCell>
             <TableCell className="whitespace-nowrap">
               {c.teams} 支 / 每队 {c.team_limit} 人
+            </TableCell>
+            <TableCell className="text-xs">
+              <p>{c.visibility === "private" ? "私密" : "公开"}</p>
+              <p className="mt-1 text-muted-foreground">
+                {c.registration_mode === "teams"
+                  ? `指定 ${c.registration_team_ids?.length ?? 0} 支战队`
+                  : c.registration_mode === "invite"
+                    ? "邀请码"
+                    : "不限"}
+              </p>
             </TableCell>
             <TableCell>
               <div className="flex flex-wrap gap-2">

@@ -82,7 +82,7 @@ export function ChallengeWorkspace({
                 ? "报名未通过，暂不能作答。"
                 : registration?.status === "suspended"
                   ? "参赛资格已暂停，暂不能作答。"
-                  : "当前为预览，报名后即可作答。"}
+                  : "报名比赛后即可作答"}
           </AlertTitle>
           <Button asChild variant="secondary" size="sm">
             <Link to={`/contests/${scope}`}>

@@ -1,5 +1,5 @@
 import { Copy, ExternalLink, RotateCw } from "lucide-react";
-import { api, useAPI, useAction } from "@/lib/api";
+import { api, ApiError, useAPI, useAction } from "@/lib/api";
 import { endpointURL } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -15,6 +15,10 @@ import { QueryState } from "./shared";
 import { ResourceError } from "./resource-error";
 import { OperationProgress } from "./operation-progress";
 type Arena = {
+  resource_blocked?: {
+    message: string;
+    action: { label: string; href: string };
+  } | null;
   round: { number: number; ends_at: string } | null;
   items: {
     team_id: string;
@@ -69,6 +73,17 @@ export function AwdArena({ id, scope }: { id: string; scope: string }) {
         error={query.error}
         retry={() => void query.refetch()}
       />
+      {query.data?.resource_blocked && (
+        <ResourceError
+          error={
+            new ApiError(
+              query.data.resource_blocked.message,
+              409,
+              query.data.resource_blocked.action,
+            )
+          }
+        />
+      )}
       <Table>
         <TableHeader>
           <TableRow>
