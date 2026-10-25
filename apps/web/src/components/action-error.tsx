@@ -16,7 +16,7 @@ export function ActionError({
     <Alert
       variant="destructive"
       role="alert"
-      className="border-0 bg-destructive/10 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2 motion-safe:duration-300"
+      className="items-center [&>svg]:translate-y-0 [&>svg]:self-center border-0 bg-destructive/10 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2 motion-safe:duration-300"
     >
       <CircleAlert />
       <div className="col-start-2 flex flex-wrap items-center justify-between gap-3">

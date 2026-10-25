@@ -49,6 +49,7 @@ async function render(
   phase: "active" | "before" | "after" = "active",
   permissions?: Record<string, boolean>,
   groups: any[] = [],
+  options: { role?: string; challenge?: Record<string, unknown> } = {},
 ) {
   const cache = new QueryClient({
     defaultOptions: {
@@ -57,13 +58,14 @@ async function render(
   });
   const c = {
     ...base,
+    ...options.challenge,
     permissions,
     solved: completed,
     solved_parts: completed ? 2 : 1,
     parts: base.parts.map((p) => ({ ...p, solved: completed || p.solved })),
   };
   cache.setQueryData(["/me"], {
-    user: { id: "player", username: "player", role: "user" },
+    user: { id: "player", username: "player", role: options.role ?? "user" },
   });
   cache.setQueryData([`/challenges?scope=${scope}&category=&q=&page=1`], {
     items: [c],
@@ -205,4 +207,61 @@ test("registered teams only see challenges during the active window", async () =
     assert.ok(!html.includes(`href="/contests/${contestId}/challenges"`));
     assert.ok(html.includes(`href="/contests/${contestId}/instances"`));
   }
+});
+
+test("unregistered staff preview shows registration before any flag or patch submission", async () => {
+  for (const type of ["ctf", "awdp", "awd"]) {
+    const html = await render(
+      `/contests/${contestId}/challenges?challenge=${id}`,
+      false,
+      contestId,
+      false,
+      "active",
+      undefined,
+      [],
+      { role: "admin", challenge: { challenge_type: type } },
+    );
+    assert(html.includes("当前为预览，报名后即可作答。"), type);
+    assert(html.includes("前往报名"), type);
+    assert(!html.includes(`id="flag-${id}"`), type);
+    assert(
+      !html.includes('type="file"'),
+      "preview cannot upload defense patches",
+    );
+  }
+});
+test("registered staff can submit flags just like other participants", async () => {
+  const html = await render(
+    `/contests/${contestId}/challenges?challenge=${id}`,
+    false,
+    contestId,
+    true,
+    "active",
+    undefined,
+    [],
+    { role: "admin" },
+  );
+  assert(html.includes(`id="flag-${id}"`));
+  assert(!html.includes("当前为预览"));
+});
+test("objective preview uses the same registration notice instead of answer controls", async () => {
+  const html = await render(
+    `/contests/${contestId}/challenges?challenge=${id}`,
+    false,
+    contestId,
+    false,
+    "active",
+    undefined,
+    [],
+    {
+      role: "admin",
+      challenge: {
+        challenge_type: "objective",
+        objective: { type: "single", options: [{ id: "a", text: "Option" }] },
+      },
+    },
+  );
+  assert(html.includes("当前为预览，报名后即可作答。"));
+  assert(!html.includes('role="radiogroup"'));
+  assert(!html.includes("确认提交"));
 });

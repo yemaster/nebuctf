@@ -6,12 +6,14 @@ import { AwdArena } from "./awd-arena";
 import { m, useAnimationControls, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { CheckCircle2, Circle } from "lucide-react";
+import { CheckCircle2, Circle, Eye } from "lucide-react";
 import { useUser } from "@/App";
 import { api, useAction, useAPI } from "@/lib/api";
-import type { Challenge } from "@/lib/types";
+import type { Challenge, Contest } from "@/lib/types";
 import { defaultGroupPermissions } from "@/lib/group-permissions";
 import { Button } from "./ui/button";
+import { Alert, AlertTitle } from "./ui/alert";
+import { Skeleton } from "./ui/skeleton";
 import { ActionError } from "./action-error";
 import { FlagFeedback } from "./flag-feedback";
 import { Table, TableBody, TableRow, TableCell } from "./ui/table";
@@ -46,6 +48,50 @@ export function ChallengeWorkspace({
   const location = useLocation();
   const loginHref = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
   const detail = useAPI<Challenge>(`/challenges/${id}?scope=${scope}`, active);
+  const contest = useAPI<Contest>(
+    `/contests/${scope}`,
+    active && scope !== "practice",
+  );
+  const participating = scope === "practice" || !!contest.data?.registered;
+  const registration = contest.data?.registration;
+  const previewNotice =
+    scope === "practice" || participating ? null : contest.isLoading ? (
+      <Skeleton className="h-14 w-full" aria-label="正在读取报名状态" />
+    ) : contest.error ? (
+      <div className="space-y-3">
+        <ActionError error={contest.error} />
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void contest.refetch()}
+        >
+          重试
+        </Button>
+      </div>
+    ) : (
+      <Alert
+        role="status"
+        className="items-center border-0 bg-muted/50 [&>svg]:translate-y-0"
+      >
+        <Eye />
+        <div className="col-start-2 flex flex-wrap items-center justify-between gap-3">
+          <AlertTitle className="line-clamp-none font-normal leading-6">
+            {registration?.status === "pending"
+              ? "报名待审核，通过后即可作答。"
+              : registration?.status === "rejected"
+                ? "报名未通过，暂不能作答。"
+                : registration?.status === "suspended"
+                  ? "参赛资格已暂停，暂不能作答。"
+                  : "当前为预览，报名后即可作答。"}
+          </AlertTitle>
+          <Button asChild variant="secondary" size="sm">
+            <Link to={`/contests/${scope}`}>
+              {registration ? "查看报名" : "前往报名"}
+            </Link>
+          </Button>
+        </div>
+      </Alert>
+    );
   const c = detail.data;
   const permissions = { ...defaultGroupPermissions, ...c?.permissions };
   const [flag, setFlag] = useState("");
@@ -68,6 +114,7 @@ export function ChallengeWorkspace({
   }, [feedback, reduced, shake]);
   const submit = useAction(
     async () => {
+      if (!participating) return;
       const result = await api<{
         correct: boolean;
         already_solved: boolean;
@@ -143,7 +190,8 @@ export function ChallengeWorkspace({
           </section>
           {c.scoring_mode === "round" &&
             (c.challenge_type !== "awd" || c.contest_practice) &&
-            user && (
+            user &&
+            participating && (
               <RoundProgress
                 id={id}
                 scope={scope}
@@ -158,11 +206,13 @@ export function ChallengeWorkspace({
               对抗已结束，可查看题面和历史轮次。
             </p>
           )}
-          {c.challenge_type === "awd" && user && permissions.resources && (
-            <AwdArena id={id} scope={scope} />
-          )}
+          {c.challenge_type === "awd" &&
+            user &&
+            participating &&
+            permissions.resources && <AwdArena id={id} scope={scope} />}
           {(c.challenge_type === "awdp" || c.challenge_type === "awd") &&
             user &&
+            participating &&
             permissions.submit &&
             permissions.resources && <PatchPanel id={id} scope={scope} />}
           {c.hints.length > 0 && (
@@ -180,7 +230,9 @@ export function ChallengeWorkspace({
             </section>
           )}
           {c.challenge_type === "objective" && c.objective ? (
-            user ? (
+            previewNotice ? (
+              previewNotice
+            ) : user ? (
               <ObjectiveAnswer
                 key={id}
                 id={id}
@@ -257,6 +309,8 @@ export function ChallengeWorkspace({
                   animate={!!feedback?.animate && !!feedback.completed}
                   message="该题目已解答"
                 />
+              ) : previewNotice ? (
+                previewNotice
               ) : !permissions.submit ? (
                 <p className="text-sm text-muted-foreground">
                   {c.contest_practice && c.challenge_type === "awd"
