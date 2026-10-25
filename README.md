@@ -73,3 +73,6 @@ npm run format
 | `docs` | 实现方案、部署、出题、用户/管理员教程、验收记录 |
 
 本项目独立实现，参考 [GZCTF](https://github.com/GZTimeWalker/GZCTF)、[Ret2Shell](https://github.com/ret2shell/ret2shell) 与 [CTFd](https://docs.ctfd.io/) 的公开功能设计。未复制其源码、品牌或界面资产。
+
+
+比赛支持独立配置公开排行榜与 [3D 观战大屏](docs/CONTEST-SPECTATING.md)、邀请码/指定战队报名，以及不影响正式成绩的赛后练习。后台入口：比赛管理 → 编辑比赛 → 访问与报名。

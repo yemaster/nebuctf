@@ -52,7 +52,7 @@ Flag 提交请求：`{ "flag": "flag{...}", "scope": "practice" }`，返回 `cor
 
 用户最多加入 20 支战队。`GET /teams/mine` 返回已加入战队列表；成员、邀请码、转让和退出操作通过 `team_id` 指定战队。未指定时保持原接口的默认战队行为。
 
-`POST /contests/:id/register` 接受 `{team_id, group_id?}`。仅队长可以报名；配置了组别的比赛必须选择组别。一个用户不能通过不同战队重复参加同一比赛。报名锁定成员直到比赛结束，开赛前队长可以取消。管理员比赛请求包含 `groups: [{id?, name, description, permissions?, challenge_permissions?}]`，首次报名后不允许增删组别。未传 groups 保留原配置。
+`POST /contests/:id/register` 接受 `{team_id, group_id?, invite_code?}`。仅队长可以报名；配置了组别的比赛必须选择组别。一个用户不能通过不同战队重复参加同一比赛。报名锁定成员直到比赛结束，开赛前队长可以取消。管理员比赛请求包含 `groups: [{id?, name, description, permissions?, challenge_permissions?}]`，首次报名后不允许增删组别。未传 groups 保留原配置。
 
 比赛详情返回数字 `teams`，按报名战队记录计数（含 0），与成员人数无关。还包含 `groups` 和当前用户所属的 `registration`（队名、组名、对应 id），榜单接受 `group=组别UUID` 筛选。榜单 `solves` 为完成整题数，`flags` 为通过计分项数；各组共享同一动态分值，仅将拥有 dynamic 权限的解出计入衰减。
 
@@ -284,3 +284,33 @@ WebSocket 按组复用快照，每次发布重新验证会话、报名与题目�
 替换成功后清理旧文件，失败清理本次文件；数据库保留提交人、版本、文件名和处理历史，不保留旧版文件内容。ZIP 使用队伍 UUID 子目录，并附带包含队名、组别、文件名、版本及时间的 manifest.json。配置/上传/处理均由现有会话、CSRF 和权限保护；处理与提交会刷新管理员监控。
 
 管理员报名详情的 members 额外返回 created_at（账号注册时间），仍只返回明确列出的 ID、用户名、邮箱、身份和账户状态。列表不预载成员详情，展开后请求已有的比赛/战队作用域接口；普通用户无权读取。
+
+
+## 观战权限、报名范围与赛后练习
+
+管理员比赛配置新增：
+
+| 字段 | 默认 | 含义 |
+| --- | --- | --- |
+| `spectator_scoreboard` | `true` | 未报名者能访问排行榜及队伍得分详情；已通过报名的参赛者和管理员仍可查看 |
+| `spectator_enabled` | `true` | 公开 3D 大屏及其轮播排行；关闭时只允许管理员预览 |
+| `registration_mode` | `public` | `public` 公开报名、`invite` 邀请码、`teams` 指定战队 |
+| `registration_code` | 不返回 | 只写，6–128 字符；编辑留空保留已有邀请码 |
+| `registration_team_ids` | `[]` | 指定战队 ID，最多 500 项，仅管理员读取 |
+| `practice_mode` | `false` | 结束后开放报名、赛题和练习作答 |
+
+邀请码使用 HMAC-SHA256 摘要保存，任何 API 均不返回摘要或明文。管理员读取返回 `registration_code_set`；公开详情只返回当前用户所属且允许报名的 `eligible_team_ids`。新报名同时受范围、队长、人数、组别、审核和成员重复参赛限制。改变报名范围不撤销已有报名，撤销资格使用报名管理。
+
+`GET /admin/teams?page=&q=` 每页 10 条，返回战队 ID、名称、队长用户名及人数；`ids=UUID,UUID` 用于选中项回显，客户端每 100 个 ID 分批请求。
+
+公开详情新增 `viewer_role`（spectator/participant/staff）、`practice_active` 和 `registration.practice_only`。角色是展示信息，接口继续单独验证权限。赛后新报名标记 `practice_only`，不加入正式榜单或 WriteUp 收集；正式选手可继续提交原有 WriteUp。
+
+| 接口 | 用途 |
+| --- | --- |
+| `GET /contests/:id/spectate` | 公开观战快照，包含安全的比赛信息、统计、前 100 队、可见题目元数据及最近 40 条动态 |
+| `GET /contests/:id/spectate/ranking?page=&group=` | 大屏轮播排行，每页 10 队，组别可选 |
+| `GET /contests/:id/spectate/ws` | 匿名可连接的只读 WebSocket，同源 Origin 必须匹配 |
+
+实时消息为 `{type:"spectator",data:快照}`，暂时读取失败为 `{type:"retry"}`。事件包含解题/三血、上线、下线、提示以及真实 AWD 攻击，攻击仅公开双方战队 ID/名称，不公开 Flag、靶机端点、邮箱或管理员线索。封榜使用同一截止时间过滤排行、统计和动态。关闭大屏/隐藏比赛使已有普通连接以 1008 关闭。每 IP 每分钟最多 30 次连接、8 个同时连接，单进程最多 512 个；慢连接缓冲超过 256 KiB 时关闭。按比赛共享 2 秒快照与分页缓存，通知合并窗口 250 ms，5 秒补充刷新，20 秒心跳。
+
+赛后练习保留题目自身计分配置供展示，提交及解出记录标记 `contest_practice`，不改变正式积分、动态分值、三血或轮次。客观题练习答案与正式答卷分开，可以修正；已完成 CTF 小题保留完成状态。练习资源遵守原有配额、冷却和 TTL，不再受已结束的比赛时间截断。AWDP 补丁保留提交时的练习身份；AWD 结束后只读题面及历史轮次，不重新启动对抗。关闭练习阻止新的访问/操作，已有环境仍按原 TTL 回收。

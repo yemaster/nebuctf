@@ -371,3 +371,12 @@ WriteUp 标签移到基本信息之后；提交权限使用两项直接可见的
 实际读取 [GZCTF Writeups](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/pages/admin/games/%5Bid%5D/Writeups.tsx)、[TeamWriteupCard](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/admin/TeamWriteupCard.tsx) 与 [PDFViewer](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/admin/PDFViewer.tsx) 源码，参考左侧阅读、右侧选择战队的交互。预览采用 React-PDF 11 和 PDF.js 6.3，按官方方式配置同版本 Worker，兼容构建提供必要的浏览器能力补齐；仅打开 PDF 时加载解析模块，分页渲染单页并支持缩放、适应宽度和文字选择。字体、CMap 与解码资源随 Docker 静态包部署，不依赖第三方 CDN。实现依据：[React-PDF](https://github.com/wojtekmaj/react-pdf)、[PDF.js 示例](https://mozilla.github.io/pdf.js/examples/)。
 
 PDF 通过现有管理员文件接口鉴权读取，预览携带版本号；文件更新后旧版本预览返回 409，重新加载会刷新元数据。ZIP 保留下载及审核，不尝试渲染。切换战队中止旧文件请求并释放文档与 Canvas，不执行 PDF 附带操作或脚本，不开放文件 iframe 权限。文件接口继续私有、不缓存；原站点 CSP 与禁止嵌入策略保留。
+
+
+## 观战大屏与比赛访问
+
+设计依据和身份操作见 [观战与赛后练习](CONTEST-SPECTATING.md)。大屏在单层比赛导航下占满剩余高度，隐藏页脚和重复悬浮动态；左侧排行/事件、右侧 Three.js 赛场。保持现有字体、Lucide、shadcn 按钮/提示/选择控件和明暗主题，不额外加载字体或第三方统计服务。
+
+`ContestAccessSettings` 集中访问权限、报名范围、审核和练习开关；`contestCapabilities` 决定各身份菜单，服务端独立鉴权。`useSpectatorRealtime` 负责初始快照、重连、页面隐藏时断开及 1008 撤权；错误时整个大屏由错误视图替换。排行等待下一页时保留旧页，不切换为空白加载块。
+
+三维渲染最多 30 FPS、像素比 1.5、60 个战队节点与 12 个事件；离开时销毁 WebGL 资源。首个快照不播放历史攻击，已处理事件不会因重复推送重播，减少动态效果设置关闭非必要动效。按需加载独立 `spectator-3d` chunk，普通比赛/管理页面不下载 Three.js。
