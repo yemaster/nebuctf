@@ -22,6 +22,11 @@ import {
   ListChecks,
   ShieldCheck,
   Layers,
+  LayoutDashboard,
+  Settings,
+  Timer,
+  Mail,
+  Waypoints,
 } from "lucide-react";
 import { useUser } from "@/App";
 import { cn } from "@/lib/utils";
@@ -66,7 +71,20 @@ import {
   TreeAdmin,
   TreeEditor,
 } from "./LearningAdmin";
+import { AdminOverview } from "./admin/Overview";
+import { SystemSettings } from "./admin/SystemSettings";
+import { AIRoutesAdmin, AIRouteEditor } from "./admin/AIRoutes";
 const groups = [
+  {
+    title: "基础",
+    items: [
+      { path: "overview", title: "概览", icon: LayoutDashboard },
+      { path: "settings", title: "系统配置", icon: Settings },
+      { path: "containers", title: "容器策略", icon: Timer },
+      { path: "mail", title: "邮件策略", icon: Mail },
+      { path: "ai", title: "AI 转发", icon: Waypoints },
+    ],
+  },
   {
     title: "内容",
     items: [
@@ -126,7 +144,7 @@ function AdminLayout() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild size="lg">
-                <Link to="/admin/challenges">
+                <Link to="/admin/overview">
                   <ShieldCheck />
                   <span className="font-semibold">管理中心</span>
                 </Link>
@@ -169,7 +187,7 @@ function AdminLayout() {
             <BreadcrumbList>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link to="/admin/challenges">管理中心</Link>
+                  <Link to="/admin/overview">管理中心</Link>
                 </BreadcrumbLink>
               </BreadcrumbItem>
               {section && (
@@ -227,7 +245,20 @@ function AdminLayout() {
             className="mx-auto w-full max-w-[1600px] motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150"
           >
             <Routes>
-              <Route index element={<Navigate to="challenges" replace />} />
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview" element={<AdminOverview />} />
+              <Route
+                path="settings"
+                element={<SystemSettings section="site" />}
+              />
+              <Route
+                path="containers"
+                element={<SystemSettings section="containers" />}
+              />
+              <Route path="mail" element={<SystemSettings section="mail" />} />
+              <Route path="ai" element={<AIRoutesAdmin />} />
+              <Route path="ai/new" element={<AIRouteEditor />} />
+              <Route path="ai/:id/edit" element={<AIRouteEditor />} />
               <Route path="challenges" element={<ChallengeAdmin />} />
               <Route path="images" element={<ImagesAdmin />} />
               <Route path="challenges/new" element={<ChallengeEditor />} />

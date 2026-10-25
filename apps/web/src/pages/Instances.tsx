@@ -55,6 +55,7 @@ export function InstanceRow({
   const [now, setNow] = useState(Date.now());
   const [operation, setOperation] = useState<"renew" | "stop" | null>(null);
   const [renewedExpiry, setRenewedExpiry] = useState<string>();
+  const [renewedCount, setRenewedCount] = useState<number>();
   const [stopAccepted, setStopAccepted] = useState(false);
   const [copied, setCopied] = useState(false);
   const stop = useAction(
@@ -87,11 +88,12 @@ export function InstanceRow({
     async () => {
       setOperation("renew");
       stop.reset();
-      const result = await api<{ expires_at: string }>(
+      const result = await api<{ expires_at: string; renew_count: number }>(
         `/instances/${i.id}/renew`,
         "POST",
       );
       setRenewedExpiry(result.expires_at);
+      setRenewedCount(result.renew_count);
     },
     undefined,
     false,
@@ -198,15 +200,26 @@ export function InstanceRow({
           )}
           {canManage && (
             <>
-              {i.status === "running" && (
+              {i.status === "running" && !i.shared && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  disabled={busy}
+                  disabled={
+                    busy ||
+                    (i.renew_limit != null &&
+                      Math.max(i.renew_count ?? 0, renewedCount ?? 0) >=
+                        i.renew_limit) ||
+                    !!(
+                      i.max_expires_at &&
+                      expires >= Date.parse(i.max_expires_at)
+                    )
+                  }
                   onClick={() => renew.mutate()}
                 >
                   <RotateCw />
-                  续期
+                  {i.renew_limit != null
+                    ? `续期（剩余 ${Math.max(0, i.renew_limit - Math.max(i.renew_count ?? 0, renewedCount ?? 0))} 次）`
+                    : "续期"}
                 </Button>
               )}
               <Button

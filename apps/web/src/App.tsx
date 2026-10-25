@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useSiteSettings } from "@/lib/site-settings";
 const ContestSpectator = lazy(() =>
   import("./pages/ContestSpectator").then((m) => ({
     default: m.ContestSpectator,
@@ -98,6 +100,10 @@ export function App() {
   );
 }
 function AppShell() {
+  const site = useSiteSettings();
+  useEffect(() => {
+    document.title = site.data?.name ?? "NebuCTF";
+  }, [site.data?.name]);
   const cardTransition = useCardTransition();
   const { data } = useAPI<{ user: User | null }>("/me");
   const user = data?.user ?? null;

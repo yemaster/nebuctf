@@ -4,6 +4,7 @@ import { Field } from "../shared";
 import { Input } from "../ui/input";
 import { NativeSelect, NativeSelectOption } from "../ui/native-select";
 import { ImageTools } from "./image-tools";
+import { Switch } from "../ui/switch";
 export function ResourceProfileEditor({
   value: v,
   onChange: set,
@@ -48,6 +49,17 @@ export function ResourceProfileEditor({
           </Field>
         )}
       </div>
+      {!generator && v.mode !== "public" && (
+        <label className="flex max-w-lg items-center justify-between gap-4 text-sm">
+          使用平台默认时长
+          <Switch
+            checked={v.use_platform_ttl ?? v.ttl === 1800}
+            onCheckedChange={(checked) =>
+              set({ ...v, use_platform_ttl: checked })
+            }
+          />
+        </label>
+      )}
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {!generator && (
           <>
@@ -95,6 +107,12 @@ export function ResourceProfileEditor({
               min={f.min}
               max={f.max}
               value={v[f.key]}
+              disabled={
+                f.key === "ttl" &&
+                !generator &&
+                v.mode !== "public" &&
+                (v.use_platform_ttl ?? v.ttl === 1800)
+              }
               onChange={(e) => set({ ...v, [f.key]: Number(e.target.value) })}
             />
           </Field>

@@ -1,3 +1,4 @@
+import { useSiteSettings, defaultSite } from "@/lib/site-settings";
 import { Link, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -116,7 +117,8 @@ export function SiteHeader({
       ? [{ to: `${base}/manage/teams`, name: "管理" }]
       : [];
   const managing = pathname.startsWith(`${base}/manage/`);
-  const title = contestId ? (contest.data?.title ?? "比赛") : "NebuCTF";
+  const site = useSiteSettings().data ?? defaultSite;
+  const title = contestId ? (contest.data?.title ?? "比赛") : site.name;
   const active = (to: string) => {
     const path = to.split("?")[0];
     if (path === `${base}/manage/teams`) return managing;

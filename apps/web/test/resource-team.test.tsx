@@ -25,6 +25,10 @@ test(
       window: dom.window,
       document: dom.window.document,
       HTMLElement: dom.window.HTMLElement,
+      CustomEvent: dom.window.CustomEvent,
+      Node: dom.window.Node,
+      NodeFilter: dom.window.NodeFilter,
+      HTMLInputElement: dom.window.HTMLInputElement,
       Element: dom.window.Element,
       SVGElement: dom.window.SVGElement,
       MutationObserver: dom.window.MutationObserver,
@@ -117,6 +121,13 @@ test(
           mutations: { gcTime: Infinity },
           queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
         },
+      });
+      cache.setQueryData(["/site"], {
+        name: "NebuCTF",
+        footer_text: "",
+        footer_link_label: "",
+        footer_link_url: "",
+        email_verification: false,
       });
       Object.entries(responses).forEach(([path, data]) =>
         cache.setQueryData([path], data),
@@ -596,6 +607,82 @@ test(
             await settle(() => !!start() && !start()!.disabled);
             assert(!container.textContent!.includes("已达上限"));
           } finally {
+            await cleanup();
+          }
+        },
+      );
+      await t.test(
+        "starting at capacity asks for confirmation and names only the proposed replacements",
+        async () => {
+          const endpoint = `/challenges/${id}/instances`;
+          await mount(`/challenges?challenge=${id}`, {
+            [`/challenges/${id}?scope=practice`]: {
+              ...challenge,
+              kind: "dynamic_container",
+            },
+            "/instances?scope=practice": { items: [] },
+            [`/challenges/${id}/instance-policy?scope=practice&resource_type=container`]:
+              {
+                next_operation_at: null,
+                auto_destroy: true,
+                quota: {
+                  team_limit: 1,
+                  team_used: 1,
+                  total_limit: null,
+                  total_used: 1,
+                  blocked: {
+                    message: "已达上限",
+                    action: { label: "管理靶机", href: "/instances" },
+                  },
+                },
+              },
+            [endpoint]: {
+              requires_confirmation: true,
+              replacements: [{ id: "old-instance", title: "旧靶机题目" }],
+            },
+          });
+          const writes: any[] = [],
+            originalFetch = globalThis.fetch;
+          globalThis.fetch = async (url, options) => {
+            if (String(url) === `/api${endpoint}`) {
+              const body = JSON.parse(String(options?.body));
+              writes.push(body);
+              if (body.replace_ids.length)
+                return Response.json({ id: "new-instance", status: "queued" });
+            }
+            return originalFetch(url, options);
+          };
+          try {
+            const start = () =>
+              [...container.querySelectorAll("button")].find(
+                (b) => b.textContent === "启动靶机",
+              )!;
+            await settle(() => !!start());
+            await click(start());
+            await settle(() => !!document.querySelector('[role="dialog"]'));
+            assert(
+              document
+                .querySelector('[role="dialog"]')!
+                .textContent!.includes("旧靶机题目"),
+            );
+            assert.deepEqual(writes[0].replace_ids, []);
+            await click(
+              [...document.querySelectorAll('[role="dialog"] button')].find(
+                (b) => b.textContent === "取消",
+              )!,
+            );
+            assert.equal(writes.length, 1);
+            await click(start());
+            await settle(() => !!document.querySelector('[role="dialog"]'));
+            await click(
+              [...document.querySelectorAll('[role="dialog"] button')].find(
+                (b) => b.textContent === "销毁并启动",
+              )!,
+            );
+            await settle(() => writes.length === 3);
+            assert.deepEqual(writes[2].replace_ids, ["old-instance"]);
+          } finally {
+            globalThis.fetch = originalFetch;
             await cleanup();
           }
         },

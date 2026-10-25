@@ -1,3 +1,4 @@
+import { useSiteSettings, defaultSite } from "@/lib/site-settings";
 import {
   ArrowRight,
   BookOpen,
@@ -46,6 +47,7 @@ import { useCaptcha } from "@/lib/use-captcha";
 import { toast } from "sonner";
 export function Auth({ register = false }: { register?: boolean }) {
   const reduced = useReducedMotion();
+  const site = useSiteSettings().data ?? defaultSite;
   return (
     <div className="grid h-full min-h-0 grid-rows-1 lg:grid-cols-2">
       <aside
@@ -54,7 +56,9 @@ export function Auth({ register = false }: { register?: boolean }) {
       >
         <div className="space-y-6">
           <p className="text-sm text-muted-foreground">Capture the Flag</p>
-          <p className="text-7xl font-semibold xl:text-8xl">NebuCTF</p>
+          <p className="break-words text-7xl font-semibold xl:text-8xl">
+            {site.name}
+          </p>
         </div>
         <nav aria-label="访客入口" className="grid max-w-md gap-2">
           {[
@@ -99,19 +103,42 @@ export function Auth({ register = false }: { register?: boolean }) {
 
 function AuthForm({ register }: { register: boolean }) {
   const navigate = useNavigate();
+  const site = useSiteSettings();
+  const [mailProof, setMailProof] = useState<{
+    id: string;
+    email: string;
+  } | null>(null);
   const verification = useCaptcha(register ? "register" : "login");
   const [params] = useSearchParams();
   const next = safeLocalPath(params.get("next"));
   const [showPassword, setShowPassword] = useState(false);
   const action = useMutation({
     mutationFn: (d: Record<string, unknown>) =>
-      api(`/auth/${register ? "register" : "login"}`, "POST", d),
+      api<Record<string, any>>(
+        register && site.data?.email_verification && !mailProof
+          ? "/auth/email-code"
+          : `/auth/${register ? "register" : "login"}`,
+        "POST",
+        d,
+      ),
     onSettled: verification.reset,
-    onSuccess: () => {
+    onSuccess: (result, submitted) => {
+      if (register && result.id && !result.user) {
+        setMailProof({ id: result.id, email: String(submitted.email) });
+        return;
+      }
       void client.resetQueries();
       navigate(next, { replace: true });
     },
   });
+  if (register && (site.isLoading || site.error))
+    return (
+      <QueryState
+        loading={site.isLoading}
+        error={site.error}
+        retry={() => void site.refetch()}
+      />
+    );
   return (
     <div className="w-full max-w-md space-y-10">
       <div className="space-y-5">
@@ -131,10 +158,18 @@ function AuthForm({ register }: { register: boolean }) {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (!verification.proof || action.isPending) return;
+          if ((!mailProof && !verification.proof) || action.isPending) return;
           action.mutate({
             ...Object.fromEntries(new FormData(e.currentTarget)),
             captcha: verification.proof,
+            ...(mailProof
+              ? {
+                  email_verification: {
+                    id: mailProof.id,
+                    code: new FormData(e.currentTarget).get("email_code"),
+                  },
+                }
+              : {}),
           });
         }}
       >
@@ -164,6 +199,7 @@ function AuthForm({ register }: { register: boolean }) {
               name={register ? "email" : "identifier"}
               required
               type={register ? "email" : "text"}
+              readOnly={!!mailProof}
               maxLength={254}
               autoComplete={register ? "email" : "username"}
               autoCapitalize="none"
@@ -197,7 +233,42 @@ function AuthForm({ register }: { register: boolean }) {
               </InputGroupAddon>
             </InputGroup>
           </FormField>
-          <Captcha verification={verification} disabled={action.isPending} />
+          {mailProof ? (
+            <div className="space-y-3">
+              <FormField>
+                <FieldLabel htmlFor="email-code">邮箱验证码</FieldLabel>
+                <Input
+                  id="email-code"
+                  name="email_code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  minLength={6}
+                  required
+                  autoFocus
+                  className="h-12 text-center text-lg tracking-widest"
+                />
+              </FormField>
+              <p className="text-xs text-muted-foreground">
+                已发送至 {mailProof.email}，10 分钟内有效。
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={action.isPending}
+                onClick={() => {
+                  setMailProof(null);
+                  action.reset();
+                }}
+              >
+                更换邮箱或重新发送
+              </Button>
+            </div>
+          ) : (
+            <Captcha verification={verification} disabled={action.isPending} />
+          )}
           {action.error && (
             <Alert variant="destructive" className="border-0 bg-destructive/10">
               <CircleAlert />
@@ -206,7 +277,7 @@ function AuthForm({ register }: { register: boolean }) {
           )}
           <Button
             className="mt-2 h-12 w-full text-base"
-            disabled={action.isPending || !verification.proof}
+            disabled={action.isPending || (!mailProof && !verification.proof)}
           >
             {action.isPending ? <Loader2 className="animate-spin" /> : null}
             {action.isPending
@@ -214,7 +285,9 @@ function AuthForm({ register }: { register: boolean }) {
                 ? "注册中"
                 : "登录中"
               : register
-                ? "注册"
+                ? site.data?.email_verification && !mailProof
+                  ? "发送验证码"
+                  : "注册"
                 : "登录"}
             {!action.isPending && <ArrowRight className="ml-auto" />}
           </Button>

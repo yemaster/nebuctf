@@ -19,6 +19,8 @@ import { OperationProgress } from "./operation-progress";
 import { ResourceError } from "./resource-error";
 import { QueryState } from "./shared";
 import { InstanceRow } from "@/pages/Instances";
+import { useState } from "react";
+import { ConfirmAction } from "./confirm-action";
 export function QuestionResources({
   challenge: c,
   scope,
@@ -86,6 +88,7 @@ function ResourceLaunch({
   );
   const policy = useAPI<{
     next_operation_at: string | null;
+    auto_destroy?: boolean;
     quota?: {
       team_used: number;
       team_limit: number | null;
@@ -101,12 +104,27 @@ function ResourceLaunch({
     !!user,
     5000,
   );
+  const canReplace =
+    !!policy.data?.auto_destroy &&
+    policy.data.quota?.team_limit !== 0 &&
+    policy.data.quota?.total_limit !== 0;
+  const [replacements, setReplacements] = useState<
+    { id: string; title: string }[] | null
+  >(null);
   const start = useAction(
-    () =>
-      api(`/challenges/${c.id}/instances`, "POST", {
+    async (replace_ids: string[] = []) => {
+      const result = await api<{
+        requires_confirmation?: boolean;
+        replacements?: { id: string; title: string }[];
+      }>(`/challenges/${c.id}/instances`, "POST", {
         scope,
         resource_type: type,
-      }),
+        replace_ids,
+      });
+      setReplacements(
+        result.requires_confirmation ? result.replacements! : null,
+      );
+    },
     undefined,
     false,
   );
@@ -200,9 +218,9 @@ function ResourceLaunch({
                       cooldown > 0 ||
                       policy.isLoading ||
                       policy.isError ||
-                      !!policy.data?.quota?.blocked
+                      (!!policy.data?.quota?.blocked && !canReplace)
                     }
-                    onClick={() => start.mutate()}
+                    onClick={() => start.mutate([])}
                   >
                     {error ? (
                       <RotateCw />
@@ -229,14 +247,14 @@ function ResourceLaunch({
                     busy={start.isPending}
                     failed={start.isError}
                     label={attachment ? "正在准备生成" : "正在准备环境"}
-                    completeLabel="已加入队列"
+                    completeLabel={replacements ? "等待确认" : "已加入队列"}
                   />
                   {error &&
                     !start.isPending &&
                     !policy.data?.quota?.blocked && (
                       <ResourceError error={error} />
                     )}{" "}
-                  {policy.data?.quota?.blocked && (
+                  {policy.data?.quota?.blocked && !canReplace && (
                     <ResourceError
                       error={
                         new ApiError(
@@ -265,6 +283,24 @@ function ResourceLaunch({
             ))}
         </>
       )}
+      <ConfirmAction
+        open={!!replacements}
+        onOpenChange={(open) => !open && setReplacements(null)}
+        title="替换旧靶机"
+        description="此次启动将销毁以下靶机，清理完成后创建新环境。"
+        confirm="销毁并启动"
+        pending={start.isPending}
+        onConfirm={() => start.mutate(replacements!.map((i) => i.id))}
+      >
+        <ul className="divide-y rounded-lg bg-muted px-4">
+          {replacements?.map((i) => (
+            <li key={i.id} className="py-3 text-sm">
+              {i.title}
+            </li>
+          ))}
+        </ul>
+        {start.error && <ResourceError error={start.error} />}
+      </ConfirmAction>
     </div>
   );
 }

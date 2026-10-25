@@ -11,6 +11,7 @@ export type ResourceProfile = {
   cpu: number;
   memory: number;
   ttl: number;
+  use_platform_ttl?: boolean;
   mode?: "private" | "public";
   access_mode?: "port" | "domain";
   port?: number;

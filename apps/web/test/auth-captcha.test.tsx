@@ -99,7 +99,7 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
     failChallenge = false,
     issued = 0;
   const writes: { path: string; body: any }[] = [];
-  async function mount(path: string) {
+  async function mount(path: string, emailVerification = false) {
     writes.length = 0;
     workers.length = 0;
     failChallenge = false;
@@ -112,6 +112,14 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
     });
     globalThis.fetch = async (input, options) => {
       const path = String(input).replace(/^\/api/, "");
+      if (path === "/site")
+        return Response.json({
+          name: "NebuCTF",
+          footer_text: "",
+          footer_link_label: "",
+          footer_link_url: "",
+          email_verification: emailVerification,
+        });
       if (path === "/me")
         return Response.json({
           user: user ? { id: "player", username: "选手", role: "user" } : null,
@@ -132,6 +140,8 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
             expires_at: new Date(Date.now() + lifetime * 1000).toISOString(),
           });
         }
+        if (path === "/auth/email-code")
+          return Response.json({ id: "verification-id", expires_in: 600 });
         return Response.json(
           {
             error:
@@ -361,6 +371,42 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
         );
         lifetime = 300;
         await solve();
+        await cleanup();
+      },
+    );
+    await t.test(
+      "email-required registration sends first, preserves fields and then submits the one-time code",
+      async () => {
+        await mount("/register", true);
+        const form = container.querySelector("form")!;
+        (form.querySelector('[name="username"]') as HTMLInputElement).value =
+          "mail-user";
+        (form.querySelector('[name="email"]') as HTMLInputElement).value =
+          "mail@example.test";
+        (form.querySelector('[name="password"]') as HTMLInputElement).value =
+          "password888";
+        await solve();
+        await submit(form);
+        await settle(() => !!form.querySelector('[name="email_code"]'));
+        assert(writes.some((w) => w.path === "/auth/email-code"));
+        assert(!writes.some((w) => w.path === "/auth/register"));
+        assert.equal(
+          (form.querySelector('[name="email"]') as HTMLInputElement).readOnly,
+          true,
+        );
+        assert.equal(
+          (form.querySelector('[name="password"]') as HTMLInputElement).value,
+          "password888",
+        );
+        (form.querySelector('[name="email_code"]') as HTMLInputElement).value =
+          "123456";
+        await submit(form);
+        await settle(() => writes.some((w) => w.path === "/auth/register"));
+        assert.deepEqual(
+          writes.find((w) => w.path === "/auth/register")!.body
+            .email_verification,
+          { id: "verification-id", code: "123456" },
+        );
         await cleanup();
       },
     );

@@ -1,3 +1,4 @@
+import { useSiteSettings, defaultSite } from "@/lib/site-settings";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -299,6 +300,7 @@ export function SiteFooter({
   contestId?: string;
   user: User | null;
 }) {
+  const site = useSiteSettings(false).data ?? defaultSite;
   // The header owns this query. The footer observes it without another fetch.
   const contest = useAPI<Contest>(`/contests/${contestId}`, false);
   const current = contest.error ? undefined : contest.data;
@@ -336,12 +338,27 @@ export function SiteFooter({
       className="h-9 shrink-0 bg-card text-xs text-muted-foreground"
     >
       <div className="mx-auto flex h-full max-w-[1680px] items-center gap-1 px-3 sm:gap-3 sm:px-6 lg:px-10">
-        <span className="mr-1 shrink-0">
-          NebuCTF
-          <span className="ml-2 hidden xl:inline">
+        <span
+          className="mr-1 min-w-0 max-w-52 truncate"
+          title={site.footer_text || site.name}
+        >
+          {site.footer_text || site.name}
+          <span
+            className={`ml-2 hidden ${site.footer_text ? "" : "xl:inline"}`}
+          >
             © {new Date().getFullYear()}
           </span>
         </span>
+        {site.footer_link_url && site.footer_link_label && (
+          <a
+            className="hidden max-w-36 truncate hover:text-foreground md:block"
+            href={site.footer_link_url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {site.footer_link_label}
+          </a>
+        )}
         {contestId ? (
           current && <ContestSummary key={contestId} contest={current} />
         ) : (

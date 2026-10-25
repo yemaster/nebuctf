@@ -141,6 +141,9 @@ export interface Contest {
   challenge_ids: string[];
 }
 export interface Instance {
+  renew_count?: number;
+  renew_limit?: number | null;
+  max_expires_at?: string;
   resource_type?: "container" | "attachment";
   created_at: string;
   ttl?: number;

@@ -1,3 +1,4 @@
+import { useSiteSettings, defaultSite } from "@/lib/site-settings";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
@@ -12,6 +13,7 @@ import { ContestCard } from "@/components/contest-card";
 import { Button } from "@/components/ui/button";
 import { Empty, QueryState } from "@/components/shared";
 export function Home() {
+  const site = useSiteSettings().data ?? defaultSite;
   const [day, setDay] = useState<Date>();
   const [recentWindow] = useState(() => {
     const today = Math.floor(Date.now() / 86400000) * 86400000;
@@ -71,7 +73,7 @@ export function Home() {
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-8">
       <header className="flex flex-wrap items-center justify-between gap-6">
-        <h1 className="text-3xl font-semibold">NebuCTF</h1>
+        <h1 className="text-3xl font-semibold">{site.name}</h1>
         <div className="flex gap-7 text-sm text-muted-foreground">
           {stats.data && (
             <>

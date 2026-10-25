@@ -137,6 +137,13 @@ test("contest navigation handles shared snapshots, fallbacks and unregistered de
       items: [{ id, slug: "intro", title: "入门教程", kind: "tutorial" }],
       total: 1,
     });
+    cache.setQueryData(["/site"], {
+      name: "NebuCTF",
+      footer_text: "",
+      footer_link_label: "",
+      footer_link_url: "",
+      email_verification: false,
+    });
     cache.setQueryData(["/articles/intro"], {
       id,
       slug: "intro",

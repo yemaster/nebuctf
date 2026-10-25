@@ -551,6 +551,14 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
     );
   } finally {
     await cleanup();
+    // React/Recharts defer animation cleanup to the next frame. Drain it before removing browser globals.
+    await act(async () => {
+      await new Promise<void>((resolve) =>
+        dom.window.requestAnimationFrame(() =>
+          dom.window.requestAnimationFrame(() => resolve()),
+        ),
+      );
+    });
     dom.window.close();
     for (const [key, descriptor] of original)
       if (descriptor) Object.defineProperty(globalThis, key, descriptor);
