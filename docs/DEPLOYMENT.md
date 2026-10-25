@@ -33,6 +33,14 @@ JSON 字段为 `username`、`email`、`password`，密码至少 8 位。已有�
 
 API、数据库、Worker 不发布主机端口。数据库只在平台网络可达。Worker 用户 1000 需要 Docker Socket 对应组权限；不要通过给 Socket 设置 0666 来解决权限问题。附件卷由 uid 1000 读写。
 
+## 登录与战队安全验证
+
+登录、注册、创建和加入战队默认要求计算验证码。`CAPTCHA_DIFFICULTY` 为 SHA-256 前导零位数，默认 18，允许 12–22；提高难度会增加用户设备的计算时间。修改后重新创建 API 容器使配置生效。无需第三方账号、站点密钥或部署域名，HTTP 与 HTTPS 都能运行。
+
+验证方案参考 [GZCTF HashPow](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/Services/CaptchaService.cs)，浏览器使用 [noble-hashes](https://github.com/paulmillr/noble-hashes) 的 SHA-256。计算放在独立 Worker，页面仍可操作；Worker 静态资源需与前端一同部署，并由同源 CSP 允许加载。PoW 增加自动请求的成本，平台同时保留频率限制。
+
+迁移 17 添加 `captcha_uses` 表及过期索引，用于跨 API 实例的一次性消费，不修改账户或成绩。发布前备份数据库，API 与 Web 一同更新；旧前端页面需刷新后才能提交受保护的表单。API 详情见 [计算验证码](API.md#计算验证码)。
+
 ## 题目访问：端口与泛域名
 
 同一部署、同一比赛内可以混用两种模式，管理员在每道题的「访问方式」选择。

@@ -5,6 +5,7 @@
 | 模块 | 主要接口 |
 | --- | --- |
 | 身份 | `GET /me`；`POST /auth/register`、`/auth/login`、`/auth/logout`、`/auth/password` |
+| 安全验证 | `POST /captcha/challenge`；登录、注册、创建战队和加入战队必须提交一次性 HashPow 结果 |
 | 战队 | `GET /teams/mine`、`/team?team=UUID`；`POST /teams`、`/team/join`、`/team/leave`、`/team/invite`、`/team/captain` |
 | 题库 | `GET /challenges?scope=practice&category=Web&q=&page=1`；`GET /challenges/:id`；`POST /challenges/:id/submit` |
 | 题单 | `GET /problemsets?q=&page=1`、`/problemsets/:id?page=1`；`GET/POST /admin/problemsets`、`GET/PUT /admin/problemsets/:id` |
@@ -24,6 +25,16 @@ Flag 提交请求：`{ "flag": "flag{...}", "scope": "practice" }`，返回 `cor
 资源状态：queued → starting → running（容器）/ready（附件）；停止、到期、创建错误进入 stopping，清理成功后变为 stopped/failed。资源界面每 5 秒轮询，榜单每 15 秒轮询。
 
 分页：题库、文档、比赛、题单、题单内题目以及管理题目/资源/比赛/题单/文档/技能树/公告默认每页 24 条；个人提交与榜单 30，审计/用户/管理提交 50。管理列表接受 page 与 q，返回 items、total、page；资源没有搜索，用户/审计/管理提交沿用原接口。题目与比赛管理另接受 page_size（1–100），榜单接受 page_size（10–100）。比赛内题目目录保持完整。
+
+## 计算验证码
+
+四个写接口 `/auth/login`、`/auth/register`、`/teams`、`/team/join` 都必须携带 `captcha: { token, nonce }`。先向 `POST /captcha/challenge` 提交 `{ purpose }`，purpose 分别为 `login`、`register`、`team-create`、`team-join`；战队用途要求已登录。
+
+返回 `{ token, salt, difficulty, expires_at, expires_in }`。salt 是 32 字节的十六进制串，nonce 是 8 字节的小写十六进制串；求解条件为 `SHA256(hexDecode(salt) || hexDecode(nonce))` 的前 difficulty 位为零。token 为服务端签名的不透明字符串，原样提交。有效期 300 秒；前端按返回的有效秒数扣除请求与计算耗时，不依赖设备时钟与服务器时钟一致。
+
+服务端验证签名、用途、来源 IP、登录身份、时效和计算结果，再以数据库唯一键原子消费证明。一次证明只允许一次业务尝试；密码错误、名称重复或邀请码无效之后都需重新验证，不能重复使用。缺失或无效返回 400，签发限流为每 IP 每分钟 30 次，证明校验每分钟 60 次；原有登录、注册及战队业务限流仍然生效。过期的消费记录由 API 定期清理。接口不提供关闭校验的请求参数。
+
+浏览器使用独立 Worker 和本地 SHA-256 实现，支持 HTTP 开发部署，不调用外部验证平台。CLI 演示脚本通过 `scripts/captcha.mjs` 计算相同证明，没有测试专用绕过令牌。
 
 ## 多小题
 
