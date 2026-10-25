@@ -77,12 +77,38 @@ export function arenaNodes(teams: SpectatorTeam[]) {
     const ring = Math.floor(index / 20),
       count = Math.min(20, visible.length - ring * 20);
     const angle = ((index % 20) / count) * Math.PI * 2 + ring * 0.12;
-    const radius = 9 + ring * 4;
+    const radius = 18 + ring * 3.8;
     return {
       ...team,
       x: Math.cos(angle) * radius,
       z: Math.sin(angle) * radius,
       height: 1 + Math.sqrt(Math.max(0, team.score) / max) * 3.8,
+    };
+  });
+}
+
+// Multipart questions occupy one location. Keep positions stable when solve counts change.
+export function arenaSectors(challenges: SpectatorData["challenges"]) {
+  const categories = [
+    ...new Set(challenges.map((c) => c.category || "其他")),
+  ].sort();
+  const names =
+    categories.length > 8
+      ? [...categories.slice(0, 7), "更多分类"]
+      : categories;
+  return names.map((name, index) => {
+    const members = challenges.filter((c) =>
+      categories.length > 8 && index === 7
+        ? !categories.slice(0, 7).includes(c.category || "其他")
+        : (c.category || "其他") === name,
+    );
+    const angle = (index / names.length) * Math.PI * 2 - Math.PI / 2;
+    return {
+      name,
+      challengeIds: [...new Set(members.map((c) => c.challenge_id))].sort(),
+      solves: members.reduce((sum, c) => sum + c.solves, 0),
+      x: Math.cos(angle) * 10.5,
+      z: Math.sin(angle) * 10.5,
     };
   });
 }

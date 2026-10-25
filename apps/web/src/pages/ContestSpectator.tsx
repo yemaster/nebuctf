@@ -248,7 +248,7 @@ function Spectator({ scope }: { scope: string }) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="left">
-                节点代表战队，高度对应得分；解题连接赛场中心，攻防连接对应战队。
+                外围节点代表战队，高度对应得分；解题轨迹连接对应题区，攻防轨迹连接目标战队。
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

@@ -4,6 +4,7 @@ import React, { act } from "react";
 import { JSDOM } from "jsdom";
 import {
   arenaNodes,
+  arenaSectors,
   SpectatorEvents,
   type SpectatorEvent,
   type SpectatorData,
@@ -303,3 +304,91 @@ test(
     }
   },
 );
+
+test("category islands map every real challenge once and bound large category sets", () => {
+  const challenges = Array.from({ length: 30 }, (_, i) => ({
+    id: `part-${i}`,
+    challenge_id: `challenge-${Math.floor(i / 2)}`,
+    category: `Category ${Math.floor(i / 2)}`,
+    title: "Question",
+    part_title: "Part",
+    solves: i,
+  }));
+  const sectors = arenaSectors(challenges);
+  assert.equal(sectors.length, 8);
+  const ids = sectors.flatMap((s) => s.challengeIds);
+  assert.equal(ids.length, 15);
+  assert.equal(new Set(ids).size, 15);
+  assert.deepEqual(sectors, arenaSectors([...challenges].reverse()));
+  assert.deepEqual(arenaSectors([]), []);
+  assert.equal(
+    arenaSectors([{ ...challenges[0]!, category: "" }])[0]!.name,
+    "其他",
+  );
+});
+
+test("scene models replace category geometry and reclaim bounded event effects", async () => {
+  const T = await import("three"),
+    { createArenaWorld } =
+      await import("../src/components/spectator/arena-world"),
+    { createArenaEffects } =
+      await import("../src/components/spectator/arena-effects");
+  const world = createArenaWorld(new T.Color("#60a5fa"), true);
+  const question = {
+    id: "part",
+    challenge_id: "web",
+    title: "Web",
+    category: "Web",
+    part_title: null,
+    solves: 0,
+  };
+  world.setChallenges([question]);
+  const objectCount = () => {
+    let count = 0;
+    world.group.traverse(() => count++);
+    return count;
+  };
+  const initial = objectCount();
+  let disposed = 0;
+  world.group.traverse((o) => {
+    if (o instanceof T.InstancedMesh)
+      o.addEventListener("dispose", () => disposed++);
+  });
+  world.setChallenges([{ ...question, challenge_id: "new" }]);
+  assert.equal(objectCount(), initial);
+  assert.equal(disposed, 1, "replaced category instance buffers are released");
+  assert.equal(world.anchors.has("web"), false);
+  assert.equal(world.anchors.has("new"), true);
+  const station = world.createStation("team");
+  station.object.position.set(18, 0, 0);
+  assert(
+    new T.Box3()
+      .setFromObject(station.object)
+      .getSize(new T.Vector3())
+      .length() > 0,
+  );
+  station.dispose();
+  assert.equal(objectCount(), initial);
+  const effects = createArenaEffects(world.group, new T.Color("#60a5fa"), true);
+  const children = world.group.children.length;
+  effects.add(event("missing", Date.now()), undefined, undefined);
+  assert.equal(
+    world.group.children.length,
+    children,
+    "missing endpoints create no fabricated trajectory",
+  );
+  for (let i = 0; i < 30; i++)
+    effects.add(
+      event(`e-${i}`, Date.now()),
+      new T.Vector3(18, 2, 0),
+      new T.Vector3(0, 2, 10),
+    );
+  assert.equal(world.group.children.length, children + 12);
+  effects.tick(0.6);
+  effects.tick(4);
+  assert.equal(world.group.children.length, children);
+  effects.clear();
+  world.dispose();
+  assert.equal(world.group.children.length, 0);
+  assert.equal(world.anchors.size, 0);
+});
