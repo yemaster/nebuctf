@@ -31,6 +31,11 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
     const sections = phases
       .filter((p) => p.status === "active")
       .map((p) => p.section);
+    const visibleIds = await visibleChallengeIds(
+      db,
+      p.scope,
+      req.user ?? undefined,
+    );
     const args = [
       p.scope,
       p.q,
@@ -39,13 +44,20 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
       p.scope === "practice" ? (p.page - 1) * 24 : 0,
       cutoff,
       sections,
-      await visibleChallengeIds(db, p.scope, req.user ?? undefined),
+      visibleIds,
     ];
     const rows = await db.query(
       `SELECT c.*,count(*) OVER()::int total,(SELECT count(*)::int FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.created_at<=$6 AND NOT s.contest_practice) solves,EXISTS(SELECT 1 FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.owner_key=$4) solved FROM challenges c WHERE c.published AND (($1='practice' AND c.practice) OR EXISTS(SELECT 1 FROM contest_challenges cc WHERE cc.challenge_id=c.id AND cc.contest_id::text=$1 AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()) AND ($4='' OR CASE WHEN c.challenge_type='objective' THEN 'objective' ELSE 'practical' END=ANY($7::text[])))) AND ($8::uuid[] IS NULL OR c.id=ANY($8::uuid[])) AND ($2='' OR c.title ILIKE '%'||$2||'%') AND ($3='' OR c.category=$3) ORDER BY c.created_at,c.id LIMIT CASE WHEN $1='practice' THEN 24 ELSE 200 END OFFSET $5`,
       args,
     );
+    const [objectives] = contest
+      ? await db.query(
+          "SELECT count(*)::int total FROM challenges c JOIN contest_challenges cc ON cc.challenge_id=c.id WHERE cc.contest_id=$1 AND c.challenge_type='objective' AND c.published AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()) AND ($2::uuid[] IS NULL OR c.id=ANY($2::uuid[]))",
+          [p.scope, visibleIds],
+        )
+      : [];
     return {
+      objective_count: objectives?.total ?? 0,
       items: (
         await challengeProgress(
           db,

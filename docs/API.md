@@ -183,6 +183,8 @@ API 进程每 2 秒检查到期题目，在事务内启用、清除计划时间�
 | --- | --- |
 | `GET /contests/:id/timing` | 当前战队各阶段状态、开始/截止时间、server_time 及比赛 clock |
 | `POST /contests/:id/start/:section` | section 为 objective/practical；战队共享、幂等开始 |
+| `GET /contests/:id/objective-paper` | 本队整张客观题答卷；安全题面、分值、逐题权限、草稿及版本、阶段、服务端时间；未开始的阶段不返回题面 |
+| `POST /contests/:id/objective-paper` | `{finalize,answers:[{id,answer:{choices,blanks},revision}]}`；保存草稿可传变更子集，交卷须包含全部可提交题目 |
 | `GET /challenges/:id/answer?scope=` | 本队客观题草稿与最终提交状态 |
 | `POST /challenges/:id/answer` | `{scope,answer:{choices,blanks},finalize}`；最终提交后不可修改 |
 | `POST /challenges/:id/patches?scope=` | multipart 补丁包，返回持久化任务 ID |
@@ -373,3 +375,11 @@ queued/starting/running/ready/stopping 均占名额，failed/stopped 不占；�
 比赛题目列表一次返回全部可见赛题（最多 200 题），练习题库继续每页 24 题。题目和小题增加 `bloods:[{team_id,name,created_at,rank}]`，按封榜截止、正式参赛资格和组别三血权限计算，不包含赛后练习。
 
 观战快照增加 `engagements:[{challenge_id,challenge_title,last_seen,teams:[{id,name,last_seen}]}]`。只使用最近 90 秒的实际提交或 AWD 攻击，最多 12 道题、每题 3 队，排除已全部解出的题目、不可共同查看的赛题、非正式队伍和练习数据；封榜或结束后为空。不返回提交内容、失败原因、邮箱或环境地址。
+
+### 客观题整卷提交
+
+`objective-paper` 的每题 `saved` 包含 `answer`、`correct`、`finalized_at`、`revision`；新答案 `revision:null`，后续原样回传读取的版本。GET 仅返回有查看权限的已上线客观题，答案定义中的正确选项和允许填空值始终剔除；正式阶段尚未开始时 `items:[]`，可先通过阶段开始接口开始计时。`can_submit` 表示阶段可作答，仍须结合逐题 `permissions.submit`。未报名管理员只有预览权限。
+
+POST 最多 200 题，单填空 500 字符、每题最多 10 个空位，总请求体上限 4 MiB，每用户每分钟最多 30 次。重复题目返回 400，题目集合改变或草稿版本冲突返回 409，权限或截止时间不满足返回 403。整卷提交采用单一数据库事务，任意题校验失败不保存其他题；已正式交卷的题目幂等返回原结果。赛后练习答案与正式答案分开，允许重复练习，不改变原赛成绩。旧单题接口保留供练习场及兼容调用。
+
+比赛 `/challenges` 额外返回 `objective_count`，按当前组别可见和已上线客观题统计，不受搜索、分类或客观题阶段状态影响，用于保留整卷入口。
