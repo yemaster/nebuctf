@@ -1,3 +1,5 @@
+import { submissionUsage, requireSubmissionSlot } from "./submission-policy.js";
+import { notifyContest } from "./activity-events.js";
 import { requirePermission } from "./group-permissions.js";
 import { flagEnvironmentSpec } from "./flag-environment.js";
 import { resourceUsage } from "./resource-usage.js";
@@ -52,6 +54,9 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
           "submit",
         );
         requirePermission(current.permissions, "resources");
+        if ((await ownerFor(tx, scope, user)) !== owner)
+          fail(409, "战队已变更，请重新提交");
+        await requireSubmissionSlot(tx, current, scope, owner, "defense");
         await resourceCooldown(tx, owner, scope, cid, "patch");
         const [active] = await tx.query(
           "SELECT challenge_id,scope FROM judge_jobs WHERE owner_key=$1 AND status IN ('queued','building','checking')",
@@ -101,6 +106,7 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
           ],
         );
         await audit(tx, user.id, "patch.submit", jid);
+        await notifyContest(tx, scope);
         return { id: jid, status: "queued" };
       });
     } catch (e) {
@@ -112,11 +118,17 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
     const user = requireUser(req),
       cid = id.parse((req.params as any).id),
       scope = scopeSchema.parse((req.query as any).scope);
-    await challengeAccess(db, cid, scope, user);
+    const c = await challengeAccess(db, cid, scope, user, false);
     const owner = await ownerFor(db, scope, user);
+    const [cooldown] = await db.query(
+      "SELECT expires_at FROM rate_limits WHERE key=$1",
+      [`resource:${owner}:${scope}:${cid}:patch`],
+    );
     return {
+      next_operation_at: cooldown?.expires_at ?? null,
+      usage: (await submissionUsage(db, c, scope, owner)).defense,
       items: await db.query(
-        "SELECT id,status,patch_name,error,created_at,finished_at FROM judge_jobs WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3 ORDER BY created_at DESC LIMIT 10",
+        "SELECT id,status,patch_name,error,result - 'image' result,created_at,finished_at FROM judge_jobs WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3 ORDER BY created_at DESC LIMIT 10",
         [cid, scope, owner],
       ),
     };

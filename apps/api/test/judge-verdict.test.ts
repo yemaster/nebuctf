@@ -1,0 +1,153 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { openDB } from "../src/db.js";
+import { JudgeWorker } from "../src/judge-worker.js";
+import { config } from "../src/config.js";
+import { makeTar } from "../src/patch-archive.js";
+import { patchStorage } from "../src/judge.js";
+
+test("patch worker reports functional, exploit, success and infrastructure outcomes without awarding failed defense", async (t) => {
+  const db = await openDB(true),
+    prior = config.DATA_DIR,
+    dir = await mkdtemp(join(tmpdir(), "nebuctf-verdict-"));
+  config.DATA_DIR = dir;
+  t.after(async () => {
+    await db.close();
+    config.DATA_DIR = prior;
+    await rm(dir, { recursive: true, force: true });
+  });
+  const user = crypto.randomUUID();
+  await db.query(
+    "INSERT INTO users(id,username,email,password_hash) VALUES($1,'verdict','verdict@test.invalid','test')",
+    [user],
+  );
+  const profile = {
+      image: "nebuctf/test:local",
+      port: 8080,
+      cpu: 100,
+      memory: 32,
+      ttl: 600,
+      mode: "private",
+      access_mode: "port",
+    },
+    patch = {
+      checker_image: "nebuctf/check:local",
+      patch_root: "/app",
+      timeout: 10,
+      cpu: 100,
+      memory: 32,
+    };
+  for (const [name, functional, defense, expected, steps] of [
+    ["service failure", 1, 0, "service_error", ["functional"]],
+    ["exploit works", 0, 1, "exploit_success", ["functional", "defense"]],
+    ["checker error", 0, 2, "error", ["functional", "defense"]],
+    ["repaired", 0, 0, "defended", ["functional", "defense"]],
+  ] as const)
+    await t.test(name, async () => {
+      const cid = crypto.randomUUID(),
+        jid = crypto.randomUUID(),
+        def = crypto.randomUUID();
+      await db.query(
+        "INSERT INTO challenges(id,title,category,difficulty,kind,flag_hash,published,practice,challenge_type,resources,patch_config) VALUES($1,'Check','Web','入门','dynamic_container','',true,true,'awdp',$2,$3)",
+        [
+          cid,
+          JSON.stringify({ container: profile, attachment: null }),
+          JSON.stringify(patch),
+        ],
+      );
+      await db.query(
+        "INSERT INTO challenge_parts(id,challenge_id,title,position,role,flag_hash,initial_points,minimum_points) VALUES($1,$2,'Defense',1,'defense','',100,100),($3,$2,'Attack',0,'attack','',100,100)",
+        [def, cid, crypto.randomUUID()],
+      );
+      await mkdir(patchStorage(), { recursive: true });
+      await writeFile(
+        join(patchStorage(), jid),
+        makeTar([
+          {
+            name: "settings.py",
+            data: Buffer.from("safe=True"),
+            executable: false,
+          },
+        ]),
+      );
+      await db.query(
+        "INSERT INTO judge_jobs(id,challenge_id,scope,owner_key,requested_by,status,patch_id,patch_name,spec,deadline_at) VALUES($1,$2,'practice',$3,$4,'queued',$1,'patch.tar',$5,now()+interval '2 minutes')",
+        [
+          jid,
+          cid,
+          "u:" + user,
+          user,
+          JSON.stringify({ container: profile, patch, type: "awdp" }),
+        ],
+      );
+      const containers = new Map<string, any>(),
+        networks = new Map<string, any>(),
+        seen: string[] = [];
+      const missing = () => {
+        throw Object.assign(Error("missing"), { statusCode: 404 });
+      };
+      const docker = {
+        inspectImage: async () => ({
+          Id: "sha256:" + "a".repeat(64),
+          Config: {},
+        }),
+        buildPatch: async () => `nebuctf-patch:${jid}`,
+        createNetwork: async (c: any) => {
+          networks.set(c.Name, { Id: c.Name, ...c });
+        },
+        inspectNetwork: async (name: string) => networks.get(name) ?? missing(),
+        removeNetwork: async (name: string) => {
+          networks.delete(name);
+        },
+        createContainer: async (c: any) => {
+          const v = {
+            Config: c,
+            NetworkSettings: {
+              Networks: {
+                [c.HostConfig.NetworkMode]: { IPAddress: "172.20.0.3" },
+              },
+            },
+          };
+          containers.set(c.name, v);
+          return { Id: c.name };
+        },
+        startContainer: async () => {},
+        inspectContainer: async (id: string) => containers.get(id) ?? missing(),
+        waitContainer: async (id: string) => {
+          const mode = containers
+            .get(id)
+            .Config.Env.find((v: string) => v.startsWith("CHECK_MODE="))
+            .split("=")[1];
+          seen.push(mode);
+          return { StatusCode: mode === "functional" ? functional : defense };
+        },
+        removeContainer: async (id: string) => {
+          containers.delete(id);
+        },
+        removeImage: async () => {},
+      };
+      const job = (
+        await db.query("SELECT * FROM judge_jobs WHERE id=$1", [jid])
+      )[0]!;
+      await new JudgeWorker(db, docker as any).run(job);
+      const result = (
+        await db.query("SELECT * FROM judge_jobs WHERE id=$1", [jid])
+      )[0]!;
+      assert.equal(result.result.verdict, expected);
+      assert.equal(
+        result.status,
+        expected === "defended" ? "passed" : "failed",
+      );
+      assert.deepEqual(seen, [...steps]);
+      assert.equal(containers.size, 0);
+      assert.equal(networks.size, 0);
+      assert.equal(
+        (await db.query("SELECT 1 FROM part_solves WHERE part_id=$1", [def]))
+          .length,
+        expected === "defended" ? 1 : 0,
+      );
+    });
+});

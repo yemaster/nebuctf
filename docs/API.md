@@ -189,7 +189,7 @@ API 进程每 2 秒检查到期题目，在事务内启用、清除计划时间�
 | `GET /challenges/:id/answer?scope=` | 本队客观题草稿与最终提交状态 |
 | `POST /challenges/:id/answer` | `{scope,answer:{choices,blanks},finalize}`；最终提交后不可修改 |
 | `POST /challenges/:id/patches?scope=` | multipart 补丁包，返回持久化任务 ID |
-| `GET /challenges/:id/patches?scope=` | 只返回本人的/本队最近 10 个校验任务，不返回路径或私有结果 |
+| `GET /challenges/:id/patches?scope=` | 本人的/本队最近 10 个校验任务、判定结果、剩余额度与冷却时间，不返回内部镜像或文件路径 |
 | `GET /challenges/:id/rounds?scope=` | 当前轮次、自己的累计积分与最近轮次明细 |
 | `GET /challenges/:id/arena?scope=` | AWD 对抗地址、服务检查与轮次信息 |
 | `POST /challenges/:id/attack` | `{scope,flag}`，AWD 攻击提交 |
@@ -393,3 +393,34 @@ POST 最多 200 题，单填空 500 字符、每题最多 10 个空位，总请�
 管理员 `GET /admin/contests/:id/registrations/:team` 的 `members` 增加 `real_name`、`student_number`、`phone`、`role`、`email_verified_at`、`current_member` 与 `registered`。成员范围合并当前战队名单与本场比赛已确认名单，使用 `registered` 区分本场参赛者，离队不删除历史参赛记录；赛后练习状态由报名的 `practice_only` 与当前成员身份决定。接口继续检查管理员权限及本场比赛的报名记录，不返回密码摘要或会话信息。
 
 数据库版本 22 添加三个默认空字符串的资料字段，升级不要求旧用户补填，也不改变已有注册和报名条件。
+
+
+## 提示解锁与扣分（迁移 23）
+
+比赛编辑字段 `hint_policy` 为 `{mode:"free"}`、`{mode:"fixed",points:25}` 或 `{mode:"factor",factor:0.8}`；`hint_overrides` 为 `[{challenge_id,hint_id,policy}]`。固定扣分范围 1–10000；系数范围 0.01–0.99，保留两位小数。省略字段保留原配置，空覆盖数组清除单独配置。
+
+管理员题目接口的 `hints` 使用 `{id,content}` 数组，兼容旧字符串输入。保留 ID 可修改内容或排序而不重复收费。公开列表不返回提示正文；详情与客观题整卷只返回当前队伍可见提示 `{id,unlocked,policy,quote,content?}`，未解锁时没有 content。
+
+`POST /challenges/:id/hints/:hintId/unlock` 接收 `{scope,quote,confirmed}`。付费提示必须 `confirmed:true`，免费提示直接解锁。quote 为绑定内容、规则、比赛与所有者的 HMAC；规则或内容变化返回 409，客户端重新获取并确认。队伍并发购买原子幂等，每条提示只收费一次。练习场、赛后练习及不计分组免费；参赛管理员与普通参赛队相同。操作遵守题目可见性、作答阶段和组别权限。
+
+排行榜详情新增 `hint_cost` 与 `hint_deductions`，提示系数作用于该题各小题和轮次的正向成绩；固定扣分单列账本。排行榜、队员贡献、方向分数、题目轮次历史与积分走势使用相同规则。题目详情的 `hint_factor` 和个人小题得分反映已购买提示；榜单冻结仍按截止时间结算。
+
+## 提交次数与补丁结果（迁移 24）
+
+比赛编辑字段 `submission_limits:{flag:number|null,defense:number|null}` 为每队每题统一上限。`submission_overrides:[{challenge_id,flag?,defense?}]` 为单题覆盖，缺省继承、null 不限，数值范围 1–100000。省略这两个字段保留旧配置；已有比赛默认不限。次数在整场比赛累计，不随轮次重置，练习场及赛后练习不占正式额度。
+
+题目详情返回 `submission_usage:{flag,defense}`，每项为 `{limit,used,remaining}`。无限时 limit/remaining 为 null。Flag 正误、重复提交及 AWD 无效攻击均计次；格式、权限、速率限制等在受理前拒绝的请求不计次。防御申请以任务成功入队为准，后续判题失败仍计次；无效补丁包、冷却拒绝及资源不足不计次。服务端在事务中锁定队伍/题目额度，耗尽返回 409。
+
+补丁列表返回 `{items,usage,next_operation_at}`。items 中的 `result` 含 `verdict` 和 `stage`：
+
+| verdict | 界面结果 | 含义 |
+| --- | --- | --- |
+| checking | Check 中 | 构建、正常服务检测或漏洞利用检测 |
+| service_error | 服务异常 | 正常服务检测退出码为 1 |
+| exploit_success | EXP 利用成功 | 漏洞利用检测退出码为 1，漏洞仍能利用 |
+| defended | 防御成功 | 两项检测均返回 0，成绩处理完成 |
+| error | 校验异常 | 构建、超时、检查器错误或任务中断 |
+
+原有任务 status（queued/building/checking/passed/failed/cancelled）保留；stage 为 queued/building/functional/defense/complete。`result.image` 只供 Worker 使用，不返回选手。
+
+比赛动态 WebSocket 另推送 `{type:"judges",revision}`，仅通知当前队伍刷新补丁及题目状态，不包含补丁文件名、任务 ID 或结果内容。客户端使用同一比赛连接，判题期间另有 1 秒轮询兜底，防守页空闲时 10 秒刷新；练习场通过轮询更新。截止后仍可查看已有结果。

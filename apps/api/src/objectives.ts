@@ -1,3 +1,4 @@
+import { visibleHints } from "./hints.js";
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import type { DB, Row } from "./db.js";
@@ -88,8 +89,35 @@ export function objectiveRoutes(app: FastifyInstance, db: DB) {
           [scope, owner, practice],
         )
       : [];
+    const hintUnlocks = owner
+      ? await db.query(
+          "SELECT challenge_id,hint_id,policy FROM hint_unlocks WHERE contest_id=$1 AND owner_key=$2",
+          [scope, owner],
+        )
+      : [];
+    const questionHints = new Map(
+      await Promise.all(
+        items.map(
+          async (q) =>
+            [
+              q.id,
+              await visibleHints(
+                db,
+                {
+                  ...questions.find((c) => c.id === q.id)!,
+                  permissions: q.permissions,
+                },
+                contest,
+                owner,
+                hintUnlocks,
+              ),
+            ] as const,
+        ),
+      ),
+    );
     return {
       items: items.map((q) => ({
+        hints: questionHints.get(q.id),
         id: q.id,
         title: q.title,
         description: q.description,

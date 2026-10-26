@@ -1,3 +1,12 @@
+import {
+  submissionLimitsInput,
+  submissionOverridesInput,
+} from "./submission-policy.js";
+import {
+  hintInput,
+  hintPolicyInput,
+  hintOverridesInput,
+} from "./hint-rules.js";
 import { contestResourceLimitsInput } from "./contest-resource-limits.js";
 import { writeupInput } from "./writeup-config.js";
 import {
@@ -106,7 +115,14 @@ export const challengeInput = z
     published: z.boolean().default(false),
     publish_at: z.iso.datetime().nullable().default(null),
     practice: z.boolean().default(false),
-    hints: z.array(z.string().max(2000)).max(10).default([]),
+    hints: z
+      .array(hintInput)
+      .max(10)
+      .default([])
+      .refine((v) => {
+        const ids = v.filter((h) => typeof h !== "string").map((h) => h.id);
+        return new Set(ids).size === ids.length;
+      }, "提示 ID 不能重复"),
     access_mode: z.enum(["port", "domain"]).default("port"),
     image: imageReference.or(z.literal("")).default(""),
     port: z.number().int().min(1024).max(65535).default(8080),
@@ -184,6 +200,10 @@ export const challengeInput = z
   );
 export const contestInput = z
   .object({
+    submission_limits: submissionLimitsInput.optional(),
+    submission_overrides: submissionOverridesInput.optional(),
+    hint_policy: hintPolicyInput.optional(),
+    hint_overrides: hintOverridesInput.optional(),
     require_review: z.boolean().optional(),
     practice_mode: z.boolean().optional(),
     spectator_enabled: z.boolean().optional(),

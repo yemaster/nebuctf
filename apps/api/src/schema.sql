@@ -248,3 +248,16 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS real_name varchar(80) NOT NULL DEFAUL
 ALTER TABLE users ADD COLUMN IF NOT EXISTS student_number varchar(48) NOT NULL DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone varchar(32) NOT NULL DEFAULT '';
 INSERT INTO schema_migrations(version) VALUES(22) ON CONFLICT DO NOTHING;
+
+ALTER TABLE contests ADD COLUMN IF NOT EXISTS hint_policy jsonb NOT NULL DEFAULT '{"mode":"free"}';
+ALTER TABLE contests ADD COLUMN IF NOT EXISTS hint_overrides jsonb NOT NULL DEFAULT '[]';
+CREATE TABLE IF NOT EXISTS hint_unlocks(id uuid PRIMARY KEY,contest_id uuid NOT NULL REFERENCES contests(id),challenge_id uuid NOT NULL REFERENCES challenges(id),hint_id uuid NOT NULL,owner_key text NOT NULL,user_id uuid NOT NULL REFERENCES users(id),policy jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT clock_timestamp(),UNIQUE(contest_id,challenge_id,hint_id,owner_key));
+CREATE INDEX IF NOT EXISTS hint_unlocks_score ON hint_unlocks(contest_id,owner_key,created_at);
+INSERT INTO schema_migrations(version) VALUES(23) ON CONFLICT DO NOTHING;
+
+ALTER TABLE contests ADD COLUMN IF NOT EXISTS submission_limits jsonb NOT NULL DEFAULT '{"flag":null,"defense":null}';
+ALTER TABLE contests ADD COLUMN IF NOT EXISTS submission_overrides jsonb NOT NULL DEFAULT '[]';
+CREATE INDEX IF NOT EXISTS submissions_attempt_count ON submissions(scope,challenge_id,owner_key) WHERE NOT contest_practice;
+CREATE INDEX IF NOT EXISTS judge_jobs_team_revision ON judge_jobs(scope,owner_key,updated_at DESC);
+INSERT INTO submissions(id,user_id,challenge_id,scope,owner_key,correct,created_at) SELECT a.id,a.user_id,r.challenge_id,r.contest_id::text,a.attacker_key,true,a.created_at FROM awd_attacks a JOIN awd_flags f ON f.flag_hash=a.flag_hash JOIN contest_rounds r ON r.id=f.round_id WHERE NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=24) ON CONFLICT(id) DO NOTHING;
+INSERT INTO schema_migrations(version) VALUES(24) ON CONFLICT DO NOTHING;

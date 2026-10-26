@@ -1,3 +1,4 @@
+import { hintDefinitions } from "./hint-rules.js";
 import { publicContest, registrationCodeHash } from "./contest-entry.js";
 import { validateWriteup, writeupInput } from "./writeup-config.js";
 import { recordContestNotice } from "./activity-events.js";
@@ -76,6 +77,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
     return {
       items: rows.map(({ flag_hash, ...c }) => ({
         ...c,
+        hints: hintDefinitions(c as any),
         parts: parts.filter((p) => p.challenge_id === c.id),
       })),
       total: count!.total,
@@ -93,6 +95,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
     const { flag_hash, ...challenge } = row!;
     return {
       ...challenge,
+      hints: hintDefinitions(challenge as any),
       parts: await db.query(
         "SELECT id,title,description,position,role,flag_env,initial_points,minimum_points FROM challenge_parts WHERE challenge_id=$1 ORDER BY position",
         [cid],
@@ -262,7 +265,9 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
           const values = {
             ...fields,
             flag_env: fields.flag_env ?? old?.flag_env ?? "FLAG",
-            hints: JSON.stringify(fields.hints),
+            hints: JSON.stringify(
+              hintDefinitions({ id: cid, hints: fields.hints }),
+            ),
             resources: fields.resources
               ? JSON.stringify(fields.resources)
               : null,
@@ -297,7 +302,14 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
           if (
             old?.published &&
             (!data.published ||
-              data.hints.some((hint) => !old.hints.includes(hint)))
+              hintDefinitions({ id: cid, hints: data.hints }).some(
+                (hint) =>
+                  !hintDefinitions(old as any).some(
+                    (previous) =>
+                      previous.id === hint.id &&
+                      previous.content === hint.content,
+                  ),
+              ))
           ) {
             const links = await tx.query(
               "SELECT contest_id FROM contest_challenges WHERE challenge_id=$1 AND published AND (release_at IS NULL OR release_at<=now())",
@@ -534,10 +546,36 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
             timing,
             writeup,
             resource_limits,
+            submission_limits,
+            submission_overrides,
+            hint_policy,
+            hint_overrides,
             ...otherFields
           } = data;
           const fields = {
             ...otherFields,
+            ...(submission_limits
+              ? { submission_limits: JSON.stringify(submission_limits) }
+              : {}),
+            ...(submission_overrides
+              ? {
+                  submission_overrides: JSON.stringify(
+                    submission_overrides.filter((v) =>
+                      ids.includes(v.challenge_id),
+                    ),
+                  ),
+                }
+              : {}),
+            ...(hint_policy
+              ? { hint_policy: JSON.stringify(hint_policy) }
+              : {}),
+            ...(hint_overrides
+              ? {
+                  hint_overrides: JSON.stringify(
+                    hint_overrides.filter((h) => ids.includes(h.challenge_id)),
+                  ),
+                }
+              : {}),
             registration_code_hash: codeHash,
             registration_team_ids: allowedTeams,
             timing: JSON.stringify(timing),

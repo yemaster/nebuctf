@@ -1,4 +1,4 @@
-"""Trusted checker contract: 0 success, 1 service/check failure, 2 checker error."""
+"""0: check passes; 1: service fails or exploit succeeds; 2: checker error."""
 import hashlib
 import os
 import sys
@@ -20,21 +20,23 @@ def read(path):
 while time.monotonic() < deadline:
     try:
         if read('/health') != 'ok':
-            sys.exit(1)
+            sys.exit(2 if mode == 'defense' else 1)
         if read('/checksum') != hashlib.sha256(expected.encode()).hexdigest():
-            sys.exit(1)
+            sys.exit(2 if mode == 'defense' else 1)
         break
     except (OSError, urllib.error.URLError):
         time.sleep(.2)
 else:
-    sys.exit(1)
+    sys.exit(2 if mode == 'defense' else 1)
 
 if mode == 'defense':
     try:
-        read('/leak')
-        sys.exit(1)
+        leaked = read('/leak')
+        sys.exit(1 if leaked == expected else 2)
     except urllib.error.HTTPError as error:
-        sys.exit(0 if error.code == 403 else 1)
+        sys.exit(0 if error.code == 403 else 2)
+    except (OSError, urllib.error.URLError):
+        sys.exit(2)
 elif mode in ('functional', 'availability'):
     sys.exit(0)
 else:

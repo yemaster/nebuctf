@@ -27,6 +27,13 @@ export async function challengeProgress(
           "SELECT g.permissions,g.challenge_permissions FROM accepted_registrations r LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id::text=$1 AND 't:'||r.team_id=$2",
           [scope, owner],
         );
+  const factors =
+    scope === "practice" || practice || !owner
+      ? []
+      : await db.query(
+          "SELECT challenge_id,round(exp(sum(ln((policy->>'factor')::numeric))),20)::double precision factor FROM hint_unlocks WHERE contest_id::text=$1 AND owner_key=$2 AND challenge_id=ANY($3::uuid[]) AND policy->>'mode'='factor' GROUP BY challenge_id",
+          [scope, owner, challenges.map((c) => c.id)],
+        );
   const counts = await db.query(
     `SELECT s.challenge_id,count(*) FILTER(WHERE ${permissionSQL("g", "s.challenge_id", "dynamic")})::int dynamic_solves FROM solves s LEFT JOIN accepted_registrations r ON r.contest_id::text=$2 AND 't:'||r.team_id=s.owner_key LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.challenge_id=ANY($1::uuid[]) AND s.scope=$2 AND s.created_at<=$3 AND NOT s.contest_practice AND ($2='practice' OR r.team_id IS NOT NULL) GROUP BY s.challenge_id`,
     [challenges.map((c) => c.id), scope, cutoff],
@@ -122,10 +129,15 @@ export async function challengeProgress(
           counts.find((row) => row.challenge_id === c.id)?.dynamic_solves ?? 0,
           c.dynamic_score,
         );
+    const hintFactor =
+      factors.find((row) => row.challenge_id === c.id)?.factor ?? 1;
+    const personalPoints = (value: number) =>
+      Math.floor(Math.round(value * hintFactor * 1e8) / 1e8);
     return {
       ...publicChallenge(c),
       parts,
       points,
+      hint_factor: hintFactor,
       solves: c.solves,
       solved: c.solved,
       bloods: firstSolves(c.id),
@@ -136,9 +148,12 @@ export async function challengeProgress(
       earned_points: !c.permissions.score
         ? 0
         : parts.length
-          ? parts.reduce((n, p) => n + (p.solved ? p.points : 0), 0)
+          ? parts.reduce(
+              (n, p) => n + (p.solved ? personalPoints(p.points) : 0),
+              0,
+            )
           : c.solved
-            ? points
+            ? personalPoints(points)
             : 0,
     };
   });

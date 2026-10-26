@@ -1,3 +1,4 @@
+import { notifyContest } from "./activity-events.js";
 import { readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { DockerEngine } from "./docker.js";
@@ -120,9 +121,10 @@ export class JudgeWorker {
       if (!this.jobs.has(job.id)) {
         await this.cleanup(job);
         await this.db.query(
-          "UPDATE judge_jobs SET status='failed',error='校验任务中断，请重新提交',finished_at=now(),updated_at=now() WHERE id=$1",
+          "UPDATE judge_jobs SET status='failed',error='校验任务中断，请重新提交',result=result || '{\"verdict\":\"error\"}',finished_at=now(),updated_at=now() WHERE id=$1",
           [job.id],
         );
+        await notifyContest(this.db, job.scope).catch(() => {});
       }
     const queued = await this.db.query(
       "SELECT * FROM judge_jobs WHERE status='queued' ORDER BY created_at LIMIT $1",
@@ -147,7 +149,8 @@ export class JudgeWorker {
     }
   }
   async run(job: Row) {
-    let keep = false;
+    let keep = false,
+      verdict = "error";
     const remaining = () => {
       const ms = new Date(job.deadline_at).getTime() - Date.now();
       if (ms < 1000) throw Error("补丁校验超时，请重新提交");
@@ -155,10 +158,11 @@ export class JudgeWorker {
     };
     try {
       const claimed = await this.db.query(
-        "UPDATE judge_jobs SET status='building',updated_at=now() WHERE id=$1 AND status='queued' RETURNING id",
+        'UPDATE judge_jobs SET status=\'building\',result=\'{"verdict":"checking","stage":"building"}\',updated_at=now() WHERE id=$1 AND status=\'queued\' RETURNING id',
         [job.id],
       );
       if (!claimed.length) return;
+      await notifyContest(this.db, job.scope).catch(() => {});
       remaining();
       const permissions = await ownerPermissions(
         this.db,
@@ -234,6 +238,11 @@ export class JudgeWorker {
         host = inspected.NetworkSettings.Networks[network]?.IPAddress;
       if (!host) throw Error("校验环境不可用");
       for (const mode of ["functional", "defense"]) {
+        await this.db.query(
+          "UPDATE judge_jobs SET result=result || jsonb_build_object('stage',$2::text),updated_at=now() WHERE id=$1",
+          [job.id, mode],
+        );
+        await notifyContest(this.db, job.scope).catch(() => {});
         const result = await runChecker(this.docker, {
           id: network + "-" + mode,
           image: patch.checker_image,
@@ -247,12 +256,25 @@ export class JudgeWorker {
           memory: patch.memory,
           labels: { [label]: job.id },
         });
-        if (result !== 0)
+        if (result !== 0) {
+          verdict =
+            result === 1
+              ? mode === "functional"
+                ? "service_error"
+                : "exploit_success"
+              : "error";
           throw Error(
-            mode === "functional"
-              ? "功能检查未通过，请检查服务是否正常"
-              : "安全检查未通过，请继续修复漏洞",
+            result !== 1
+              ? "检查器执行异常，请联系管理员"
+              : mode === "functional"
+                ? "功能检查未通过，请检查服务是否正常"
+                : "安全检查未通过，请继续修复漏洞",
           );
+        }
+        await this.db.query(
+          "UPDATE judge_jobs SET result=result || jsonb_build_object($2::text,true),updated_at=now() WHERE id=$1",
+          [job.id, mode],
+        );
       }
       remaining();
       await this.db.transaction(async (tx) => {
@@ -296,6 +318,8 @@ export class JudgeWorker {
           [
             job.id,
             JSON.stringify({
+              verdict: "defended",
+              stage: "complete",
               functional: true,
               defense: true,
               ...(job.spec.type === "awd" ? { image } : {}),
@@ -309,6 +333,7 @@ export class JudgeWorker {
           );
       });
       keep = job.spec.type === "awd";
+      await notifyContest(this.db, job.scope).catch(() => {});
     } catch (e) {
       const allowed = [
         "补丁校验超时，请重新提交",
@@ -316,6 +341,7 @@ export class JudgeWorker {
         "功能检查未通过，请检查服务是否正常",
         "安全检查未通过，请继续修复漏洞",
         "校验环境不可用",
+        "检查器执行异常，请联系管理员",
         "比赛中没有此题",
         "当前组别没有此题的作答权限",
         "当前组别没有此题的靶机与附件使用权限",
@@ -324,9 +350,10 @@ export class JudgeWorker {
         ? (e as Error).message
         : "补丁构建或校验失败，请检查补丁后重试";
       await this.db.query(
-        "UPDATE judge_jobs SET status='failed',error=$2,finished_at=now(),updated_at=now() WHERE id=$1",
-        [job.id, error],
+        "UPDATE judge_jobs SET status='failed',error=$2,result=result || jsonb_build_object('verdict',$3::text),finished_at=now(),updated_at=now() WHERE id=$1",
+        [job.id, error, verdict],
       );
+      await notifyContest(this.db, job.scope).catch(() => {});
     } finally {
       await this.cleanup(job, keep);
       await this.db.query(

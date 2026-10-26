@@ -164,6 +164,7 @@ test(
     }
     const passed = await patchJob(cid, "awdp", "VULNERABLE = False\n");
     assert.equal(passed.status, "passed", passed.error);
+    assert.equal(passed.result.verdict, "defended");
     assert.equal(
       (await db.query("SELECT * FROM part_solves WHERE part_id=$1", [defense]))
         .length,
@@ -176,6 +177,7 @@ test(
     );
     const unsafe = await patchJob(cid, "awdp", "VULNERABLE = True\n");
     assert.equal(unsafe.status, "failed");
+    assert.equal(unsafe.result.verdict, "exploit_success");
     assert.match(unsafe.error, /安全检查/);
     assert.equal((await docker.listContainers("io.nebuctf.judge")).length, 0);
     await awd.tick();

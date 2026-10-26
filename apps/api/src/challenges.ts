@@ -1,3 +1,5 @@
+import { submissionUsage, requireSubmissionSlot } from "./submission-policy.js";
+import { visibleHints, hintRoutes } from "./hints.js";
 import { contestVisibilitySQL } from "./contest-entry.js";
 import { contestCutoff, isContestPractice } from "./contest-practice.js";
 import { recordFlagAnomaly } from "./contest-monitor.js";
@@ -21,6 +23,7 @@ import { id, page, scope as scopeSchema } from "./schemas.js";
 import { dynamicFlag, equal, fail, flagHash, rate } from "./security.js";
 import { visibleChallengeIds } from "./group-permissions.js";
 export function challengeRoutes(app: FastifyInstance, db: DB) {
+  hintRoutes(app, db);
   app.get("/api/challenges", async (req) => {
     const p = page.parse(req.query);
     const contest = await contestAccess(db, p.scope, req.user ?? undefined);
@@ -107,7 +110,12 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
       cutoff,
       isContestPractice(contest),
     );
-    return { ...result, attachments };
+    return {
+      ...result,
+      hints: await visibleHints(db, c, contest, owner),
+      submission_usage: await submissionUsage(db, c, scope, owner),
+      attachments,
+    };
   });
   app.post("/api/challenges/:id/submit", async (req) => {
     const u = requireUser(req),
@@ -126,6 +134,7 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
       await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
         JSON.stringify([data.scope, cid, owner]),
       ]);
+      await requireSubmissionSlot(tx, c, data.scope, owner, "flag");
       const parts = await tx.query(
         "SELECT * FROM challenge_parts WHERE challenge_id=$1 ORDER BY position,id",
         [cid],

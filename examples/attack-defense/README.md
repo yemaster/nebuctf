@@ -14,7 +14,7 @@ COPYFILE_DISABLE=1 tar --format=ustar -czf /tmp/nebuctf-example-patch.tar.gz -C 
 
 新建 AWDP 题，配置私有靶机：镜像 `nebuctf/example-ad:local`，端口 8080，CPU 250 毫核，内存 64 MiB。补丁校验镜像为 `nebuctf/example-checker:local`，覆盖目录 `/app`，超时 15 秒，CPU 250 毫核，内存 128 MiB。配置攻击和防守两个小题的分值，保存并启用。
 
-选手启动靶机后，访问 `/leak` 取得该队攻击 Flag，提交后只完成攻击小题。上传刚生成的补丁包，平台构建后先检查 `/health` 和 `/checksum`，再确认 `/leak` 返回 403，通过后完成防守小题。原攻击靶机不因此替换。
+选手启动靶机后，访问 `/leak` 取得该队攻击 Flag，提交后只完成攻击小题。切到同一提交区的「防守」标签，上传刚生成的补丁包，平台构建后先检查 `/health` 和 `/checksum`，再确认 `/leak` 返回 403，通过后完成防守小题。原攻击靶机不因此替换。
 
 测试 AWD 时新建 AWD 题，使用相同基础与补丁配置，服务巡检镜像同样使用 `nebuctf/example-checker:local`。将题目加入比赛，选择轮次计分，例如每轮 60 秒、Flag 有效 1 轮、攻击 100 分、防守 100 分、可用性 100 分。实操阶段使用固定时间，至少注册两支战队。
 
@@ -27,3 +27,6 @@ TEST_DOCKER=1 npx tsx --test apps/api/test/attack-defense-docker.test.ts
 ```
 
 此测试会运行临时容器、网络和补丁镜像，需访问 Docker Socket，结束时自动回收。完整协议与限制见 [比赛规则](../../docs/COMPETITION-RULES.md)。
+
+
+选手将看到 Check 中、服务异常、EXP 利用成功或防御成功。检查器返回码必须明确区分：0 表示通过，正常服务检测的 1 表示服务异常，漏洞利用检测的 1 表示确实读到预期 Flag；其他非零返回码表示检查器异常。本示例在防守检测中遇到超时、未知响应或非预期 Flag 返回 2，不把它误报为漏洞利用成功。

@@ -1,3 +1,4 @@
+import { requireSubmissionSlot } from "./submission-policy.js";
 import {
   contestResourcePolicy,
   requireContestResourceSlot,
@@ -13,6 +14,18 @@ import { id, scope as scopeSchema } from "./schemas.js";
 import { fail, flagHash, rate } from "./security.js";
 import { resourceCooldown } from "./resources.js";
 import { notifyContest } from "./activity-events.js";
+async function hintFactor(
+  db: DB,
+  scope: string,
+  owner: string,
+  challenge: string,
+) {
+  const [row] = await db.query(
+    "SELECT coalesce(round(exp(sum(ln((policy->>'factor')::numeric))),20),1)::text factor FROM hint_unlocks WHERE contest_id::text=$1 AND owner_key=$2 AND challenge_id=$3 AND policy->>'mode'='factor'",
+    [scope, owner, challenge],
+  );
+  return row?.factor ?? "1";
+}
 export function awdRoutes(app: FastifyInstance, db: DB) {
   app.get("/api/challenges/:id/rounds", async (req) => {
     const user = requireUser(req),
@@ -23,13 +36,14 @@ export function awdRoutes(app: FastifyInstance, db: DB) {
     const owner = await ownerFor(db, scope, user);
     const contest = (await contestAccess(db, scope, user))!;
     const round = currentContestRound(contest);
+    const factor = await hintFactor(db, scope, owner, cid);
     const [total] = await db.query(
-      "SELECT coalesce(sum(s.points),0)::int points FROM round_results s JOIN contest_rounds r ON r.id=s.round_id WHERE r.contest_id=$1 AND r.challenge_id=$2 AND s.owner_key=$3 AND r.status='settled'",
-      [scope, cid, owner],
+      "SELECT coalesce(sum(CASE WHEN s.points>0 THEN floor(s.points*$4::numeric) ELSE s.points END),0)::int points FROM round_results s JOIN contest_rounds r ON r.id=s.round_id WHERE r.contest_id=$1 AND r.challenge_id=$2 AND s.owner_key=$3 AND r.status='settled'",
+      [scope, cid, owner, factor],
     );
     const history = await db.query(
-      "SELECT r.id,r.number,r.tick_id IS NULL legacy,sum(s.points)::int points,max(s.created_at) created_at FROM round_results s JOIN contest_rounds r ON r.id=s.round_id WHERE r.contest_id=$1 AND r.challenge_id=$2 AND s.owner_key=$3 AND r.status='settled' GROUP BY r.id ORDER BY r.starts_at DESC LIMIT 20",
-      [scope, cid, owner],
+      "SELECT r.id,r.number,r.tick_id IS NULL legacy,sum(CASE WHEN s.points>0 THEN floor(s.points*$4::numeric) ELSE s.points END)::int points,max(s.created_at) created_at FROM round_results s JOIN contest_rounds r ON r.id=s.round_id WHERE r.contest_id=$1 AND r.challenge_id=$2 AND s.owner_key=$3 AND r.status='settled' GROUP BY r.id ORDER BY r.starts_at DESC LIMIT 20",
+      [scope, cid, owner, factor],
     );
     return {
       round,
@@ -47,13 +61,14 @@ export function awdRoutes(app: FastifyInstance, db: DB) {
     const owner = await ownerFor(db, scope, user);
     const contest = (await contestAccess(db, scope, user))!;
     const round = currentContestRound(contest);
+    const factor = await hintFactor(db, scope, owner, cid);
     const items = await db.query(
       `SELECT t.id team_id,t.name,i.id instance_id,i.endpoint,i.status,i.owner_key=$3 own,k.status health FROM accepted_registrations r JOIN teams t ON t.id=r.team_id LEFT JOIN contest_groups g ON g.id=r.group_id LEFT JOIN LATERAL (SELECT id,endpoint,status,owner_key FROM instances WHERE challenge_id=$2 AND scope=$1::text AND owner_key='t:'||t.id AND status IN ('queued','starting','running','stopping','failed') ORDER BY created_at DESC LIMIT 1) i ON true LEFT JOIN awd_checks k ON k.owner_key='t:'||t.id AND k.round_id=(SELECT id FROM contest_rounds WHERE contest_id=$1::uuid AND challenge_id=$2 AND tick_id IS NOT NULL AND number=$4 LIMIT 1) WHERE r.contest_id=$1::uuid AND ${permissionSQL("g", "$2::uuid", "view")} AND ${permissionSQL("g", "$2::uuid", "resources")} ORDER BY t.name,t.id`,
       [scope, cid, owner, round?.number ?? 0],
     );
     const history = await db.query(
-      "SELECT r.number,s.points,s.details,s.created_at FROM round_results s JOIN contest_rounds r ON r.id=s.round_id WHERE r.contest_id=$1 AND r.challenge_id=$2 AND s.owner_key=$3 ORDER BY r.starts_at DESC,r.id DESC LIMIT 20",
-      [scope, cid, owner],
+      "SELECT r.number,CASE WHEN s.points>0 THEN floor(s.points*$4::numeric)::int ELSE s.points END points,s.details,s.created_at FROM round_results s JOIN contest_rounds r ON r.id=s.round_id WHERE r.contest_id=$1 AND r.challenge_id=$2 AND s.owner_key=$3 ORDER BY r.starts_at DESC,r.id DESC LIMIT 20",
+      [scope, cid, owner, factor],
     );
     const hasEnvironment = items.some(
       (i) => i.own && i.instance_id && i.status !== "failed",
@@ -88,30 +103,32 @@ export function awdRoutes(app: FastifyInstance, db: DB) {
       if (c.challenge_type !== "awd") fail(400, "此题不是 AWD 题");
       const owner = await ownerFor(tx, input.scope, user),
         hash = flagHash(input.flag);
+      await requireSubmissionSlot(tx, c, input.scope, owner, "flag");
+      const record = async (correct: boolean, already_solved = false) => {
+        await tx.query(
+          "INSERT INTO submissions(id,user_id,challenge_id,scope,owner_key,correct) VALUES($1,$2,$3,$4,$5,$6)",
+          [crypto.randomUUID(), user.id, cid, input.scope, owner, correct],
+        );
+        return { correct, already_solved, completed: false };
+      };
       const [flag] = await tx.query(
         "SELECT f.*,r.status FROM awd_flags f JOIN contest_rounds r ON r.id=f.round_id WHERE f.flag_hash=$1 AND r.contest_id=$2 AND r.challenge_id=$3 AND f.expires_at>now() AND r.status='open' FOR SHARE OF r",
         [hash, input.scope, cid],
       );
-      if (!flag || flag.owner_key === owner)
-        return { correct: false, already_solved: false };
+      if (!flag || flag.owner_key === owner) return record(false);
       const target = await ownerPermissions(
         tx,
         input.scope,
         flag.owner_key,
         cid,
       );
-      if (!target.view || !target.resources)
-        return { correct: false, already_solved: false };
+      if (!target.view || !target.resources) return record(false);
       const inserted = await tx.query(
         "INSERT INTO awd_attacks(id,flag_hash,attacker_key,user_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id",
         [crypto.randomUUID(), hash, owner, user.id],
       );
       if (inserted.length) await notifyContest(tx, input.scope);
-      return {
-        correct: true,
-        already_solved: !inserted.length,
-        completed: false,
-      };
+      return record(true, !inserted.length);
     });
   });
   app.post("/api/challenges/:id/restart", async (req) => {

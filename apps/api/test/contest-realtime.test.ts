@@ -136,6 +136,79 @@ test(
       messages.at(-1)?.data?.items.some((e: any) => e.type === "withdraw"),
     );
     assert.equal(messages.at(-1).data.hint_updates.length, 0);
+    await t.test(
+      "patch revisions reach only their owning team and contain no private result",
+      async () => {
+        const otherUser = crypto.randomUUID(),
+          otherTeam = crypto.randomUUID(),
+          otherToken = crypto.randomUUID(),
+          jid = crypto.randomUUID();
+        await db.query(
+          "INSERT INTO users(id,username,email,password_hash) VALUES($1,$2,$3,'test')",
+          [
+            otherUser,
+            "peer" + otherUser.slice(0, 8),
+            otherUser + "@test.invalid",
+          ],
+        );
+        await db.query(
+          "INSERT INTO sessions VALUES($1,$2,now()+interval '1 hour')",
+          [digest(otherToken), otherUser],
+        );
+        await db.query(
+          "INSERT INTO teams(id,name,captain_id,invite_hash) VALUES($1,$2,$3,$4)",
+          [otherTeam, otherTeam, otherUser, otherTeam],
+        );
+        await db.query(
+          "INSERT INTO memberships(user_id,team_id) VALUES($1,$2)",
+          [otherUser, otherTeam],
+        );
+        await db.query(
+          "INSERT INTO registrations(contest_id,team_id) VALUES($1,$2)",
+          [contest, otherTeam],
+        );
+        const otherMessages: any[] = [];
+        const peer = await app.injectWS(
+          path,
+          { headers: { ...headers, cookie: `${sessionCookie}=${otherToken}` } },
+          {
+            onInit: (socket) =>
+              socket.on("message", (data) =>
+                otherMessages.push(JSON.parse(data.toString())),
+              ),
+          },
+        );
+        sockets.push(peer);
+        await wait(() => otherMessages.some((m) => m.type === "activity"));
+        await db.query(
+          "INSERT INTO judge_jobs(id,challenge_id,scope,owner_key,requested_by,status,patch_id,patch_name,spec,deadline_at) VALUES($1,$2,$3,$4,$5,'queued',$1,'private-file.tar','{}',now()+interval '2 minutes')",
+          [jid, cid, contest, "t:" + team, user],
+        );
+        await wait(() => messages.some((m) => m.type === "judges"));
+        const first = messages.findLast((m) => m.type === "judges");
+        assert.deepEqual(Object.keys(first).sort(), ["revision", "type"]);
+        assert.equal(
+          otherMessages.filter((m) => m.type === "judges").length,
+          0,
+        );
+        await db.query(
+          "UPDATE judge_jobs SET status='failed',result='{\"verdict\":\"exploit_success\"}',updated_at=clock_timestamp() WHERE id=$1",
+          [jid],
+        );
+        await wait(
+          () => messages.filter((m) => m.type === "judges").length >= 2,
+        );
+        assert.notEqual(
+          messages.findLast((m) => m.type === "judges").revision,
+          first.revision,
+        );
+        assert.equal(
+          otherMessages.filter((m) => m.type === "judges").length,
+          0,
+        );
+        peer.terminate();
+      },
+    );
     ws.terminate();
     messages.length = 0;
     const next = await connect();

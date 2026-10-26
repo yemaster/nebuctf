@@ -115,6 +115,38 @@ export function contestRealtimeRoutes(app: FastifyInstance, db: DB) {
           }
           continue;
         }
+        // Private team revisions invalidate patch results without broadcasting patch contents or results to other teams.
+        const owners = [
+          ...new Set(
+            valid.filter((u) => u.team_id).map((u) => `t:${u.team_id}`),
+          ),
+        ];
+        if (owners.length) {
+          const revisions = await db.query(
+            "SELECT k.owner_key,j.id,j.updated_at::text FROM unnest($2::text[]) k(owner_key) JOIN LATERAL(SELECT id,updated_at FROM judge_jobs WHERE scope=$1 AND owner_key=k.owner_key ORDER BY updated_at DESC,id DESC LIMIT 1) j ON true",
+            [scope, owners],
+          );
+          for (const revision of revisions) {
+            const key = `judges:${revision.owner_key}`,
+              signature = digest(JSON.stringify(revision));
+            if (forced || room.signatures.get(key) !== signature) {
+              room.signatures.set(key, signature);
+              for (const peer of peers)
+                if (
+                  valid.some(
+                    (u) =>
+                      `t:${u.team_id}` === revision.owner_key &&
+                      u.token_hash ===
+                        digest(peer.request.cookies[sessionCookie] ?? ""),
+                  )
+                )
+                  send(
+                    peer,
+                    JSON.stringify({ type: "judges", revision: signature }),
+                  );
+            }
+          }
+        }
         const audiences = new Map<string, typeof valid>();
         for (const user of valid) {
           const key = user.team_id

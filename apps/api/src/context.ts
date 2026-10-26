@@ -143,6 +143,9 @@ export async function challengeAccess(
 }
 
 export const publicChallenge = (c: Row) => ({
+  hints: [],
+  defense_enabled:
+    ["awdp", "awd"].includes(c.challenge_type) && !!c.patch_config,
   ...Object.fromEntries(
     [
       "id",
@@ -158,7 +161,6 @@ export const publicChallenge = (c: Row) => ({
       "minimum_points",
       "decay",
       "dynamic_score",
-      "hints",
       "created_at",
       "permissions",
       "contest_practice",
