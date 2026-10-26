@@ -105,6 +105,13 @@ test(
           id: team,
           username: "captain",
           email: "captain@example.test",
+          real_name: "测试选手",
+          student_number: "20260001",
+          phone: "+86 138 0000 0000",
+          email_verified_at: "2026-01-15T08:00:00Z",
+          registered: false,
+          current_member: true,
+          role: "user",
           disabled: false,
           captain: true,
           created_at: "2026-01-15T08:00:00Z",
@@ -273,6 +280,16 @@ test(
           assert.equal(members.children.length, 2);
           assert(members.textContent!.includes("member@example.test"));
           assert(members.textContent!.includes("队长"));
+          for (const value of [
+            "测试选手",
+            "20260001",
+            "+86 138 0000 0000",
+            "邮箱已验证",
+            "邮箱未验证",
+            "待审核",
+            "—",
+          ])
+            assert(members.textContent!.includes(value), value);
           assert(members.textContent!.includes("已禁用"));
           assert(!members.textContent!.includes("正常"));
           assert(!members.textContent!.includes(team));

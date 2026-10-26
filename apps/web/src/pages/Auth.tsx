@@ -45,6 +45,7 @@ import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { Captcha } from "@/components/captcha";
 import { useCaptcha } from "@/lib/use-captcha";
 import { toast } from "sonner";
+import { AccountProfile, type Profile } from "@/components/account-profile";
 export function Auth({ register = false }: { register?: boolean }) {
   const reduced = useReducedMotion();
   const site = useSiteSettings().data ?? defaultSite;
@@ -300,6 +301,7 @@ export function Account() {
   const user = useUser(),
     navigate = useNavigate();
   const [page, setPage] = useState(1);
+  const profile = useAPI<Profile>("/account/profile", !!user);
   const submissions = useAPI<{ items: Submission[] }>(
     `/submissions?page=${page}`,
     !!user,
@@ -313,18 +315,27 @@ export function Account() {
     },
   );
   if (!user) return <LoginPrompt />;
-  if (submissions.error || submissions.isLoading)
+  if (
+    submissions.error ||
+    submissions.isLoading ||
+    profile.error ||
+    profile.isLoading
+  )
     return (
       <QueryState
-        loading={submissions.isLoading}
-        error={submissions.error}
-        retry={() => void submissions.refetch()}
+        loading={submissions.isLoading || profile.isLoading}
+        error={submissions.error || profile.error}
+        retry={() => {
+          void submissions.refetch();
+          void profile.refetch();
+        }}
         fullPage
       />
     );
   return (
     <>
       <PageTitle>我的账户</PageTitle>
+      {profile.data && <AccountProfile key={user.id} profile={profile.data} />}
       <div className="grid gap-7 xl:grid-cols-[1fr_1.6fr]">
         <section className="rounded-lg bg-card h-fit p-6">
           <h2 className="text-sm font-medium mb-1">{user.username}</h2>

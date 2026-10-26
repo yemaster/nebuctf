@@ -145,7 +145,17 @@ export function Registrations() {
         )}
       </div>
       <div className="rounded-lg bg-card">
-        <TableRoot aria-label="报名战队">
+        <TableRoot aria-label="报名战队" className="min-w-[1000px] table-fixed">
+          <colgroup>
+            <col className="w-12" />
+            <col />
+            <col className="w-32" />
+            <col className="w-16" />
+            <col className="w-24" />
+            <col className="w-24" />
+            <col className="w-36" />
+            <col className="w-36" />
+          </colgroup>
           <TableHeader className="bg-muted/70">
             <TableRow>
               {[
@@ -171,7 +181,7 @@ export function Registrations() {
               ].map((header, index) => (
                 <TableHead
                   key={index}
-                  className={`px-4 text-xs text-muted-foreground ${index === 1 ? "pl-10" : ""}`}
+                  className={`px-4 text-xs text-muted-foreground ${index === 1 ? "pl-10" : index === 7 ? "text-right" : ""}`}
                 >
                   {header}
                 </TableHead>
@@ -215,7 +225,7 @@ export function Registrations() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="h-auto min-w-0 max-w-72 justify-start gap-2 px-0 py-1 text-left whitespace-normal hover:bg-transparent has-[>svg]:px-0 dark:hover:bg-transparent"
+                          className="h-auto min-w-0 max-w-72 shrink justify-start gap-2 px-0 py-1 text-left whitespace-normal hover:bg-transparent has-[>svg]:px-0 dark:hover:bg-transparent"
                           aria-label={`${expanded === r.team_id ? "收起" : "展开"} ${r.name} 的成员`}
                         >
                           <ChevronRight
@@ -229,9 +239,13 @@ export function Registrations() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>{r.captain}</TableCell>
+                  <TableCell className="break-all whitespace-normal">
+                    {r.captain}
+                  </TableCell>
                   <TableCell>{r.member_count}</TableCell>
-                  <TableCell>{r.group_name ?? "公开组"}</TableCell>
+                  <TableCell className="break-all whitespace-normal">
+                    {r.group_name ?? "公开组"}
+                  </TableCell>
                   <TableCell>
                     <ReviewBadge status={r.status} />
                   </TableCell>
@@ -239,7 +253,7 @@ export function Registrations() {
                     {date(r.created_at)}
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-1">
+                    <div className="flex justify-end gap-1">
                       {r.status === "pending" && (
                         <Button
                           size="sm"
@@ -250,7 +264,12 @@ export function Registrations() {
                           通过
                         </Button>
                       )}
-                      <Button size="sm" variant="ghost" asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="px-0"
+                        asChild
+                      >
                         <Link to={`${base}/teams/${r.team_id}`}>审核详情</Link>
                       </Button>
                     </div>
@@ -418,7 +437,7 @@ function RegistrationForm({
       </fieldset>
       <section className="space-y-3">
         <h2 className="font-medium">战队成员</h2>
-        <RegistrationMembers members={r.members} />
+        <RegistrationMembers members={r.members} registration={r} />
       </section>
     </form>
   );

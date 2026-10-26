@@ -31,6 +31,13 @@ export type Registration = {
     disabled: boolean;
     created_at: string;
     captain: boolean;
+    real_name: string;
+    student_number: string;
+    phone: string;
+    email_verified_at: string | null;
+    registered: boolean;
+    current_member: boolean;
+    role: "user" | "admin";
   }[];
 };
 export type Clue = {
