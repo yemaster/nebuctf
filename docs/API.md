@@ -5,6 +5,7 @@
 | 模块 | 主要接口 |
 | --- | --- |
 | 身份 | `GET /me`；`POST /auth/register`、`/auth/login`、`/auth/logout`、`/auth/password` |
+| 参赛资料 | `GET/PUT /account/profile`，仅操作当前登录账户的姓名、学号、电话 |
 | 安全验证 | `POST /captcha/challenge`；登录、注册、创建战队和加入战队必须提交一次性 HashPow 结果 |
 | 战队 | `GET /teams/mine`、`/team?team=UUID`；`POST /teams`、`/team/join`、`/team/leave`、`/team/invite`、`/team/captain` |
 | 题库 | `GET /challenges?scope=practice&category=Web&q=&page=1`；`GET /challenges/:id`；`POST /challenges/:id/submit` |
@@ -383,3 +384,12 @@ queued/starting/running/ready/stopping 均占名额，failed/stopped 不占；�
 POST 最多 200 题，单填空 500 字符、每题最多 10 个空位，总请求体上限 4 MiB，每用户每分钟最多 30 次。重复题目返回 400，题目集合改变或草稿版本冲突返回 409，权限或截止时间不满足返回 403。整卷提交采用单一数据库事务，任意题校验失败不保存其他题；已正式交卷的题目幂等返回原结果。赛后练习答案与正式答案分开，允许重复练习，不改变原赛成绩。旧单题接口保留供练习场及兼容调用。
 
 比赛 `/challenges` 额外返回 `objective_count`，按当前组别可见和已上线客观题统计，不受搜索、分类或客观题阶段状态影响，用于保留整卷入口。
+
+
+## 参赛资料与报名成员
+
+`GET /account/profile` 返回 `{ real_name, student_number, phone }`。`PUT /account/profile` 接受同样的三个字符串字段，分别最多 80、48、32 字，去除首尾空白，空字符串表示未填写；所有字段选填但写请求需提交完整对象，不接受用户 ID、角色、邮箱等其他字段。需要登录及同源 CSRF 校验，每用户每分钟最多写入 20 次，审计仅记录 `user.profile` 与用户 ID。资料仅本人和管理员可读，不添加到 `/me` 或公开战队、榜单接口。
+
+管理员 `GET /admin/contests/:id/registrations/:team` 的 `members` 增加 `real_name`、`student_number`、`phone`、`role`、`email_verified_at`、`current_member` 与 `registered`。成员范围合并当前战队名单与本场比赛已确认名单，使用 `registered` 区分本场参赛者，离队不删除历史参赛记录；赛后练习状态由报名的 `practice_only` 与当前成员身份决定。接口继续检查管理员权限及本场比赛的报名记录，不返回密码摘要或会话信息。
+
+数据库版本 22 添加三个默认空字符串的资料字段，升级不要求旧用户补填，也不改变已有注册和报名条件。

@@ -243,3 +243,8 @@ WITH old AS (
 ) UPDATE contests c SET round_clock_from=least(old.ends_at,old.starts_at+make_interval(secs=>ceil(extract(epoch FROM(old.resume_at-old.starts_at))/old.round_duration)*old.round_duration)) FROM old WHERE c.id=old.id AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=21);
 CREATE INDEX IF NOT EXISTS awd_attacks_recent ON awd_attacks(created_at DESC);
 INSERT INTO schema_migrations(version) VALUES(21) ON CONFLICT DO NOTHING;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS real_name varchar(80) NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS student_number varchar(48) NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone varchar(32) NOT NULL DEFAULT '';
+INSERT INTO schema_migrations(version) VALUES(22) ON CONFLICT DO NOTHING;

@@ -15,6 +15,7 @@ import multipart from "@fastify/multipart";
 import { ZodError } from "zod";
 import { learningRoutes } from "./learning.js";
 import { authRoutes } from "./auth.js";
+import { profileRoutes } from "./profiles.js";
 import { teamRoutes } from "./teams.js";
 import { challengeRoutes } from "./challenges.js";
 import { contestRoutes } from "./contests.js";
@@ -91,6 +92,7 @@ export async function buildApp(db: DB, logging = false) {
     });
   });
   await authRoutes(app, db);
+  profileRoutes(app, db);
   systemAdminRoutes(app, db);
   registrationMailRoutes(app, db);
   aiRoutes(app, db);

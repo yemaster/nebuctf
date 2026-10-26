@@ -71,8 +71,18 @@ export function registrationRoutes(app: FastifyInstance, db: DB) {
     return {
       ...row,
       members: await db.query(
-        "SELECT u.id,u.username,u.email,u.disabled,u.created_at,u.id=t.captain_id captain FROM memberships m JOIN users u ON u.id=m.user_id JOIN teams t ON t.id=m.team_id WHERE m.team_id=$1 ORDER BY captain DESC,u.username,u.id",
-        [team],
+        `WITH roster AS (
+          SELECT user_id FROM memberships WHERE team_id=$1
+          UNION SELECT user_id FROM contest_members WHERE team_id=$1 AND contest_id=$2
+        )
+        SELECT u.id,u.username,u.email,u.disabled,u.created_at,u.role,
+          u.real_name,u.student_number,u.phone,u.email_verified_at,
+          u.id=t.captain_id captain,
+          EXISTS(SELECT 1 FROM memberships m WHERE m.team_id=$1 AND m.user_id=u.id) current_member,
+          EXISTS(SELECT 1 FROM contest_members m WHERE m.team_id=$1 AND m.contest_id=$2 AND m.user_id=u.id) registered
+        FROM roster JOIN users u ON u.id=roster.user_id JOIN teams t ON t.id=$1
+        ORDER BY captain DESC,u.username,u.id`,
+        [team, cid],
       ),
     };
   });
