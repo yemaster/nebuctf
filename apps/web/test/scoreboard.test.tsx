@@ -283,7 +283,7 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
         assert.equal(heading.getAttribute("scope"), "colgroup");
         assert.equal(
           document.querySelector("thead th")!.getAttribute("rowspan"),
-          "3",
+          "4",
         );
         assert.ok(
           document.querySelector(
@@ -393,7 +393,7 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
           () => !!document.querySelector('[aria-label="战队排行榜"]'),
         );
         const header = document.querySelector("thead")!;
-        assert.equal(header.children.length, 3);
+        assert.equal(header.children.length, 4);
         const names = [
           ...header.querySelectorAll<HTMLTableCellElement>(
             'th[title="Web 闯关"]',
@@ -417,7 +417,82 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
           "category includes every part and ordinary question",
         );
         assert.equal(header.children[2]!.children.length, 2);
+        assert.deepEqual(
+          [...header.querySelector('[aria-label="赛题分值"]')!.children].map(
+            (cell) => cell.textContent,
+          ),
+          ["100", "200", "100", "100"],
+          "scores share one aligned row for ordinary and multipart questions",
+        );
         assert.equal(document.querySelector("tbody tr")!.children.length, 7);
+        await cleanup();
+      },
+    );
+    await t.test(
+      "solve previews show awarded points and exact time on focus or touch without opening team details",
+      async () => {
+        requests.length = 0;
+        board = {
+          ...base,
+          items: [{ ...row, cells: [{ ...row.cells[0]!, score: 125 }] }],
+        };
+        await mount(`/contests/${cid}/scoreboard`);
+        await settle(() => !!document.querySelector('[aria-label="赛题分值"]'));
+        const button = document.querySelector<HTMLButtonElement>(
+          '[aria-label="Nebula，Web 闯关 / 第一关，一血，125 分"]',
+        )!;
+        assert.ok(button);
+        await act(async () => button.focus());
+        await settle(() => !!document.querySelector('[role="tooltip"]'));
+        const preview = document.querySelector(
+          '[data-slot="tooltip-content"]',
+        )!;
+        assert.equal(preview.getAttribute("data-variant"), "surface");
+        assert.ok(preview.textContent?.includes("+125"));
+        assert.ok(preview.textContent?.includes("第一关"));
+        assert.ok(preview.textContent?.includes("一血"));
+        assert.equal(preview.querySelector("time")?.dateTime, now);
+        assert.match(
+          preview.querySelector("time")!.textContent!,
+          /\d{2}:\d{2}:\d{2}/,
+        );
+        assert.equal(
+          document.querySelector('[aria-label="赛题分值"]')!.children[0]!
+            .textContent,
+          "100",
+          "current value stays separate from the team's awarded points",
+        );
+        await act(async () => {
+          button.dispatchEvent(
+            new dom.window.KeyboardEvent("keydown", {
+              key: "Escape",
+              bubbles: true,
+            }),
+          );
+          button.blur();
+        });
+        await settle(() => !document.querySelector('[role="tooltip"]'));
+        const tap = async () => {
+          await act(async () => {
+            const down = new dom.window.MouseEvent("pointerdown", {
+              bubbles: true,
+            });
+            Object.defineProperty(down, "pointerType", { value: "touch" });
+            button.dispatchEvent(down);
+            button.dispatchEvent(
+              new dom.window.MouseEvent("pointerup", { bubbles: true }),
+            );
+          });
+          await click(button);
+        };
+        await tap();
+        await settle(() => !!document.querySelector('[role="tooltip"]'));
+        assert.ok(!document.querySelector('[role="dialog"]'));
+        assert.ok(
+          !requests.some((path) => path.startsWith(`/scoreboard/${team}?`)),
+        );
+        await tap();
+        await settle(() => !document.querySelector('[role="tooltip"]'));
         await cleanup();
       },
     );
@@ -554,7 +629,7 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
           () => !!document.querySelector('[aria-label="下一组赛题"]'),
         );
         assert.equal(document.querySelectorAll('th[scope="col"]').length, 36);
-        assert.equal(document.querySelector("thead")!.children.length, 2);
+        assert.equal(document.querySelector("thead")!.children.length, 3);
         await click(document.querySelector('[aria-label="下一组赛题"]')!);
         assert.equal(document.querySelectorAll('th[scope="col"]').length, 9);
         await act(async () => {

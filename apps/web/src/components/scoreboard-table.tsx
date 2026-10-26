@@ -1,7 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Check, Minus } from "lucide-react";
 import type { Score, ScoreCell, ScoreColumn } from "@/lib/types";
-import { bloodLabels, categoryHeaderColors } from "@/lib/scoreboard";
+import {
+  bloodLabels,
+  categoryHeaderColors,
+  categoryTextColors,
+} from "@/lib/scoreboard";
 import { date } from "@/lib/utils";
 import { activateFromRow } from "@/lib/row-action";
 import { Button } from "./ui/button";
@@ -29,6 +33,93 @@ export function SolveMark({ cell }: { cell?: ScoreCell }) {
     <BloodMark rank={cell.blood_rank} />
   ) : (
     <Check className="size-6 text-success" />
+  );
+}
+const solveTime = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+function SolveDetails({
+  row,
+  column,
+  cell,
+  onSelect,
+}: {
+  row: Score;
+  column: ScoreColumn;
+  cell: ScoreCell;
+  onSelect: (row: Score) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const pointer = useRef({ touch: false, open: false });
+  const name = `${column.title}${column.part_title ? ` / ${column.part_title}` : ""}`;
+  const blood = cell.blood_rank ? bloodLabels[cell.blood_rank - 1] : null;
+  return (
+    <Tooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full hover:bg-transparent dark:hover:bg-transparent"
+          onPointerDown={(event) => {
+            // Radix closes an open tooltip on pointerdown, before click runs.
+            pointer.current = { touch: event.pointerType === "touch", open };
+          }}
+          onKeyDown={() => {
+            pointer.current.touch = false;
+          }}
+          onClick={(event) => {
+            if (pointer.current.touch) {
+              event.preventDefault();
+              setOpen(!pointer.current.open);
+            } else {
+              onSelect(row);
+            }
+          }}
+          aria-label={`${row.name}，${name}，${blood ?? "已解答"}，${cell.score} 分`}
+        >
+          <SolveMark cell={cell} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent
+        variant="surface"
+        side="top"
+        sideOffset={6}
+        collisionPadding={12}
+        className="min-w-44 max-w-[min(20rem,calc(100vw-1.5rem))] space-y-1.5 px-3 py-2.5 text-left text-pretty"
+      >
+        <p className="break-words font-medium leading-5">
+          {column.title}
+          {column.part_title && (
+            <span className="block font-normal text-muted-foreground">
+              {column.part_title}
+            </span>
+          )}
+        </p>
+        <div className="flex items-baseline justify-between gap-4">
+          <span
+            className={`font-mono text-sm font-semibold tabular-nums ${categoryTextColors[column.category] ?? "text-foreground"}`}
+          >
+            {cell.score > 0 ? "+" : ""}
+            {cell.score.toLocaleString()}
+            <span className="ml-1 font-sans text-xs font-normal">分</span>
+          </span>
+          {blood && <span className="text-muted-foreground">{blood}</span>}
+        </div>
+        <time
+          dateTime={cell.solved_at}
+          className="block font-mono text-[11px] tabular-nums text-muted-foreground"
+        >
+          {solveTime.format(new Date(cell.solved_at))}
+        </time>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 const identity =
@@ -76,7 +167,7 @@ export function ScoreboardTable({
     [columns],
   );
   const hasParts = matrix && columns.some((column) => !!column.part_title);
-  const headerRows = matrix ? (hasParts ? 3 : 2) : 1;
+  const headerRows = matrix ? (hasParts ? 4 : 3) : 1;
   return (
     <TooltipProvider delayDuration={150}>
       <div className="[&_[data-slot=table-container]]:max-h-[65dvh] [&_[data-slot=table-container]]:overflow-auto">
@@ -133,18 +224,13 @@ export function ScoreboardTable({
                       scope={multipart ? "colgroup" : "col"}
                       colSpan={question.length}
                       rowSpan={!multipart && hasParts ? 2 : 1}
-                      className={`min-w-28 px-3 text-center ${multipart ? "h-9 py-2" : "w-28 border-b py-3"}`}
+                      className={`min-w-28 px-3 pb-1 pt-2 text-center ${multipart ? "h-8" : "h-9 w-28"}`}
                       title={first.title}
                     >
                       {/* Fill the merged cell without enlarging the table's intrinsic width. */}
                       <div className="w-0 min-w-full truncate text-xs font-medium">
                         {first.title}
                       </div>
-                      {!multipart && (
-                        <div className="mt-1.5 text-xs tabular-nums text-muted-foreground">
-                          {first.points} 分
-                        </div>
-                      )}
                     </TableHead>
                   );
                 })}
@@ -158,17 +244,27 @@ export function ScoreboardTable({
                     <TableHead
                       key={column.id}
                       scope="col"
-                      className="w-28 min-w-28 border-b px-3 pb-3 pt-1 text-center"
+                      className="h-7 w-28 min-w-28 px-3 pb-1 pt-0 text-center"
                       title={`${column.title} / ${column.part_title}`}
                     >
                       <div className="w-0 min-w-full truncate text-xs text-muted-foreground">
                         {column.part_title}
                       </div>
-                      <div className="mt-1.5 text-xs tabular-nums text-muted-foreground">
-                        {column.points} 分
-                      </div>
                     </TableHead>
                   ))}
+              </TableRow>
+            )}
+            {matrix && (
+              <TableRow className="hover:bg-transparent" aria-label="赛题分值">
+                {columns.map((column) => (
+                  <TableHead
+                    key={column.id}
+                    className="h-8 border-b px-3 py-1.5 text-center font-mono text-xs font-semibold tabular-nums"
+                    aria-label={`${column.title}${column.part_title ? ` / ${column.part_title}` : ""}，当前分值 ${column.points} 分`}
+                  >
+                    {column.points.toLocaleString()}
+                  </TableHead>
+                ))}
               </TableRow>
             )}
           </TableHeader>
@@ -237,31 +333,12 @@ export function ScoreboardTable({
                           className="border-b p-1 text-center"
                         >
                           {cell ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="w-full hover:bg-transparent dark:hover:bg-transparent"
-                                  onClick={() => onSelect(row)}
-                                  aria-label={`${row.name}，${name}，${cell.blood_rank ? bloodLabels[cell.blood_rank - 1] : "已解答"}，${cell.score} 分`}
-                                >
-                                  <SolveMark cell={cell} />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent className="space-y-1">
-                                <p>{name}</p>
-                                <p>
-                                  {cell.score} 分
-                                  {cell.blood_rank
-                                    ? ` / ${bloodLabels[cell.blood_rank - 1]}`
-                                    : ""}
-                                </p>
-                                <time dateTime={cell.solved_at}>
-                                  {date(cell.solved_at)}
-                                </time>
-                              </TooltipContent>
-                            </Tooltip>
+                            <SolveDetails
+                              row={row}
+                              column={column}
+                              cell={cell}
+                              onSelect={onSelect}
+                            />
                           ) : (
                             <span aria-label={`${row.name}，${name}，未解答`}>
                               <SolveMark />
