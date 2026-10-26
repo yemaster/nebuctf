@@ -129,6 +129,7 @@ test(
     let root: ReturnType<typeof createRoot> | undefined,
       cache: InstanceType<typeof QueryClient>,
       offline = false,
+      reviewError = "",
       writes: any[] = [],
       requests: string[] = [];
     async function cleanup() {
@@ -143,9 +144,11 @@ test(
     ) {
       await cleanup();
       offline = false;
+      reviewError = "";
       writes = [];
       requests = [];
       sockets.length = 0;
+      const currentRegistration = structuredClone(registration);
       const user = {
         id: team,
         username: "admin",
@@ -157,7 +160,24 @@ test(
           p = url.pathname.replace(/^\/api/, "");
         requests.push(p + url.search);
         if (init?.method && init.method !== "GET") {
-          writes.push(JSON.parse(String(init.body)));
+          const change = JSON.parse(String(init.body));
+          writes.push(change);
+          if (reviewError)
+            return new Response(JSON.stringify({ error: reviewError }), {
+              status: 409,
+            });
+          if (p.endsWith("/registrations")) {
+            if (change.status) {
+              currentRegistration.status = change.status;
+              currentRegistration.review_note = change.review_note ?? "";
+            }
+            if (change.group_id) {
+              currentRegistration.group_id = change.group_id;
+              currentRegistration.group_name = (
+                extra[`/contests/${id}`] as any
+              )?.groups.find((g: any) => g.id === change.group_id)?.name;
+            }
+          }
           return new Response('{"ok":true}');
         }
         if (offline && p.startsWith("/admin/"))
@@ -169,12 +189,14 @@ test(
             : p === `/contests/${id}` || p === `/admin/contests/${id}`
               ? contest
               : p === `/admin/contests/${id}/registrations/${team}`
-                ? registration
+                ? currentRegistration
                 : p.endsWith("/registrations")
                   ? {
-                      items: [registration],
+                      items: [currentRegistration],
                       total: 1,
-                      counts: [{ status: "pending", count: 1 }],
+                      counts: [
+                        { status: currentRegistration.status, count: 1 },
+                      ],
                     }
                   : p.endsWith("/activity")
                     ? {
@@ -239,7 +261,7 @@ test(
       });
     }
     const button = (name: string) =>
-      [...host.querySelectorAll("button")].find(
+      [...document.querySelectorAll("button")].find(
         (b) => (b.getAttribute("aria-label") ?? b.textContent?.trim()) === name,
       );
     try {
@@ -347,18 +369,209 @@ test(
             button("展开 审核战队 的成员")!.getAttribute("aria-expanded"),
             "false",
           );
-          await click(button("通过"));
-          await settle(() => writes.length === 2);
-          assert.deepEqual(writes[1], { team_ids: [team], status: "accepted" });
-          assert(button("展开 审核战队 的成员"));
-          await click(
+          await settle(() => !!button("暂停 审核战队"));
+          assert.equal(button("通过 审核战队"), undefined);
+          assert.equal(
             host.querySelector(
               `a[href="/contests/${id}/manage/teams/${team}"]`,
             ),
+            null,
           );
-          await settle(() => host.textContent!.includes("战队成员"));
-          assert.match(host.textContent!, /captain@example.test/);
-          assert.equal(host.querySelector('[role="dialog"]'), null);
+          assert(button("展开 审核战队 的成员"));
+        },
+      );
+      await t.test(
+        "inline review retains context, required reasons and failed drafts across every status",
+        async () => {
+          const groups = [
+            { id: "open", name: "公开组" },
+            { id: "student", name: "高校组" },
+          ];
+          await mount(`/contests/${id}/manage/teams?page=2&q=审核`, "admin", {
+            [`/contests/${id}`]: { ...contest, groups },
+          });
+          await settle(() => !!button("展开 审核战队 的成员"));
+          await click(button("展开 审核战队 的成员"));
+          await settle(() =>
+            host.textContent!.includes("captain@example.test"),
+          );
+          const summary = host.querySelector(
+            'table[aria-label="报名战队"] > tbody > tr',
+          );
+          const checkContext = () => {
+            assert(button("收起 审核战队 的成员"));
+            assert.equal(
+              host.querySelector('table[aria-label="报名战队"] > tbody > tr'),
+              summary,
+            );
+            assert.equal(
+              (
+                host.querySelector(
+                  '[aria-label="搜索战队或队长"]',
+                ) as HTMLInputElement
+              ).value,
+              "审核",
+            );
+            assert(
+              requests.some(
+                (p) =>
+                  p.includes("/registrations?") &&
+                  p.includes("page=2") &&
+                  p.includes("q="),
+              ),
+            );
+          };
+          await click(button("拒绝 审核战队"));
+          await settle(
+            () =>
+              !!document.querySelector(
+                '[role="dialog"][aria-label="拒绝 审核战队"]',
+              ),
+          );
+          assert.equal(
+            (button("确认拒绝") as HTMLButtonElement).disabled,
+            true,
+          );
+          const fillReason = async (text: string) => {
+            const input = document.querySelector(
+              '[role="dialog"] textarea',
+            ) as HTMLTextAreaElement;
+            assert(input);
+            await act(async () => {
+              Object.getOwnPropertyDescriptor(
+                dom.window.HTMLTextAreaElement.prototype,
+                "value",
+              )!.set!.call(input, text);
+              input.dispatchEvent(
+                new dom.window.Event("input", { bubbles: true }),
+              );
+            });
+          };
+          await fillReason("请补充报名资料");
+          reviewError = "网络异常，请重试";
+          await click(button("确认拒绝"));
+          await settle(() =>
+            document
+              .querySelector('[role="dialog"]')!
+              .textContent!.includes(reviewError),
+          );
+          assert.equal(
+            (
+              document.querySelector(
+                '[role="dialog"] textarea',
+              ) as HTMLTextAreaElement
+            ).value,
+            "请补充报名资料",
+          );
+          checkContext();
+          reviewError = "";
+          await click(button("确认拒绝"));
+          await settle(
+            () =>
+              !!button("重新审核 审核战队") &&
+              !document.querySelector('[role="dialog"]'),
+          );
+          assert.deepEqual(writes.at(-1), {
+            team_ids: [team],
+            status: "rejected",
+            review_note: "请补充报名资料",
+          });
+          assert(host.textContent!.includes("请补充报名资料"));
+          checkContext();
+          await click(button("调整 审核战队 的组别"));
+          await settle(
+            () => !!document.querySelector('[role="dialog"] select'),
+          );
+          const select = document.querySelector(
+            '[role="dialog"] select',
+          ) as HTMLSelectElement;
+          await act(async () => {
+            select.value = "student";
+            select.dispatchEvent(
+              new dom.window.Event("change", { bubbles: true }),
+            );
+          });
+          await click(button("保存组别"));
+          await settle(() => !document.querySelector('[role="dialog"]'));
+          assert.deepEqual(writes.at(-1), {
+            team_ids: [team],
+            group_id: "student",
+          });
+          assert(host.textContent!.includes("请补充报名资料"));
+          assert(
+            button("调整 审核战队 的组别")!.textContent!.includes("高校组"),
+          );
+          checkContext();
+          await click(button("重新审核 审核战队"));
+          await settle(() => !!button("拒绝 审核战队"));
+          await click(button("通过 审核战队"));
+          await settle(() => !!button("暂停 审核战队"));
+          checkContext();
+          await click(button("暂停 审核战队"));
+          await settle(
+            () => !!document.querySelector('[role="dialog"] textarea'),
+          );
+          await fillReason("参赛资料待核实");
+          await click(button("确认暂停"));
+          await settle(
+            () =>
+              !!button("恢复 审核战队") &&
+              !document.querySelector('[role="dialog"]'),
+          );
+          assert.deepEqual(writes.at(-1), {
+            team_ids: [team],
+            status: "suspended",
+            review_note: "参赛资料待核实",
+          });
+          assert.equal(button("重新审核 审核战队"), undefined);
+          await click(button("恢复 审核战队"));
+          await settle(() => !!button("暂停 审核战队"));
+          assert(!host.textContent!.includes("参赛资料待核实"));
+          checkContext();
+        },
+      );
+      await t.test(
+        "batch rejection stays in the list and post-start groups cannot be edited",
+        async () => {
+          await mount(`/admin/contests/${id}/manage/teams`, "admin", {
+            [`/contests/${id}`]: {
+              ...contest,
+              starts_at: new Date(Date.now() - 60000).toISOString(),
+              groups: [{ id: "open", name: "公开组" }],
+            },
+          });
+          await settle(() => !!button("通过 审核战队"));
+          assert.equal(button("调整 审核战队 的组别"), undefined);
+          await click(host.querySelector('[aria-label="选择本页待审核战队"]'));
+          await click(button("拒绝 所选 1 支战队"));
+          await settle(
+            () => !!document.querySelector('[role="dialog"] textarea'),
+          );
+          const input = document.querySelector(
+            '[role="dialog"] textarea',
+          ) as HTMLTextAreaElement;
+          await act(async () => {
+            Object.getOwnPropertyDescriptor(
+              dom.window.HTMLTextAreaElement.prototype,
+              "value",
+            )!.set!.call(input, "资料不全");
+            input.dispatchEvent(
+              new dom.window.Event("input", { bubbles: true }),
+            );
+          });
+          await click(button("确认拒绝"));
+          await settle(
+            () =>
+              !!button("重新审核 审核战队") &&
+              !document.querySelector('[role="dialog"]'),
+          );
+          assert.deepEqual(writes[0], {
+            team_ids: [team],
+            status: "rejected",
+            review_note: "资料不全",
+          });
+          assert.equal(button("通过所选（1）"), undefined);
+          assert(button("展开 审核战队 的成员"));
         },
       );
       await t.test(

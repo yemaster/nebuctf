@@ -42,6 +42,14 @@ import type { Contest } from "@/lib/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MeasuredCollapse } from "@/components/measured-collapse";
 import { Badge } from "@/components/ui/badge";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useContestNow } from "@/components/contest-clock";
+import {
+  RegistrationReviewActions,
+  RegistrationGroupControl,
+  ReviewReasonAction,
+  type ReviewChange,
+} from "@/components/admin/registration-review-controls";
 import {
   useBase,
   ReviewBadge,
@@ -50,7 +58,7 @@ import {
   type ReviewStatus,
 } from "@/components/admin/contest-management-shared";
 export function Registrations() {
-  const { id, base, apiBase } = useBase(),
+  const { id, apiBase } = useBase(),
     { params, page, setPage, filter } = useAdminList();
   const data = useAPI<{
       items: Registration[];
@@ -60,21 +68,44 @@ export function Registrations() {
     contest = useAPI<Contest>(`/contests/${id}`);
   const [selected, setSelected] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const cache = useQueryClient();
+  const now = useContestNow(contest.data?.clock, contest.dataUpdatedAt);
   useEffect(() => {
     setSelected([]);
     setExpanded(null);
   }, [params.toString()]);
-  const approve = useAction(
-    (ids: string[]) =>
-      api(`${apiBase}/registrations`, "PUT", {
-        team_ids: ids,
-        status: "accepted",
-      }),
-    () => {
-      setSelected([]);
-      toast.success("报名已通过");
+  useEffect(() => {
+    if (!data.data) return;
+    const pendingIds = new Set(
+      data.data.items
+        .filter((r) => r.status === "pending")
+        .map((r) => r.team_id),
+    );
+    setSelected((previous) => {
+      const next = previous.filter((team) => pendingIds.has(team));
+      return next.length === previous.length ? previous : next;
+    });
+  }, [data.data]);
+  const review = useMutation({
+    mutationFn: (change: ReviewChange) =>
+      api(`${apiBase}/registrations`, "PUT", change),
+    onSuccess: async (_, change) => {
+      if (change.status)
+        setSelected((previous) =>
+          previous.filter((team) => !change.team_ids.includes(team)),
+        );
+      toast.success(
+        change.status === "pending"
+          ? "已转为待审核"
+          : change.status
+            ? `报名${statuses[change.status]}`
+            : "组别已更新",
+      );
+      await cache.invalidateQueries({
+        predicate: (query) => String(query.queryKey[0]).includes(id),
+      });
     },
-  );
+  });
   if (data.error || contest.error || data.isLoading || contest.isLoading)
     return (
       <QueryState
@@ -135,13 +166,29 @@ export function Registrations() {
           </NativeSelect>
         )}
         {selected.length > 0 && (
-          <Button
-            disabled={approve.isPending}
-            onClick={() => approve.mutate(selected)}
-          >
-            <Check />
-            通过所选（{selected.length}）
-          </Button>
+          <>
+            <Button
+              disabled={review.isPending}
+              onClick={() =>
+                review.mutate(
+                  { team_ids: selected, status: "accepted" },
+                  { onError: (e) => toast.error(e.message) },
+                )
+              }
+            >
+              <Check />
+              通过所选（{selected.length}）
+            </Button>
+            <ReviewReasonAction
+              key={selected.join(",")}
+              teamIds={selected}
+              title={`所选 ${selected.length} 支战队`}
+              label="拒绝所选"
+              status="rejected"
+              busy={review.isPending}
+              submit={review.mutateAsync}
+            />
+          </>
         )}
       </div>
       <div className="rounded-lg bg-card">
@@ -166,7 +213,7 @@ export function Registrations() {
                     pending.length > 0 &&
                     pending.every((r) => selected.includes(r.team_id))
                   }
-                  disabled={!pending.length}
+                  disabled={!pending.length || review.isPending}
                   onCheckedChange={(v) =>
                     setSelected(v ? pending.map((r) => r.team_id) : [])
                   }
@@ -207,7 +254,7 @@ export function Registrations() {
                   <TableCell>
                     <Checkbox
                       aria-label={`选择 ${r.name}`}
-                      disabled={r.status !== "pending"}
+                      disabled={r.status !== "pending" || review.isPending}
                       checked={selected.includes(r.team_id)}
                       onCheckedChange={(v) =>
                         setSelected(
@@ -244,7 +291,13 @@ export function Registrations() {
                   </TableCell>
                   <TableCell>{r.member_count}</TableCell>
                   <TableCell className="break-all whitespace-normal">
-                    {r.group_name ?? "公开组"}
+                    <RegistrationGroupControl
+                      registration={r}
+                      groups={contest.data?.groups ?? []}
+                      locked={now >= Date.parse(contest.data!.starts_at)}
+                      busy={review.isPending}
+                      submit={review.mutateAsync}
+                    />
                   </TableCell>
                   <TableCell>
                     <ReviewBadge status={r.status} />
@@ -253,26 +306,11 @@ export function Registrations() {
                     {date(r.created_at)}
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-1">
-                      {r.status === "pending" && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={approve.isPending}
-                          onClick={() => approve.mutate([r.team_id])}
-                        >
-                          通过
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="px-0"
-                        asChild
-                      >
-                        <Link to={`${base}/teams/${r.team_id}`}>审核详情</Link>
-                      </Button>
-                    </div>
+                    <RegistrationReviewActions
+                      registration={r}
+                      busy={review.isPending}
+                      submit={review.mutateAsync}
+                    />
                   </TableCell>
                 </TableRow>
                 <CollapsibleContent asChild forceMount>
@@ -287,6 +325,16 @@ export function Registrations() {
                           aria-label={`${r.name} 的成员`}
                           className="py-2 pr-4 pl-10"
                         >
+                          {r.review_note && (
+                            <div className="flex gap-3 border-b py-3 text-sm">
+                              <span className="shrink-0 text-muted-foreground">
+                                审核说明
+                              </span>
+                              <p className="min-w-0 whitespace-pre-wrap break-words">
+                                {r.review_note}
+                              </p>
+                            </div>
+                          )}
                           <RegistrationMembersPanel
                             apiBase={apiBase}
                             team={r.team_id}
