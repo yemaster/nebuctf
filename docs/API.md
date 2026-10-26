@@ -177,11 +177,11 @@ API 进程每 2 秒检查到期题目，在事务内启用、清除计划时间�
 
 完整字段语义与计分公式见 [比赛规则](COMPETITION-RULES.md)。管理员题目字段增加 challenge_type、flag_mode、resources、objective、patch_config、awd_config；小题增加 role。普通题目接口不会返回客观题答案或检查器配置。
 
-比赛写入增加 timing 和 challenge_settings，后者按 challenge_id 保存 published、release_at、scoring；scoring.mode 为 inherit/fixed/dynamic/round，points 保存题目分值，parts 保存各小题覆盖，round 保存 interval、carry、dynamic、flag_lifetime、defense_points、availability_points。开赛后选题集合、计分和时间锁定。
+比赛写入包含 timing、round_duration 和 challenge_settings，后者按 challenge_id 保存 published、release_at、scoring；scoring.mode 为 inherit/fixed/dynamic/round，points 保存题目分值，parts 保存各小题覆盖，round 保存 carry、dynamic、flag_lifetime、defense_points、availability_points；round_duration 是全场统一轮次时长（秒），不再接受题目独立时钟。开赛后选题集合、计分和时间锁定。
 
 | 接口 | 行为 |
 | --- | --- |
-| `GET /contests/:id/timing` | 当前战队各阶段状态、开始/截止时间及 server_time |
+| `GET /contests/:id/timing` | 当前战队各阶段状态、开始/截止时间、server_time 及比赛 clock |
 | `POST /contests/:id/start/:section` | section 为 objective/practical；战队共享、幂等开始 |
 | `GET /challenges/:id/answer?scope=` | 本队客观题草稿与最终提交状态 |
 | `POST /challenges/:id/answer` | `{scope,answer:{choices,blanks},finalize}`；最终提交后不可修改 |
@@ -364,3 +364,12 @@ queued/starting/running/ready/stopping 均占名额，failed/stopped 不占；�
 对外 `GET /ai/:route/v1/models`、`POST /ai/:route/v1/chat/completions`、`POST /ai/:route/v1/messages`。仅这些路由不使用会话/CSRF，独立验证 `Authorization: Bearer ...` 或 `x-api-key`；管理员会话不能替代密钥。请求正文上限 1 MiB，响应/流累计上限 16 MiB、单事件缓冲上限 1 MiB；不跟随上游重定向。模型别名必须存在于路由配置，输出 tokens 不能超过上限。并发通过数据库行锁和请求租约跨进程约束，断开连接取消上游。
 
 两种协议的非流式与 SSE 转换、SDK 基础地址、功能边界及接入示例见 [基础管理教程](SYSTEM-SETTINGS.md)。AI 转发只执行上游模型调用，不执行模型返回的工具操作。
+
+
+## 比赛时钟与选手信息（迁移 21）
+
+比赛详情、比赛题目列表、`/timing`、`/rounds`、`/arena` 与观战快照返回 `clock`：`server_time`、`starts_at`、`ends_at`、`freeze_at`、`practice`，以及有轮次计分时的 `rounds:{opens_at,closes_at,interval,total,active_from}`。`interval` 来自比赛 `round_duration`，`active_from` 仅用于旧轮次迁移切换。题目 `/rounds` 和 `/arena` 的 `round` 均为比赛当前轮，题目历史结算单独返回。`/rounds` 历史带 `legacy` 标记。
+
+比赛题目列表一次返回全部可见赛题（最多 200 题），练习题库继续每页 24 题。题目和小题增加 `bloods:[{team_id,name,created_at,rank}]`，按封榜截止、正式参赛资格和组别三血权限计算，不包含赛后练习。
+
+观战快照增加 `engagements:[{challenge_id,challenge_title,last_seen,teams:[{id,name,last_seen}]}]`。只使用最近 90 秒的实际提交或 AWD 攻击，最多 12 道题、每题 3 队，排除已全部解出的题目、不可共同查看的赛题、非正式队伍和练习数据；封榜或结束后为空。不返回提交内容、失败原因、邮箱或环境地址。
