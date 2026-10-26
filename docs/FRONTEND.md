@@ -260,7 +260,7 @@ Dagre 与 React Flow 放在按需加载的同一包，首页不预加载该包�
 
 比赛矩阵显示分类、题目/小题、分值、通过状态和三血；桌面固定排名/队名和总分，窄屏缩小身份列并允许矩阵内部滚动。每页 30 支战队，大量小题每组展示 36 个计分单元，可按分类筛选或切换下一组，限制 DOM 规模。比赛作答目录保持完整。练习榜使用紧凑选手表格，不展开整座题库。
 
-当前战队使用整行高亮，战队名、分数、解题数及全部题目格继承同一行的底色；固定列保持不透明，悬停不覆盖当前战队状态。普通行的悬停底色同样贯穿固定列与题目区。此修复复核了 GZCTF 官方截图、ScoreboardTable 及其 [固定列样式](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/styles/components/ScoreboardTable.module.css)，在现有矩阵结构上完善本项目的当前战队标识，使用已有亮暗色主题变量。
+当前战队使用整行高亮，战队名、分数、解题数及全部题目格继承同一行的底色；固定列保持不透明，悬停不覆盖当前战队状态。普通行、队名和解题状态按钮在亮暗色下均不增加悬停背景，保留点击、提示及键盘焦点。已解答、未解答及三血图标统一为 24 px，沿用 Lucide 图标。此修复复核了 GZCTF 官方截图、ScoreboardTable 及其 [固定列样式](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/styles/components/ScoreboardTable.module.css)，在现有矩阵结构上完善本项目的当前战队标识，使用已有亮暗色主题变量。
 
 搜索、组别、页码与「我的排名」写入 URL；筛选期间保留已显示的榜单，搜索保留真实排名。查看队名或已解格可打开同一个解题详情侧栏，显示当前分数、三血和通过时间。「我的排名」使用本场报名的战队 ID。封榜时格子、曲线、分数和解出数同时截止，未开赛不泄露题目名称。
 
