@@ -264,7 +264,7 @@ Dagre 与 React Flow 放在按需加载的同一包，首页不预加载该包�
 
 本次实际查看 GZCTF 官方榜单截图，并读取 [ScoreboardTable](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/ScoreboardTable.tsx)、[ScoreTimeLine](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/charts/ScoreTimeLine.tsx) 和比赛榜单页面源码。采用上方积分走势、下方按题目分类的解题矩阵、固定身份列、组别筛选与三血标记的组织方式，保持 NebuCTF 当前主题与字体；通用图标使用 Lucide，三血标记使用 GZCTF 同款 Material Design Icons 六边形。未复制 GZCTF 业务组件或引入三血加分规则。
 
-图表使用官方 [shadcn Chart](https://ui.shadcn.com/docs/components/radix/chart) 和 Recharts 3，Table、Tooltip、Sheet、Collapsible、InputGroup、NativeSelect、Pagination 复用现有组件。前五名以阶梯曲线显示累计分数，支持收起和时间范围拖动；动态计分使用当前分值回算历史，界面注明「按当前题目分值累计」。定时刷新不重播曲线动画。图表独立按需加载，首页不预加载 charts 或 graph-utils。
+图表使用官方 [shadcn Chart](https://ui.shadcn.com/docs/components/radix/chart) 和 Recharts 3，Table、Tooltip、Sheet、Collapsible、InputGroup、NativeSelect、Pagination 复用现有组件。前五名以阶梯曲线显示累计分数；使用 shadcn Slider 按实际时间拖动范围，支持键盘、重置和「得分时段」缩放。缩放边界继承此前累计分，不插值；默认显示完整已发生时段。跨天刻度同时显示日期与时间，浮层显示完整时间及各队得分。图例可独立显隐各队曲线，刷新后颜色跟随战队身份而非排名。切换比赛或组别重置范围；动态计分使用当前分值回算历史，界面注明「按当前题目分值累计」。定时刷新不重播曲线动画。图表独立按需加载，首页不预加载 charts 或 graph-utils。
 
 比赛矩阵显示分类、题目/小题、分值、通过状态和三血。同一题目的大标题按 challenge_id 合并表头，下层列出小题名称；普通题目纵向合并，全部为普通题目时省略小题行。同名的不同题目保持独立。所有题目分值放在表头最下方的统一行，以系统等宽数字突出显示，不重复附加「分」，无障碍名称保留题名和当前分值。桌面固定排名/队名和总分，窄屏缩小身份列并允许矩阵内部滚动。每页 30 支战队，大量小题每组展示 36 个计分单元，可按分类筛选或切换下一组，限制 DOM 规模。比赛作答目录保持完整。练习榜使用紧凑选手表格，不展开整座题库。
 
@@ -274,7 +274,7 @@ Dagre 与 React Flow 放在按需加载的同一包，首页不预加载该包�
 
 搜索、组别、页码与「我的排名」写入 URL；筛选期间保留已显示的榜单，搜索保留真实排名。查看队名或已解格可打开同一个解题详情侧栏，显示当前分数、三血和通过时间。「我的排名」使用本场报名的战队 ID。封榜时格子、曲线、分数和解出数同时截止，未开赛不泄露题目名称。
 
-本次不打开本地浏览器。自动测试验证矩阵、筛选、分页、侧栏、图表曲线路径和收起交互；实际滚动、窄屏布局和图表拖动手感仍需在本地页面查看。
+自动测试验证矩阵、筛选、分页、侧栏、阶梯曲线、时间缩放、图例开关和键盘控制。无头 Chrome 在远程站点地址验证桌面、窄屏及亮暗主题；不启动本地服务。
 
 
 ## 题单内作答
@@ -454,3 +454,9 @@ PDF 通过现有管理员文件接口鉴权读取，预览携带版本号；文�
 | 三血 | `#f98539` | `#b94d05` |
 
 二血由 `gray[1]` 压暗 20% / `gray[2]` 提亮 30%，三血由 `orange[7]` 提亮 20% / 压暗 25%，按 Mantine 的 RGB 四舍五入规则计算。金银铜只用于三血图标，排名数字和动态标签使用常规文字色，避免小字号文字对比度不足。
+
+## 比赛操作与目录细节
+
+管理员未报名时，概览同时提供赛题预览与战队报名；报名仍遵守比赛时段、组别、战队范围及审核限制。已报名后显示进入赛场或进入练习。报名战队的内边距仅作用于主行，收起的成员区不占额外空白，整行展开、复选和审核操作保留各自行为。
+
+比赛动态距屏幕右侧 8px，普通页面距底部状态栏 8px；客观题页面另行预留答卷提交区。左侧题目、小题、展开按钮和客观题题号在亮暗主题下均不因 hover 改色，保留当前选中、作答状态和键盘焦点。

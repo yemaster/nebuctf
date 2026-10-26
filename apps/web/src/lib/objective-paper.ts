@@ -58,8 +58,12 @@ export const answerLabels = {
   incorrect: "错误",
 };
 export const answerColors = {
-  empty: "bg-muted text-muted-foreground",
-  answered: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
-  correct: "bg-success/15 text-success",
-  incorrect: "bg-destructive/10 text-destructive",
+  empty:
+    "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted",
+  answered:
+    "bg-blue-100 text-blue-700 hover:bg-blue-100 hover:text-blue-700 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-950 dark:hover:text-blue-300",
+  correct:
+    "bg-success/15 text-success hover:bg-success/15 hover:text-success dark:hover:bg-success/15",
+  incorrect:
+    "bg-destructive/10 text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/10",
 };

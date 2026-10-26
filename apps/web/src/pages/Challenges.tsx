@@ -778,7 +778,7 @@ function DirectoryItem({
         <div className="flex items-center pr-2">
           <Button
             variant="ghost"
-            className="h-auto min-h-10 min-w-0 flex-1 justify-start gap-3 px-3 py-2 font-normal hover:bg-transparent"
+            className="h-auto min-h-10 min-w-0 flex-1 justify-start gap-3 px-3 py-2 font-normal hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
             onClick={activate}
             aria-current={selected === c.id ? "true" : undefined}
           >
@@ -807,7 +807,7 @@ function DirectoryItem({
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="size-6 shrink-0 [&[data-state=open]>svg]:rotate-180"
+                className="size-6 shrink-0 hover:bg-transparent hover:text-inherit dark:hover:bg-transparent [&[data-state=open]>svg]:rotate-180"
                 aria-label={`${c.title} 小题展开或折叠`}
               >
                 <ChevronDown className="motion-safe:transition-transform" />
@@ -851,7 +851,7 @@ function DirectoryItem({
               >
                 <Button
                   variant="ghost"
-                  className="h-auto min-h-8 w-full justify-start gap-2 px-3 py-1.5 text-xs font-normal hover:bg-transparent"
+                  className="h-auto min-h-8 w-full justify-start gap-2 px-3 py-1.5 text-xs font-normal hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
                   onClick={() => select(c.id)}
                   aria-label={`${part.title} ${part.solved ? "已通过" : "未通过"}`}
                 >
