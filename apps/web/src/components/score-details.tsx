@@ -207,12 +207,12 @@ function DetailContent({
             {scope !== "practice" && (
               <section aria-label="队员贡献" className="space-y-3">
                 <h3 className="text-sm font-medium">队员贡献</h3>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>队员</TableHead>
-                      <TableHead className="text-right">得分</TableHead>
-                      <TableHead className="text-right">Flag</TableHead>
+                <Table className="[&_th]:px-3 [&_th]:text-left [&_td]:px-3 [&_td]:py-3 [&_td]:text-left">
+                  <TableHeader className="[&_th]:text-xs [&_th]:text-muted-foreground">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-1/3">队员</TableHead>
+                      <TableHead className="w-24">得分</TableHead>
+                      <TableHead className="w-20">Flag</TableHead>
                       <TableHead title="按本场方向得分最高项统计">
                         擅长方向
                       </TableHead>
@@ -220,7 +220,10 @@ function DetailContent({
                   </TableHeader>
                   <TableBody>
                     {detail.members.map((member) => (
-                      <TableRow key={member.id}>
+                      <TableRow
+                        key={member.id}
+                        className="hover:bg-transparent"
+                      >
                         <TableCell className="max-w-52 whitespace-normal break-words font-medium">
                           {member.name}
                           {!member.current_member && (
@@ -229,13 +232,13 @@ function DetailContent({
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className="text-base font-semibold tabular-nums">
                           {member.score.toLocaleString()}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className="tabular-nums">
                           {member.flags}
                         </TableCell>
-                        <TableCell className="max-w-64 whitespace-normal text-xs text-muted-foreground">
+                        <TableCell className="max-w-64 whitespace-normal break-words text-muted-foreground">
                           {strongest(member.categories)}
                         </TableCell>
                       </TableRow>
