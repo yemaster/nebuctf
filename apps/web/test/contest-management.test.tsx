@@ -245,7 +245,7 @@ test(
           );
           assert.equal(
             host.querySelectorAll(
-              'table[aria-label="报名战队"] > tbody > tr:not([hidden])',
+              'table[aria-label="报名战队"] > tbody > tr:not([data-slot="collapsible-content"])',
             ).length,
             1,
           );
@@ -295,9 +295,9 @@ test(
           );
           await click(host.querySelector('[aria-label="选择 审核战队"]'));
           await click(summaryRow.children[6]);
-          assert.equal(
-            host.textContent!.includes("captain@example.test"),
-            false,
+          assert(
+            members.closest("[inert]"),
+            "collapsed members remain mounted but cannot receive focus",
           );
           // Copying row text and modified clicks must not open details.
           const selection = dom.window.getSelection()!;

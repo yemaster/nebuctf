@@ -4,6 +4,7 @@ import { Empty, QueryState } from "../shared";
 import { Badge } from "../ui/badge";
 import { Item, ItemGroup } from "../ui/item";
 import type { Registration } from "./contest-management-shared";
+import { Skeleton } from "../ui/skeleton";
 
 export function RegistrationMembers({
   members,
@@ -55,13 +56,30 @@ export function RegistrationMembersPanel({
   apiBase,
   team,
   open,
+  count = 1,
 }: {
   apiBase: string;
   team: string;
   open: boolean;
+  count?: number;
 }) {
   const data = useAPI<Registration>(`${apiBase}/registrations/${team}`, open);
-  if (data.isLoading || data.error)
+  if (!data.data && !data.error)
+    return (
+      <div aria-label="正在加载战队成员" className="divide-y">
+        {Array.from({ length: Math.min(20, Math.max(1, count)) }, (_, i) => (
+          <div
+            key={i}
+            className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_auto] sm:gap-4"
+          >
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-5 w-44 max-w-full" />
+            <Skeleton className="h-5 w-36" />
+          </div>
+        ))}
+      </div>
+    );
+  if (data.error)
     return (
       <QueryState
         loading={data.isLoading}

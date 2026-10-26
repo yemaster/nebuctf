@@ -40,6 +40,7 @@ import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import type { Contest } from "@/lib/types";
 import { Checkbox } from "@/components/ui/checkbox";
+import { MeasuredCollapse } from "@/components/measured-collapse";
 import { Badge } from "@/components/ui/badge";
 import {
   useBase,
@@ -253,19 +254,25 @@ export function Registrations() {
                     </div>
                   </TableCell>
                 </TableRow>
-                <CollapsibleContent asChild>
-                  <TableRow className="bg-muted/20 hover:bg-muted/20">
-                    <TableCell colSpan={8}>
-                      <section
-                        aria-label={`${r.name} 的成员`}
-                        className="py-1 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150"
-                      >
-                        <RegistrationMembersPanel
-                          apiBase={apiBase}
-                          team={r.team_id}
-                          open={expanded === r.team_id}
-                        />
-                      </section>
+                <CollapsibleContent asChild forceMount>
+                  <TableRow
+                    aria-hidden={expanded !== r.team_id || undefined}
+                    className="border-0 bg-muted/20 hover:bg-muted/20"
+                  >
+                    <TableCell colSpan={8} className="p-0">
+                      <MeasuredCollapse open={expanded === r.team_id}>
+                        <section
+                          aria-label={`${r.name} 的成员`}
+                          className="px-4 py-2"
+                        >
+                          <RegistrationMembersPanel
+                            apiBase={apiBase}
+                            team={r.team_id}
+                            open={expanded === r.team_id}
+                            count={r.member_count}
+                          />
+                        </section>
+                      </MeasuredCollapse>
                     </TableCell>
                   </TableRow>
                 </CollapsibleContent>

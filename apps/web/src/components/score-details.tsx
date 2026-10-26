@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { CategoryScore, Score, ScoreDetail } from "@/lib/types";
@@ -18,10 +18,11 @@ import {
 } from "./ui/table";
 import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import { Loading, Pagination, QueryState } from "./shared";
+import { Skeleton } from "./ui/skeleton";
 
-const ScoreRadar = lazy(() =>
-  import("./score-radar").then((m) => ({ default: m.ScoreRadar })),
-);
+const loadRadar = () =>
+  import("./score-radar").then((m) => ({ default: m.ScoreRadar }));
+const ScoreRadar = lazy(loadRadar);
 const PAGE_SIZE = 24;
 function strongest(categories: CategoryScore[]) {
   const maximum = Math.max(0, ...categories.map((c) => c.score));
@@ -44,6 +45,12 @@ export function ScoreDetails({
   group: string;
   onClose: () => void;
 }) {
+  const retained = useRef(row);
+  if (row) retained.current = row;
+  const displayed = row ?? retained.current;
+  useEffect(() => {
+    void loadRadar();
+  }, []);
   return (
     <Sheet
       open={!!row}
@@ -52,13 +59,13 @@ export function ScoreDetails({
       }}
     >
       <SheetContent
-        className="w-full gap-0 sm:max-w-3xl"
+        className="w-full gap-0 transition-none data-[state=open]:duration-300 data-[state=closed]:duration-200 [animation-timing-function:cubic-bezier(.22,1,.36,1)] motion-reduce:animate-none sm:max-w-3xl"
         aria-describedby={undefined}
       >
-        {row && (
+        {displayed && (
           <DetailContent
-            key={`${scope}:${group}:${row.id}`}
-            row={row}
+            key={`${scope}:${group}:${displayed.id}`}
+            row={displayed}
             scope={scope}
             group={group}
           />
@@ -138,12 +145,23 @@ function DetailContent({
         </dl>
       </SheetHeader>
       <ScrollArea className="min-h-0 flex-1 px-6 pb-6">
-        <QueryState
-          loading={data.isLoading}
-          error={data.error}
-          retry={() => void data.refetch()}
-        />
-        {detail && (
+        {data.isLoading ? (
+          <div aria-label="正在加载队伍详情" className="space-y-8 pb-6">
+            <Skeleton className="h-64 w-full" />
+            <div className="space-y-4">
+              {[0, 1, 2].map((n) => (
+                <Skeleton key={n} className="h-12 w-full" />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <QueryState
+            loading={false}
+            error={data.error}
+            retry={() => void data.refetch()}
+          />
+        )}
+        {detail && !data.error && (
           <div className="space-y-8 pb-6">
             {detail.details_limited && (
               <p className="text-sm text-muted-foreground">
