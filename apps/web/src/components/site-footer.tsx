@@ -25,6 +25,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { ContestFooterStatus } from "./contest-footer-status";
+import { PhaseCards } from "./contest-timing";
+import type { Phase } from "@/lib/competition";
 import { QueryState } from "./shared";
 
 const control =
@@ -197,6 +200,13 @@ function ResourceSummary({ scope, href }: { scope: string; href: string }) {
 
 function ContestSummary({ contest }: { contest: Contest }) {
   const [open, setOpen] = useState(false);
+  const timing = useAPI<{ phases: Phase[] }>(
+    `/contests/${contest.id}/timing`,
+    open &&
+      !!contest.registered &&
+      Object.values(contest.timing ?? {}).some((p) => p.mode !== "inherit"),
+    open ? 15000 : undefined,
+  );
   const review = contest.registration?.status;
   const registration =
     review === "pending"
@@ -230,7 +240,10 @@ function ContestSummary({ contest }: { contest: Contest }) {
           ...(contest.registration?.group_name
             ? [["组别", contest.registration.group_name]]
             : []),
-          ["报名战队", String(contest.teams)],
+          ["报名战队", String(contest.teams ?? 0)],
+          ...(contest.clock?.rounds
+            ? [["每轮时长", `${contest.clock.rounds.interval} 秒`]]
+            : []),
           ["开始", date(contest.starts_at)],
           ["结束", date(contest.ends_at)],
         ].map(([label, value]) => (
@@ -240,6 +253,11 @@ function ContestSummary({ contest }: { contest: Contest }) {
           </div>
         ))}
       </dl>
+      {timing.data && (
+        <div className="mt-4 border-t pt-4">
+          <PhaseCards scope={contest.id} phases={timing.data.phases} compact />
+        </div>
+      )}
       <Button variant="secondary" className="mt-4 w-full" asChild>
         <Link to={`/contests/${contest.id}`} onClick={() => setOpen(false)}>
           比赛概览
@@ -339,7 +357,7 @@ export function SiteFooter({
     >
       <div className="mx-auto flex h-full max-w-[1680px] items-center gap-1 px-3 sm:gap-3 sm:px-6 lg:px-10">
         <span
-          className="mr-1 min-w-0 max-w-52 truncate"
+          className={`mr-1 min-w-0 max-w-52 truncate ${contestId ? "hidden xl:block" : ""}`}
           title={site.footer_text || site.name}
         >
           {site.footer_text || site.name}
@@ -351,7 +369,7 @@ export function SiteFooter({
         </span>
         {site.footer_link_url && site.footer_link_label && (
           <a
-            className="hidden max-w-36 truncate hover:text-foreground md:block"
+            className={`hidden max-w-36 truncate hover:text-foreground ${contestId ? "2xl:block" : "md:block"}`}
             href={site.footer_link_url}
             target="_blank"
             rel="noopener noreferrer"
@@ -371,8 +389,31 @@ export function SiteFooter({
             href={contestId ? `/contests/${contestId}/instances` : "/instances"}
           />
         )}
+        {current?.registration?.team_name && (
+          <span
+            className="hidden min-w-0 max-w-56 truncate lg:block"
+            title={[
+              current.registration.team_name,
+              current.registration.group_name,
+            ]
+              .filter(Boolean)
+              .join(" / ")}
+          >
+            {current.registration.team_name}
+            {current.registration.group_name && (
+              <span className="ml-3">{current.registration.group_name}</span>
+            )}
+          </span>
+        )}
         <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
-          <FooterClock contest={current} />
+          {current ? (
+            <ContestFooterStatus
+              contest={current}
+              receivedAt={contest.dataUpdatedAt}
+            />
+          ) : (
+            !contestId && <FooterClock />
+          )}
           <Button
             variant="ghost"
             className={`${control} hidden sm:inline-flex`}

@@ -1,8 +1,14 @@
+import { useRef, useState } from "react";
 import { Medal } from "lucide-react";
 import type { ChallengeBlood } from "@/lib/types";
 import { bloodColors, bloodLabels } from "@/lib/scoreboard";
 import { Button } from "./ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "./ui/tooltip";
 
 export function ChallengeBloods({
   title,
@@ -11,53 +17,68 @@ export function ChallengeBloods({
   title: string;
   bloods?: ChallengeBlood[];
 }) {
+  const [opened, setOpened] = useState<number | null>(null);
+  const touch = useRef(false);
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1.5 px-1.5 hover:bg-transparent"
-          aria-label={`查看 ${title} 三血`}
-        >
-          {bloodLabels.map((label, i) => (
-            <Medal
+    <TooltipProvider>
+      <span
+        className="inline-flex shrink-0 items-center gap-0.5"
+        role="group"
+        aria-label={`${title} 三血`}
+      >
+        {bloodLabels.map((label, index) => {
+          const blood = bloods.find((b) => b.rank === index + 1);
+          return (
+            <Tooltip
               key={label}
-              className={`size-4 ${bloods.some((b) => b.rank === i + 1) ? bloodColors[i] : "text-muted-foreground/30"}`}
-              aria-hidden
-            />
-          ))}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-72 space-y-4">
-        <h3 className="break-words text-sm font-medium">{title}</h3>
-        <ol className="space-y-3">
-          {bloodLabels.map((label, i) => {
-            const b = bloods.find((b) => b.rank === i + 1);
-            return (
-              <li key={label} className="flex items-center gap-3 text-sm">
-                <Medal className={`size-5 shrink-0 ${bloodColors[i]}`} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground">{label}</span>
-                    <span className="min-w-0 break-words font-medium">
-                      {b?.name ?? "暂无"}
-                    </span>
-                  </div>
-                  {b && (
-                    <time
-                      className="text-xs text-muted-foreground"
-                      dateTime={b.created_at}
-                    >
-                      {new Date(b.created_at).toLocaleString()}
-                    </time>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      </PopoverContent>
-    </Popover>
+              delayDuration={120}
+              open={opened === index}
+              onOpenChange={(open) =>
+                setOpened((old) => (open ? index : old === index ? null : old))
+              }
+            >
+              <TooltipTrigger asChild>
+                <Button
+                  onPointerDown={(event) => {
+                    touch.current = event.pointerType === "touch";
+                  }}
+                  onClick={(event) => {
+                    if (touch.current) {
+                      event.preventDefault();
+                      setOpened((old) => (old === index ? null : index));
+                    }
+                  }}
+                  variant="ghost"
+                  size="icon-xs"
+                  className="size-6 shrink-0 rounded-sm p-0 hover:bg-transparent dark:hover:bg-transparent"
+                  aria-label={`${title} ${label}：${blood?.name ?? "暂无"}`}
+                >
+                  <Medal
+                    className={`size-4 ${blood ? bloodColors[index] : "text-muted-foreground/30"}`}
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                sideOffset={6}
+                className="max-w-64 space-y-1 text-left"
+              >
+                <p className="break-words font-medium">
+                  {label} {blood?.name ?? "暂无"}
+                </p>
+                {blood && (
+                  <time
+                    dateTime={blood.created_at}
+                    className="block tabular-nums opacity-80"
+                  >
+                    {new Date(blood.created_at).toLocaleString()}
+                  </time>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </span>
+    </TooltipProvider>
   );
 }

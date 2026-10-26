@@ -72,6 +72,27 @@ async function render(
     total: 1,
   });
   cache.setQueryData([`/challenges/${id}?scope=${scope}`], c);
+  if (options.challenge?.challenge_type === "objective") {
+    cache.setQueryData([`/contests/${scope}/objective-paper`], {
+      server_time: new Date().toISOString(),
+      items: [
+        {
+          ...c,
+          permissions: { submit: registered },
+          saved: {
+            answer: {},
+            correct: null,
+            finalized_at: null,
+            revision: null,
+          },
+        },
+      ],
+      preview: !registered,
+      can_submit: registered,
+      practice: false,
+      phase: { section: "objective", mode: "inherit", status: "active" },
+    });
+  }
   cache.setQueryData([`/contests/${contestId}`], {
     id: contestId,
     title: "测试赛事",
@@ -262,7 +283,9 @@ test("objective preview uses the same registration notice instead of answer cont
     },
   );
   assert(html.includes("报名比赛后即可作答"));
-  assert(!html.includes('role="radiogroup"'));
+  assert(html.includes('role="radiogroup"'), "preview shows the full paper");
+  assert(html.includes('disabled=""'), "preview cannot change answers");
+  assert(!html.includes("提交答卷"));
   assert(!html.includes("确认提交"));
 });
 

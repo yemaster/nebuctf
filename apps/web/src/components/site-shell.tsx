@@ -19,7 +19,6 @@ import { useContestCapabilities } from "@/lib/contest-access";
 import { cn } from "@/lib/utils";
 import { ThemeSettings } from "./theme-provider";
 import { NavigationIndicator } from "./navigation-indicator";
-import { ContestClockLine } from "./contest-clock";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -215,12 +214,6 @@ export function SiteHeader({
           )}
         >
           <span className="block truncate">{title}</span>
-          {contestId && contest.data?.clock && (
-            <ContestClockLine
-              clock={contest.data.clock}
-              receivedAt={contest.dataUpdatedAt}
-            />
-          )}
         </Link>
         <nav
           key={contestId ?? "main"}

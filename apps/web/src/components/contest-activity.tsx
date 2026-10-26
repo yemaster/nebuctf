@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { m, useReducedMotion } from "motion/react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   Activity,
   BellRing,
@@ -63,6 +63,11 @@ export function ContestActivity({
   user: User | null;
   hidden?: boolean;
 }) {
+  const location = useLocation(),
+    [params] = useSearchParams();
+  const paper =
+    location.pathname.endsWith("/challenges") &&
+    params.get("challenge") === "objective";
   const contest = useAPI<Contest>(`/contests/${scope}`);
   const access = useContestCapabilities(contest.data, user);
   if (!access.activity || !user) return null;
@@ -73,6 +78,7 @@ export function ContestActivity({
       userId={user.id}
       canOpen={access.challenges}
       hidden={hidden}
+      paper={paper}
     />
   );
 }
@@ -81,15 +87,18 @@ function ActivityPanel({
   userId,
   canOpen,
   hidden,
+  paper,
 }: {
   scope: string;
   userId: string;
   canOpen: boolean;
   hidden: boolean;
+  paper: boolean;
 }) {
   const key = `nebuctf-activity:${userId}:${scope}`;
   const reduced = useReducedMotion();
   const [open, setOpen] = useState(() => {
+    if (paper) return false;
     try {
       const stored = localStorage.getItem(key);
       if (stored !== null) return stored === "open";
@@ -99,6 +108,9 @@ function ActivityPanel({
       window.matchMedia("(min-width: 1024px)").matches
     );
   });
+  useEffect(() => {
+    if (paper) setOpen(false);
+  }, [paper]);
   const data = useContestRealtime(scope);
   const seen = useRef<Set<string> | null>(null);
   const [unread, setUnread] = useState(0);
@@ -168,7 +180,7 @@ function ActivityPanel({
         initial={false}
         animate={{ width: open ? 384 : newHints ? 288 : 224 }}
         transition={{ duration: reduced ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
-        className={`fixed right-4 bottom-14 z-30 max-w-[calc(100vw-2rem)] sm:right-6 ${hidden ? "invisible" : ""}`}
+        className={`fixed right-4 ${paper ? "bottom-40 sm:bottom-32" : "bottom-14"} z-30 max-w-[calc(100vw-2rem)] sm:right-6 ${hidden ? "invisible" : ""}`}
       >
         <Card className="gap-0 overflow-hidden py-0 shadow-lg">
           <CollapsibleTrigger asChild>

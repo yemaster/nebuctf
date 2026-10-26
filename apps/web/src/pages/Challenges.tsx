@@ -1,5 +1,11 @@
+import {
+  ObjectivePaper,
+  ObjectiveNavigation,
+} from "@/components/objective-paper";
+import { useObjectivePaper } from "@/lib/use-objective-paper";
+import { OBJECTIVE_PAPER } from "@/lib/objective-paper";
+import { activateFromRow } from "@/lib/row-action";
 import { PhaseCards } from "@/components/contest-timing";
-import { ContestClockSummary } from "@/components/contest-clock";
 import type { ContestClock } from "@/lib/contest-clock";
 import { ChallengeBloods } from "@/components/challenge-bloods";
 import type { Phase } from "@/lib/competition";
@@ -112,6 +118,7 @@ function ChallengeBrowser({
   }
   const setPage = (value: number) => filter({ page: String(value) });
   const [mobile, setMobile] = useState(false);
+  const [expanded, setExpanded] = useState(["客观题", ...categories]);
   const [opened, setOpened] = useState<OpenChallenge[]>([]);
   const data = useAPI<{
     items: Challenge[];
@@ -120,6 +127,7 @@ function ChallengeBrowser({
     title?: string;
     phases?: Phase[];
     clock?: ContestClock | null;
+    objective_count?: number;
   }>(
     problemset
       ? `/problemsets/${encodeURIComponent(problemset)}?page=${page}${q ? `&q=${encodeURIComponent(q)}` : ""}${category ? `&category=${encodeURIComponent(category)}` : ""}`
@@ -133,11 +141,27 @@ function ChallengeBrowser({
     : null;
   const returnTo = returnToSet ?? returnToTree;
   const returnLabel = returnToSet ? "返回题单" : "返回技能树";
-  const requested = params.get("challenge");
+  const objectiveCount =
+    data.data?.objective_count ??
+    data.data?.items.filter((q) => q.challenge_type === "objective").length ??
+    0;
+  const rawRequested = params.get("challenge");
+  const legacyObjective =
+    scope !== "practice" &&
+    !!data.data?.items.some(
+      (c) => c.id === rawRequested && c.challenge_type === "objective",
+    );
+  const requested = legacyObjective ? OBJECTIVE_PAPER : rawRequested;
+  const paperFocus =
+    params.get("question") ?? (legacyObjective ? rawRequested : null);
   const routeSelection =
     requested ??
     (scope !== "practice" || problemset
-      ? (data.data?.items[0]?.id ?? null)
+      ? scope !== "practice" &&
+        data.data?.items[0]?.challenge_type === "objective"
+        ? OBJECTIVE_PAPER
+        : (data.data?.items[0]?.id ??
+          (scope !== "practice" && objectiveCount > 0 ? OBJECTIVE_PAPER : null))
       : null);
   function selectionParams(previous: URLSearchParams, id: string | null) {
     const next = new URLSearchParams(previous);
@@ -146,6 +170,7 @@ function ChallengeBrowser({
     else next.delete("q");
     if (category) next.set("category", category);
     else next.delete("category");
+    if (id !== OBJECTIVE_PAPER) next.delete("question");
     if (id) next.set("challenge", id);
     else next.delete("challenge");
     return next;
@@ -170,11 +195,30 @@ function ChallengeBrowser({
       { replace: true },
     );
   }, [scope, problemset, requested, selected, setParams]);
+  const paper = useObjectivePaper(
+    scope,
+    scope !== "practice" &&
+      (objectiveCount > 0 || selected === OBJECTIVE_PAPER),
+    selected === OBJECTIVE_PAPER,
+  );
+  const selectObjective = (id: string) => {
+    setParams((previous) => {
+      const next = selectionParams(previous, OBJECTIVE_PAPER);
+      next.set("question", id);
+      return next;
+    });
+    setMobile(false);
+    requestAnimationFrame(() =>
+      document
+        .getElementById(`paper-question-${id}`)
+        ?.scrollIntoView?.({ block: "start", behavior: "instant" }),
+    );
+  };
   const detail = useAPI<Challenge>(
     `/challenges/${selected}?scope=${scope}`,
-    !!selected,
+    !!selected && selected !== OBJECTIVE_PAPER,
   );
-  const groups = ["客观题", ...categories]
+  const groups = [...(scope === "practice" ? ["客观题"] : []), ...categories]
     .map((name) => ({
       name,
       items:
@@ -186,6 +230,14 @@ function ChallengeBrowser({
     }))
     .filter((g) => g.items.length);
   useEffect(() => {
+    if (selected === OBJECTIVE_PAPER) {
+      setOpened((previous) =>
+        previous.some((item) => item.id === OBJECTIVE_PAPER)
+          ? previous
+          : [...previous, { id: OBJECTIVE_PAPER, title: "客观题" }],
+      );
+      return;
+    }
     if (!detail.data || detail.data.id !== selected) return;
     const c = detail.data;
     setOpened((previous) =>
@@ -204,7 +256,10 @@ function ChallengeBrowser({
           {
             id: selected,
             title:
-              data.data?.items.find((c) => c.id === selected)?.title ?? "题目",
+              selected === OBJECTIVE_PAPER
+                ? "客观题"
+                : (data.data?.items.find((c) => c.id === selected)?.title ??
+                  "题目"),
           },
         ]
       : opened;
@@ -215,20 +270,6 @@ function ChallengeBrowser({
   };
   const directory = (
     <>
-      {data.data?.clock && (
-        <div className="px-5 pb-5">
-          <ContestClockSummary
-            clock={data.data.clock}
-            receivedAt={data.dataUpdatedAt}
-          />
-        </div>
-      )}
-      {scope !== "practice" &&
-        data.data?.phases?.some((p) => p.mode !== "inherit") && (
-          <div className="px-5 pb-5">
-            <PhaseCards scope={scope} phases={data.data.phases} compact />
-          </div>
-        )}
       <form
         className="px-5 pb-4"
         role="search"
@@ -287,7 +328,63 @@ function ChallengeBrowser({
               ))}
             </div>
           ) : (
-            <Accordion type="multiple" defaultValue={categories}>
+            <Accordion
+              type="multiple"
+              value={expanded}
+              onValueChange={setExpanded}
+            >
+              {scope !== "practice" &&
+                (objectiveCount > 0 || selected === OBJECTIVE_PAPER) && (
+                  <AccordionItem value="客观题" className="border-0">
+                    <AccordionTrigger
+                      className="px-2 py-4"
+                      onClick={(event) => {
+                        if (selected !== OBJECTIVE_PAPER) {
+                          event.preventDefault();
+                          setExpanded((old) =>
+                            old.includes("客观题") ? old : [...old, "客观题"],
+                          );
+                          select(OBJECTIVE_PAPER);
+                        }
+                      }}
+                    >
+                      客观题
+                      <span className="ml-auto mr-2 text-xs font-normal tabular-nums text-muted-foreground">
+                        {objectiveCount}
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      {paper.query.data?.items.length ? (
+                        <ObjectiveNavigation
+                          model={paper}
+                          active={
+                            selected === OBJECTIVE_PAPER
+                              ? (paperFocus ??
+                                paper.query.data?.items[0]?.id ??
+                                null)
+                              : null
+                          }
+                          onSelect={selectObjective}
+                        />
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start"
+                          onClick={() => {
+                            select(OBJECTIVE_PAPER);
+                            if (paper.query.error) void paper.query.refetch();
+                          }}
+                        >
+                          {paper.query.isLoading
+                            ? "正在读取答卷"
+                            : paper.query.error
+                              ? "重新读取答卷"
+                              : "查看答卷"}
+                        </Button>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
               {groups.map((group) => (
                 <AccordionItem
                   key={group.name}
@@ -312,7 +409,9 @@ function ChallengeBrowser({
               ))}
             </Accordion>
           )}
-          {data.data?.items.length === 0 && <Empty>没有符合条件的题目</Empty>}
+          {data.data?.items.length === 0 && !objectiveCount && (
+            <Empty>没有符合条件的题目</Empty>
+          )}
           {scope === "practice" && (
             <Pagination
               page={page}
@@ -405,7 +504,9 @@ function ChallengeBrowser({
           }
         />
       )}
-      {data.data?.items.length === 0 && <Empty>没有符合条件的题目</Empty>}
+      {data.data?.items.length === 0 && !objectiveCount && (
+        <Empty>没有符合条件的题目</Empty>
+      )}
       <Pagination
         page={page}
         setPage={setPage}
@@ -595,14 +696,24 @@ function ChallengeBrowser({
                   forceMount
                   className="min-h-0 flex-1 data-[state=inactive]:hidden"
                 >
-                  <ChallengeWorkspace
-                    id={c.id}
-                    scope={scope}
-                    active={selected === c.id}
-                    solved={
-                      data.data?.items.find((item) => item.id === c.id)?.solved
-                    }
-                  />
+                  {c.id === OBJECTIVE_PAPER ? (
+                    <ObjectivePaper
+                      scope={scope}
+                      model={paper}
+                      focus={paperFocus}
+                      active={selected === OBJECTIVE_PAPER}
+                    />
+                  ) : (
+                    <ChallengeWorkspace
+                      id={c.id}
+                      scope={scope}
+                      active={selected === c.id}
+                      solved={
+                        data.data?.items.find((item) => item.id === c.id)
+                          ?.solved
+                      }
+                    />
+                  )}
                 </TabsContent>
               ))}
               {!selected && (
@@ -647,92 +758,120 @@ function DirectoryItem({
   useEffect(() => {
     if (selected === c.id) setOpen(true);
   }, [selected, c.id]);
+  const activate = () => {
+    setOpen(true);
+    select(c.id);
+  };
+  const multipart = !!c.parts?.length;
   return (
     <Collapsible
       open={open}
       onOpenChange={setOpen}
-      className={selected === c.id ? "rounded-lg bg-secondary/70" : ""}
+      className={
+        selected === c.id ? "rounded-lg bg-secondary/70" : "rounded-lg"
+      }
     >
-      <div className="flex items-center">
-        <Button
-          variant="ghost"
-          className="h-auto min-h-16 min-w-0 flex-1 justify-start gap-3 px-3 py-3 font-normal"
-          onClick={() => {
-            setOpen(true);
-            select(c.id);
-          }}
-          aria-current={selected === c.id ? "true" : undefined}
-        >
-          {c.solved ? (
-            <CheckCircle2 className="text-success" aria-label="已解出" />
-          ) : c.solved_parts > 0 ? (
-            <CircleDashed className="size-4 text-primary" />
-          ) : (
-            <Circle className="size-4 text-muted-foreground" />
-          )}
-          <span className="min-w-0 flex-1 space-y-1 text-left">
-            <span className="block truncate">{c.title}</span>
-            <span className="block text-xs text-muted-foreground">
-              {c.total_parts > 1
-                ? `${c.solved_parts} / ${c.total_parts} 小题，${c.solves} ${contest ? "队全部解出" : "人全部解出"}`
-                : c.challenge_type === "awd"
-                  ? "AWD 对抗"
-                  : `${c.solves} ${contest ? "队解出" : "人解出"}`}
-            </span>
-          </span>
-          <span
-            className="text-sm tabular-nums text-muted-foreground"
-            aria-label={`${c.points} 分`}
+      <div
+        className="cursor-pointer py-1"
+        onClick={(event) => activateFromRow(event, activate)}
+      >
+        <div className="flex items-center pr-2">
+          <Button
+            variant="ghost"
+            className="h-auto min-h-10 min-w-0 flex-1 justify-start gap-3 px-3 py-2 font-normal hover:bg-transparent"
+            onClick={activate}
+            aria-current={selected === c.id ? "true" : undefined}
           >
-            {c.points}
-          </span>
-        </Button>
-        {c.parts?.length > 0 && (
-          <CollapsibleTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="mr-2 shrink-0 [&[data-state=open]>svg]:rotate-180"
-              aria-label={`${c.title} 小题展开或折叠`}
+            {c.solved ? (
+              <CheckCircle2
+                className="size-4 shrink-0 text-success"
+                aria-label="已解出"
+              />
+            ) : c.solved_parts > 0 ? (
+              <CircleDashed className="size-4 shrink-0 text-primary" />
+            ) : (
+              <Circle className="size-4 shrink-0 text-muted-foreground" />
+            )}
+            <span className="min-w-0 flex-1 truncate text-left" title={c.title}>
+              {c.title}
+            </span>
+            <span
+              className="min-w-8 shrink-0 text-right tabular-nums text-muted-foreground"
+              aria-label={`${c.points} 分`}
             >
-              <ChevronDown className="transition-transform" />
-            </Button>
-          </CollapsibleTrigger>
+              {c.points}
+            </span>
+          </Button>
+          {multipart ? (
+            <CollapsibleTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="size-6 shrink-0 [&[data-state=open]>svg]:rotate-180"
+                aria-label={`${c.title} 小题展开或折叠`}
+              >
+                <ChevronDown className="motion-safe:transition-transform" />
+              </Button>
+            </CollapsibleTrigger>
+          ) : (
+            <span className="w-6 shrink-0" aria-hidden />
+          )}
+        </div>
+        {c.challenge_type !== "objective" && (
+          <div className="flex min-h-7 items-center justify-between gap-2 pl-10 pr-3 pb-1 text-xs text-muted-foreground">
+            <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
+              {multipart && (
+                <span>
+                  {c.solved_parts}/{c.total_parts} 小题
+                </span>
+              )}
+              <span>
+                {c.challenge_type === "awd"
+                  ? "AWD 对抗"
+                  : `${c.solves} ${contest ? "队" : "人"}${multipart ? "全部解出" : "解出"}`}
+              </span>
+            </span>
+            {contest && !multipart && c.challenge_type !== "awd" && (
+              <ChallengeBloods title={c.title} bloods={c.bloods} />
+            )}
+          </div>
         )}
       </div>
-      {contest && !c.parts?.length && c.challenge_type !== "awd" && (
-        <div className="-mt-2 flex justify-end px-3 pb-2">
-          <ChallengeBloods title={c.title} bloods={c.bloods} />
-        </div>
-      )}
-      {c.parts?.length > 0 && (
+      {multipart && (
         <CollapsibleContent>
           <ul
             aria-label={`${c.title} 小题进度`}
-            className="space-y-0.5 pb-3 pl-9 pr-2"
+            className="space-y-1 pb-2 pl-7 pr-2"
           >
             {c.parts.map((part) => (
-              <li key={part.id}>
+              <li
+                key={part.id}
+                className="cursor-pointer"
+                onClick={(event) => activateFromRow(event, () => select(c.id))}
+              >
                 <Button
                   variant="ghost"
-                  className="h-auto min-h-8 w-full justify-start gap-2 px-2 py-1.5 text-xs font-normal"
+                  className="h-auto min-h-8 w-full justify-start gap-2 px-3 py-1.5 text-xs font-normal hover:bg-transparent"
                   onClick={() => select(c.id)}
                   aria-label={`${part.title} ${part.solved ? "已通过" : "未通过"}`}
                 >
                   {part.solved ? (
-                    <CheckCircle2 className="size-3.5 text-success" />
+                    <CheckCircle2 className="size-3.5 shrink-0 text-success" />
                   ) : (
-                    <Circle className="size-3.5 text-muted-foreground" />
+                    <Circle className="size-3.5 shrink-0 text-muted-foreground" />
                   )}
-                  <span className="min-w-0 flex-1 truncate text-left">
+                  <span
+                    className="min-w-0 flex-1 truncate text-left"
+                    title={part.title}
+                  >
                     {part.title}
                   </span>
-                  <span className="tabular-nums text-muted-foreground">
+                  <span className="min-w-8 pr-6 text-right tabular-nums text-muted-foreground">
                     {part.points}
                   </span>
                 </Button>
                 {contest && (
-                  <div className="flex items-center justify-between gap-2 pl-7 pr-2 text-xs text-muted-foreground">
+                  <div className="flex min-h-6 items-center justify-between gap-2 pl-8 pr-1 text-xs text-muted-foreground">
                     <span>{part.solves} 队解出</span>
                     <ChallengeBloods title={part.title} bloods={part.bloods} />
                   </div>

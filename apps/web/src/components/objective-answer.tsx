@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { m, useAnimationControls, useReducedMotion } from "motion/react";
 import { api, useAPI, useAction } from "@/lib/api";
 import type { Objective } from "@/lib/competition";
-import { Field, QueryState } from "./shared";
-import { Input } from "./ui/input";
-import { Checkbox } from "./ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { ObjectiveFields } from "./objective-fields";
+import { QueryState } from "./shared";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -91,71 +89,12 @@ export function ObjectiveAnswer({
         retry={() => void query.refetch()}
       />
       <m.div animate={shake}>
-        <fieldset
+        <ObjectiveFields
+          definition={v}
+          answer={answer}
+          onChange={setAnswer}
           disabled={locked || submit.isPending || query.isLoading}
-          className="space-y-3"
-        >
-          {v.type === "blank" ? (
-            v.blanks.map((b) => (
-              <Field key={b.id} label={b.label}>
-                <Input
-                  maxLength={500}
-                  value={answer.blanks?.[b.id] ?? ""}
-                  onChange={(e) =>
-                    setAnswer({
-                      ...answer,
-                      blanks: { ...answer.blanks, [b.id]: e.target.value },
-                    })
-                  }
-                />
-              </Field>
-            ))
-          ) : v.type === "single" ? (
-            <RadioGroup
-              aria-label="单选答案"
-              disabled={locked || submit.isPending || query.isLoading}
-              value={answer.choices?.[0] ?? ""}
-              onValueChange={(choice) => setAnswer({ choices: [choice] })}
-            >
-              {v.options.map((o) => (
-                <label
-                  key={o.id}
-                  className="flex cursor-pointer items-start gap-3 rounded-md bg-muted/40 p-4 has-[[data-state=checked]]:bg-accent"
-                >
-                  <RadioGroupItem className="mt-0.5" value={o.id} />
-                  <span className="text-sm font-medium">{o.id}</span>
-                  <span className="min-w-0 whitespace-pre-wrap break-words text-sm">
-                    {o.text}
-                  </span>
-                </label>
-              ))}
-            </RadioGroup>
-          ) : (
-            v.options.map((o) => (
-              <label
-                key={o.id}
-                className="flex cursor-pointer items-start gap-3 rounded-md bg-muted/40 p-4 has-[[data-state=checked]]:bg-accent"
-              >
-                <Checkbox
-                  className="mt-0.5"
-                  disabled={locked || submit.isPending || query.isLoading}
-                  checked={answer.choices?.includes(o.id) ?? false}
-                  onCheckedChange={(yes) =>
-                    setAnswer({
-                      choices: yes
-                        ? [...(answer.choices ?? []), o.id]
-                        : (answer.choices ?? []).filter((id) => id !== o.id),
-                    })
-                  }
-                />
-                <span className="text-sm font-medium">{o.id}</span>
-                <span className="min-w-0 whitespace-pre-wrap break-words text-sm">
-                  {o.text}
-                </span>
-              </label>
-            ))
-          )}
-        </fieldset>
+        />
       </m.div>
       {!locked && (
         <div className="flex justify-end gap-3">

@@ -5,7 +5,7 @@ import { Progress } from "./ui/progress";
 import { Badge } from "./ui/badge";
 
 export function useContestNow(
-  clock: ContestClock | null | undefined,
+  clock: Pick<ContestClock, "server_time"> | null | undefined,
   receivedAt?: number,
 ) {
   const offset = useMemo(
