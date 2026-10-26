@@ -1,11 +1,7 @@
 import { useMemo } from "react";
 import { Check, Minus } from "lucide-react";
 import type { Score, ScoreCell, ScoreColumn } from "@/lib/types";
-import {
-  bloodColors,
-  bloodLabels,
-  categoryHeaderColors,
-} from "@/lib/scoreboard";
+import { bloodLabels, categoryHeaderColors } from "@/lib/scoreboard";
 import { date } from "@/lib/utils";
 import { activateFromRow } from "@/lib/row-action";
 import { Button } from "./ui/button";
@@ -198,9 +194,7 @@ export function ScoreboardTable({
                       onClick={() => onSelect(row)}
                       aria-label={`查看${row.name}的解题详情`}
                     >
-                      <span
-                        className={`w-9 shrink-0 text-center tabular-nums ${row.rank <= 3 ? bloodColors[row.rank - 1] : "text-muted-foreground"}`}
-                      >
+                      <span className="w-9 shrink-0 text-center tabular-nums text-muted-foreground">
                         {row.rank}
                         {grouped && row.overall_rank != null && (
                           <span className="block text-[11px] font-normal text-muted-foreground">

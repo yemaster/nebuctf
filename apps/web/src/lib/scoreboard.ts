@@ -37,10 +37,11 @@ export function scoreTimelineRows(
 }
 
 export const bloodLabels = ["一血", "二血", "三血"];
+// GZCTF SubmissionTypeColorMap with its custom gray palette and Mantine colors.
 export const bloodColors = [
-  "text-amber-600 dark:text-amber-400",
-  "text-slate-500 dark:text-slate-300",
-  "text-orange-700 dark:text-orange-400",
+  "text-[#fcc419]",
+  "text-[#a6a6a6] dark:text-[#cacaca]",
+  "text-[#f98539] dark:text-[#b94d05]",
 ];
 
 // Keep category hues subtle against the table surface in both themes.

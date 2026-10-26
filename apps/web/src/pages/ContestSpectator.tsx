@@ -12,7 +12,6 @@ import {
   LockKeyhole,
   WifiOff,
   ArrowLeft,
-  Trophy,
   Flag,
   Swords,
   Bell,
@@ -30,6 +29,7 @@ import {
   type SpectatorEvent,
 } from "@/lib/spectator";
 import { Button } from "@/components/ui/button";
+import { BloodMark } from "@/components/blood-mark";
 import { Badge } from "@/components/ui/badge";
 import {
   NativeSelect,
@@ -359,9 +359,8 @@ function EventFeed({
         aria-live="off"
       >
         {events.map((event) => {
-          const Icon = event.blood_rank
-            ? Trophy
-            : event.type === "attack"
+          const Icon =
+            event.type === "attack"
               ? Swords
               : event.type === "solve"
                 ? Flag
@@ -374,9 +373,13 @@ function EventFeed({
               transition={{ duration: reduced ? 0 : 0.24 }}
               className="flex items-start gap-3 py-2.5"
             >
-              <Icon
-                className={`mt-1 size-4 shrink-0 ${event.blood_rank ? "text-warning" : event.type === "attack" ? "text-destructive" : "text-primary"}`}
-              />
+              {event.blood_rank ? (
+                <BloodMark rank={event.blood_rank} className="mt-1 size-4" />
+              ) : (
+                <Icon
+                  className={`mt-1 size-4 shrink-0 ${event.type === "attack" ? "text-destructive" : "text-primary"}`}
+                />
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex justify-between gap-2">
                   <span className="text-xs font-medium">

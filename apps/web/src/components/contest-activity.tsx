@@ -311,12 +311,7 @@ function ActivityPanel({
                             <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
                               <span>
                                 {blood ? (
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-warning"
-                                  >
-                                    {blood}
-                                  </Badge>
+                                  <Badge variant="secondary">{blood}</Badge>
                                 ) : (
                                   {
                                     release: "题目上线",

@@ -441,4 +441,14 @@ PDF 通过现有管理员文件接口鉴权读取，预览携带版本号；文�
 
 核对 GZCTF 的 [Shared 分类及提交标记配置](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/utils/Shared.tsx) 和 [ScoreboardTable](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/ScoreboardTable.tsx)：Web 蓝、Pwn 红、Reverse 黄、Crypto 紫、Misc 青绿、Forensics 靛蓝。沿用这组语义映射，以 Tailwind 现有色阶混入表格底色：分类底色使用 10% 色彩，文字使用带少量色相的灰色，亮暗主题分别配置；避免大面积鲜艳色块，不改变分类合并范围与题目表头。
 
-三血统一使用 `@mdi/js` 的 `mdiHexagonSlice6`、`mdiHexagonSlice4`、`mdiHexagonSlice2` 和官方 `@mdi/react` 渲染器；通过共享 BloodMark 组件覆盖排行榜、图例、赛题目录与比赛动态。只导入三枚图标，不使用图标字体，不手绘路径。颜色继续区分金、银、铜，保留悬停、触屏、键盘与无障碍名称。
+三血统一使用 `@mdi/js` 的 `mdiHexagonSlice6`、`mdiHexagonSlice4`、`mdiHexagonSlice2` 和官方 `@mdi/react` 渲染器；通过共享 BloodMark 组件覆盖排行榜、图例、赛题目录、比赛动态与观战动态。只导入三枚图标，不使用图标字体，不手绘路径。保留悬停、触屏、键盘与无障碍名称。
+
+三血颜色按 GZCTF `SubmissionTypeColorMap`、[自定义灰阶](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/utils/ThemeOverride.ts) 和 [Mantine 默认色板](https://github.com/mantinedev/mantine/blob/master/packages/%40mantine/core/src/core/MantineProvider/default-colors.ts) 的实际值配置，颜色不随平台主题色改变：
+
+| 标记 | 亮色 | 暗色 |
+| --- | --- | --- |
+| 一血 | `#fcc419` | `#fcc419` |
+| 二血 | `#a6a6a6` | `#cacaca` |
+| 三血 | `#f98539` | `#b94d05` |
+
+二血由 `gray[1]` 压暗 20% / `gray[2]` 提亮 30%，三血由 `orange[7]` 提亮 20% / 压暗 25%，按 Mantine 的 RGB 四舍五入规则计算。金银铜只用于三血图标，排名数字和动态标签使用常规文字色，避免小字号文字对比度不足。
