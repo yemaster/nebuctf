@@ -185,9 +185,9 @@ export function Registrations() {
               open={expanded === r.team_id}
               onOpenChange={(open) => setExpanded(open ? r.team_id : null)}
             >
-              <TableBody className="border-b last:border-b-0 [&>tr>td]:px-4 [&>tr>td]:py-3">
+              <TableBody className="border-b last:border-b-0">
                 <TableRow
-                  className="cursor-pointer"
+                  className="cursor-pointer [&>td]:px-4 [&>td]:py-3"
                   onClick={(event) =>
                     activateFromRow(event, () =>
                       setExpanded(expanded === r.team_id ? null : r.team_id),

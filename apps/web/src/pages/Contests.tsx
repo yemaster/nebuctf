@@ -305,14 +305,18 @@ export function ContestDetail() {
                       </Link>
                     </Button>
                   )}
-                  {access.challenges ? (
+                  {access.challenges && !c.registered && (
+                    <Button variant="secondary" asChild>
+                      <Link to={`/contests/${id}/challenges`}>
+                        预览赛题
+                        <ArrowRight />
+                      </Link>
+                    </Button>
+                  )}
+                  {access.challenges && c.registered ? (
                     <Button asChild>
                       <Link to={`/contests/${id}/challenges`}>
-                        {access.practice
-                          ? "进入练习"
-                          : c.registered
-                            ? "进入赛场"
-                            : "预览赛题"}
+                        {access.practice ? "进入练习" : "进入赛场"}
                         <ArrowRight />
                       </Link>
                     </Button>

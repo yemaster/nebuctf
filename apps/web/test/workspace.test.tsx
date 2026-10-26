@@ -49,7 +49,11 @@ async function render(
   phase: "active" | "before" | "after" = "active",
   permissions?: Record<string, boolean>,
   groups: any[] = [],
-  options: { role?: string; challenge?: Record<string, unknown> } = {},
+  options: {
+    role?: string;
+    challenge?: Record<string, unknown>;
+    contest?: Record<string, unknown>;
+  } = {},
 ) {
   const cache = new QueryClient({
     defaultOptions: {
@@ -109,6 +113,7 @@ async function render(
     registration: registered
       ? { team_name: "测试战队", group_name: "公开组" }
       : null,
+    ...options.contest,
   });
   cache.setQueryData(["/teams/mine"], { items: [] });
   try {
@@ -215,6 +220,51 @@ test("unregistered contest visitors see public navigation and registration, not 
   assert.ok(html.includes("战队报名"));
   assert.ok(html.includes('aria-label="账户菜单"'));
   assert.ok(html.indexOf("返回大厅") < html.indexOf('aria-label="账户菜单"'));
+});
+test("staff preview does not hide team registration or bypass registration restrictions", async () => {
+  for (const phase of ["before", "active", "after"] as const) {
+    const html = await render(
+      `/contests/${contestId}`,
+      false,
+      contestId,
+      false,
+      phase,
+      undefined,
+      [],
+      {
+        role: "admin",
+        contest: { practice_mode: phase === "after" },
+      },
+    );
+    const label = phase === "after" ? "报名练习" : "战队报名";
+    const button = html.match(new RegExp(`<button[^>]*>${label}`))?.[0];
+    assert(button && !/\sdisabled(?:=|\s|>)/.test(button), label);
+    if (phase !== "before") assert(html.includes("预览赛题"));
+  }
+  const closed = await render(
+    `/contests/${contestId}`,
+    false,
+    contestId,
+    false,
+    "active",
+    undefined,
+    [{ id: "closed", name: "关闭组", joinable: false }],
+    { role: "admin" },
+  );
+  assert.match(closed, /<button[^>]*disabled[^>]*>组别报名已关闭<\/button>/);
+  assert(closed.includes("预览赛题"));
+  const registered = await render(
+    `/contests/${contestId}`,
+    false,
+    contestId,
+    true,
+    "active",
+    undefined,
+    [],
+    { role: "admin" },
+  );
+  assert(registered.includes("进入赛场"));
+  assert(!registered.includes(">战队报名"));
 });
 test("registered teams only see challenges during the active window", async () => {
   for (const phase of ["before", "after"] as const) {
