@@ -113,11 +113,12 @@ export function ScoreboardTable({
                     className="w-28 min-w-28 border-b p-3 text-center"
                     title={`${column.title}${column.part_title ? ` / ${column.part_title}` : ""}`}
                   >
-                    <div className="w-24 truncate text-xs font-medium">
+                    {/* Fill the allocated column without enlarging the table's intrinsic width. */}
+                    <div className="w-0 min-w-full truncate text-xs font-medium">
                       {column.title}
                     </div>
                     {column.part_title && (
-                      <div className="mt-1 w-24 truncate text-xs text-muted-foreground">
+                      <div className="mt-1 w-0 min-w-full truncate text-xs text-muted-foreground">
                         {column.part_title}
                       </div>
                     )}
