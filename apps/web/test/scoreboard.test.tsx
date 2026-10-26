@@ -295,7 +295,7 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
           !requests.some((path) => path.startsWith(`/scoreboard/${team}?`)),
         );
         await click(
-          document.querySelector('[aria-label="查看Nebula的解题详情"]')!,
+          document.querySelector('tr[data-self="true"]')!.children[1]!,
         );
         await settle(() => !!document.querySelector('[role="dialog"]'));
         await settle(() => !!document.querySelector('[aria-label="解题记录"]'));

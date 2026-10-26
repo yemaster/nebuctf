@@ -93,7 +93,7 @@ test(
       team_id: team,
       name: "审核战队",
       captain: "captain",
-      member_count: 1,
+      member_count: 2,
       group_id: null,
       group_name: null,
       status: "pending",
@@ -108,6 +108,14 @@ test(
           disabled: false,
           captain: true,
           created_at: "2026-01-15T08:00:00Z",
+        },
+        {
+          id: "30000000-0000-4000-8000-000000000001",
+          username: "member",
+          email: "member@example.test",
+          disabled: true,
+          captain: false,
+          created_at: "2026-01-16T08:00:00Z",
         },
       ],
     };
@@ -229,7 +237,7 @@ test(
       );
     try {
       await t.test(
-        "admin team list approves selected rows and keeps member editing on its own route",
+        "whole registration rows expand compact members without intercepting selection or review actions",
         async () => {
           await mount(`/contests/${id}/manage/teams`);
           await settle(
@@ -247,7 +255,10 @@ test(
             ),
             false,
           );
-          await click(button("展开 审核战队 的成员"));
+          const summaryRow = host.querySelector(
+            'table[aria-label="报名战队"] > tbody > tr',
+          )!;
+          await click(summaryRow.children[2]);
           await settle(() =>
             host.textContent!.includes("captain@example.test"),
           );
@@ -256,11 +267,61 @@ test(
             "true",
           );
           assert.match(host.textContent!, /01\/15/);
-          await click(button("收起 审核战队 的成员"));
+          const members = host.querySelector(
+            '[role="list"][aria-label="战队成员"]',
+          )!;
+          assert.equal(members.children.length, 2);
+          assert(members.textContent!.includes("member@example.test"));
+          assert(members.textContent!.includes("队长"));
+          assert(members.textContent!.includes("已禁用"));
+          assert(!members.textContent!.includes("正常"));
+          assert(!members.textContent!.includes(team));
+          assert.equal(
+            host.querySelector('table[aria-label="报名战队"] table'),
+            null,
+          );
+          assert.equal(
+            document
+              .getElementById(
+                button("收起 审核战队 的成员")!.getAttribute("aria-controls")!,
+              )
+              ?.contains(members),
+            true,
+          );
+          await click(host.querySelector('[aria-label="选择 审核战队"]'));
+          assert.equal(
+            button("收起 审核战队 的成员")!.getAttribute("aria-expanded"),
+            "true",
+          );
+          await click(host.querySelector('[aria-label="选择 审核战队"]'));
+          await click(summaryRow.children[6]);
           assert.equal(
             host.textContent!.includes("captain@example.test"),
             false,
           );
+          // Copying row text and modified clicks must not open details.
+          const selection = dom.window.getSelection()!;
+          const range = dom.window.document.createRange();
+          range.selectNodeContents(summaryRow.children[2]!);
+          selection.addRange(range);
+          await click(summaryRow.children[2]);
+          assert(button("展开 审核战队 的成员"));
+          selection.removeAllRanges();
+          await act(async () => {
+            summaryRow.children[3]!.dispatchEvent(
+              new dom.window.MouseEvent("click", {
+                bubbles: true,
+                ctrlKey: true,
+              }),
+            );
+          });
+          assert(button("展开 审核战队 的成员"));
+          // The native disclosure button remains a keyboard-accessible entry.
+          button("展开 审核战队 的成员")!.focus();
+          assert.equal(document.activeElement, button("展开 审核战队 的成员"));
+          await click(button("展开 审核战队 的成员"));
+          assert(button("收起 审核战队 的成员"));
+          await click(button("收起 审核战队 的成员"));
           await click(host.querySelector('[aria-label="选择 审核战队"]'));
           await click(button("通过所选（1）"));
           await settle(() => writes.length === 1);
@@ -269,6 +330,10 @@ test(
             button("展开 审核战队 的成员")!.getAttribute("aria-expanded"),
             "false",
           );
+          await click(button("通过"));
+          await settle(() => writes.length === 2);
+          assert.deepEqual(writes[1], { team_ids: [team], status: "accepted" });
+          assert(button("展开 审核战队 的成员"));
           await click(
             host.querySelector(
               `a[href="/contests/${id}/manage/teams/${team}"]`,

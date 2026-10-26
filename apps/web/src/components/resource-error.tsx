@@ -30,7 +30,7 @@ export function ResourceError({ error }: { error: Error | string }) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="group text-muted-foreground"
+                className="group w-full justify-between text-muted-foreground"
               >
                 错误详情
                 <ChevronDown className="motion-safe:transition-transform group-data-[state=open]:rotate-180" />

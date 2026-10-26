@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Search, X } from "lucide-react";
 import { api } from "@/lib/api";
+import { activateFromRow } from "@/lib/row-action";
 import type { Challenge } from "@/lib/types";
 import {
   questionTypes,
@@ -218,7 +219,18 @@ export function ContestQuestions({
                     className="block min-w-0 rounded-none border-0 px-0 py-0"
                     data-question-id={c.id}
                   >
-                    <div className="flex flex-col gap-2 py-3 lg:flex-row lg:items-center lg:gap-5">
+                    <div
+                      className="flex cursor-pointer flex-col gap-2 py-3 lg:flex-row lg:items-center lg:gap-5"
+                      onClick={(event) =>
+                        activateFromRow(event, () =>
+                          setExpanded((old) =>
+                            open
+                              ? old.filter((id) => id !== c.id)
+                              : [...old, c.id],
+                          ),
+                        )
+                      }
+                    >
                       <CollapsibleTrigger asChild>
                         <Button
                           type="button"

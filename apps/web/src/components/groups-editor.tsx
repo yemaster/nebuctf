@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, X } from "lucide-react";
+import { ChevronDown, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { randomUUID } from "@/lib/random-uuid";
 import type { Challenge, ContestGroup } from "@/lib/types";
@@ -208,13 +208,20 @@ export function GroupsEditor({
                 }}
               >
                 <CollapsibleTrigger asChild>
-                  <Button type="button" variant="outline">
-                    单题权限
-                    {Object.keys(g.challenge_permissions ?? {}).filter((id) =>
-                      challengeIds.includes(id),
-                    ).length
-                      ? `（${Object.keys(g.challenge_permissions ?? {}).filter((id) => challengeIds.includes(id)).length} 项覆盖）`
-                      : ""}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="group h-auto w-full justify-between gap-3 px-0 py-3 text-left hover:bg-transparent dark:hover:bg-transparent"
+                  >
+                    <span>
+                      单题权限
+                      {Object.keys(g.challenge_permissions ?? {}).filter((id) =>
+                        challengeIds.includes(id),
+                      ).length
+                        ? `（${Object.keys(g.challenge_permissions ?? {}).filter((id) => challengeIds.includes(id)).length} 项覆盖）`
+                        : ""}
+                    </span>
+                    <ChevronDown className="text-muted-foreground motion-safe:transition-transform group-data-[state=open]:rotate-180" />
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="min-w-0 space-y-3">

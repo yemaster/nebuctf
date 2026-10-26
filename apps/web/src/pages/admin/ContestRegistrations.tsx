@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { api, useAPI, useAction } from "@/lib/api";
 import { date } from "@/lib/utils";
+import { activateFromRow } from "@/lib/row-action";
 import { useAdminList } from "@/components/admin/shared";
 import {
   Empty,
@@ -184,7 +185,14 @@ export function Registrations() {
               onOpenChange={(open) => setExpanded(open ? r.team_id : null)}
             >
               <TableBody className="border-b last:border-b-0 [&>tr>td]:px-4 [&>tr>td]:py-3">
-                <TableRow>
+                <TableRow
+                  className="cursor-pointer"
+                  onClick={(event) =>
+                    activateFromRow(event, () =>
+                      setExpanded(expanded === r.team_id ? null : r.team_id),
+                    )
+                  }
+                >
                   <TableCell>
                     <Checkbox
                       aria-label={`选择 ${r.name}`}
@@ -205,7 +213,7 @@ export function Registrations() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="-ml-2 justify-start"
+                        className="h-auto justify-start gap-2 px-0 py-1 text-left hover:bg-transparent dark:hover:bg-transparent"
                         aria-label={`${expanded === r.team_id ? "收起" : "展开"} ${r.name} 的成员`}
                       >
                         <ChevronRight
@@ -250,9 +258,8 @@ export function Registrations() {
                     <TableCell colSpan={8}>
                       <section
                         aria-label={`${r.name} 的成员`}
-                        className="space-y-3 py-2 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150"
+                        className="py-1 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150"
                       >
-                        <h2 className="text-sm font-medium">战队成员</h2>
                         <RegistrationMembersPanel
                           apiBase={apiBase}
                           team={r.team_id}

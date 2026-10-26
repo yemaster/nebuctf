@@ -648,9 +648,17 @@ test(
           await settle(
             () => !!host().querySelector('[aria-label="设置 AWDP service"]'),
           );
-          await click(
-            host().querySelector('[aria-label="设置 AWDP service"]')!,
-          );
+          const trigger = host().querySelector(
+            '[aria-label="设置 AWDP service"]',
+          )!;
+          await click(trigger.parentElement!);
+          assert.equal(trigger.getAttribute("aria-expanded"), "true");
+          const enabled = host().querySelector(
+            '[aria-label="在比赛中启用 AWDP service"]',
+          )!;
+          await click(enabled);
+          assert.equal(trigger.getAttribute("aria-expanded"), "true");
+          await click(enabled);
           const mode = (value: string) =>
             host().querySelector(
               `[aria-label="AWDP service计分方式"] [role="radio"][value="${value}"]`,

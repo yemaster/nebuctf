@@ -3,6 +3,7 @@ import { Check, Medal, Minus } from "lucide-react";
 import type { Score, ScoreCell, ScoreColumn } from "@/lib/types";
 import { bloodColors, bloodLabels } from "@/lib/scoreboard";
 import { date } from "@/lib/utils";
+import { activateFromRow } from "@/lib/row-action";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import {
@@ -139,8 +140,11 @@ export function ScoreboardTable({
               return (
                 <TableRow
                   key={row.id}
-                  className={`[&>td]:bg-inherit ${mine ? "bg-accent hover:bg-accent" : "bg-card hover:bg-card"}`}
+                  className={`cursor-pointer [&>td]:bg-inherit ${mine ? "bg-accent hover:bg-accent" : "bg-card hover:bg-card"}`}
                   data-self={mine || undefined}
+                  onClick={(event) =>
+                    activateFromRow(event, () => onSelect(row))
+                  }
                 >
                   <TableCell className={`${identity} border-b py-1`}>
                     <Button

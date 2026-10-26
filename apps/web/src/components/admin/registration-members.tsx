@@ -1,8 +1,8 @@
 import { useAPI } from "@/lib/api";
 import { date } from "@/lib/utils";
-import { Empty, QueryState, Table } from "../shared";
+import { Empty, QueryState } from "../shared";
 import { Badge } from "../ui/badge";
-import { TableCell, TableRow } from "../ui/table";
+import { Item, ItemGroup } from "../ui/item";
 import type { Registration } from "./contest-management-shared";
 
 export function RegistrationMembers({
@@ -12,33 +12,42 @@ export function RegistrationMembers({
 }) {
   if (!members.length) return <Empty>战队暂无成员</Empty>;
   return (
-    <Table headers={["用户", "邮箱", "身份", "账户状态", "注册时间"]}>
+    <ItemGroup aria-label="战队成员" className="divide-y whitespace-normal">
       {members.map((member) => (
-        <TableRow key={member.id}>
-          <TableCell>
-            <p className="font-medium">{member.username}</p>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">
-              {member.id}
-            </p>
-          </TableCell>
-          <TableCell>{member.email}</TableCell>
-          <TableCell>{member.captain ? "队长" : "队员"}</TableCell>
-          <TableCell>
-            <Badge
-              variant="secondary"
-              className={
-                member.disabled ? "text-destructive" : "text-muted-foreground"
-              }
+        <Item
+          role="listitem"
+          key={member.id}
+          className="grid min-w-0 grid-cols-1 gap-2 rounded-none border-0 px-0 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_auto] sm:gap-4"
+        >
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span
+              className="break-all font-medium"
+              title={`用户 ID：${member.id}`}
             >
-              {member.disabled ? "已禁用" : "正常"}
-            </Badge>
-          </TableCell>
-          <TableCell className="text-muted-foreground">
-            {date(member.created_at)}
-          </TableCell>
-        </TableRow>
+              {member.username}
+            </span>
+            {member.captain && <Badge variant="secondary">队长</Badge>}
+            {member.disabled && (
+              <Badge
+                variant="secondary"
+                className="bg-destructive/10 text-destructive"
+              >
+                已禁用
+              </Badge>
+            )}
+          </div>
+          <span className="min-w-0 break-all text-muted-foreground">
+            {member.email}
+          </span>
+          <time
+            dateTime={member.created_at}
+            className="text-xs tabular-nums text-muted-foreground"
+          >
+            注册于 {date(member.created_at)}
+          </time>
+        </Item>
       ))}
-    </Table>
+    </ItemGroup>
   );
 }
 
