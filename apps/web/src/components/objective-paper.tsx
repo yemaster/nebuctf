@@ -42,7 +42,7 @@ export function ObjectiveNavigation({
             <Button
               key={q.id}
               variant="ghost"
-              className={`relative size-9 p-0 tabular-nums ${answerColors[state]} ${active === q.id ? "ring-2 ring-foreground/40 ring-offset-2 ring-offset-card" : ""}`}
+              className={`relative size-9 p-0 tabular-nums ring-inset ${answerColors[state]} ${active === q.id ? "ring-2 ring-foreground/40" : ""}`}
               aria-label={`第 ${i + 1} 题 ${answerLabels[state]}`}
               aria-current={active === q.id ? "true" : undefined}
               title={`${q.title}：${answerLabels[state]}`}
@@ -57,20 +57,6 @@ export function ObjectiveNavigation({
             </Button>
           );
         })}
-      </div>
-      <div
-        className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-muted-foreground"
-        aria-label="答题状态说明"
-      >
-        {Object.entries(answerLabels).map(([key, label]) => (
-          <span key={key} className="flex items-center gap-1.5">
-            <span
-              className={`size-3 rounded-sm ${answerColors[key as keyof typeof answerColors]}`}
-              aria-hidden
-            />
-            {label}
-          </span>
-        ))}
       </div>
     </nav>
   );
