@@ -439,6 +439,6 @@ PDF 通过现有管理员文件接口鉴权读取，预览携带版本号；文�
 
 ### 分类表头与三血图标
 
-核对 GZCTF 的 [Shared 分类及提交标记配置](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/utils/Shared.tsx) 和 [ScoreboardTable](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/ScoreboardTable.tsx)：Web 蓝、Pwn 红、Reverse 黄、Crypto 紫、Misc 青绿、Forensics 靛蓝。沿用这组语义映射，以 Tailwind 现有亮暗色阶呈现分类底色和文字，不改变分类合并范围与题目表头。
+核对 GZCTF 的 [Shared 分类及提交标记配置](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/utils/Shared.tsx) 和 [ScoreboardTable](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/ScoreboardTable.tsx)：Web 蓝、Pwn 红、Reverse 黄、Crypto 紫、Misc 青绿、Forensics 靛蓝。沿用这组语义映射，以 Tailwind 现有色阶混入表格底色：分类底色使用 10% 色彩，文字使用带少量色相的灰色，亮暗主题分别配置；避免大面积鲜艳色块，不改变分类合并范围与题目表头。
 
 三血统一使用 `@mdi/js` 的 `mdiHexagonSlice6`、`mdiHexagonSlice4`、`mdiHexagonSlice2` 和官方 `@mdi/react` 渲染器；通过共享 BloodMark 组件覆盖排行榜、图例、赛题目录与比赛动态。只导入三枚图标，不使用图标字体，不手绘路径。颜色继续区分金、银、铜，保留悬停、触屏、键盘与无障碍名称。

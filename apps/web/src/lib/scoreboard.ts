@@ -43,15 +43,15 @@ export const bloodColors = [
   "text-orange-700 dark:text-orange-400",
 ];
 
-// Match GZCTF's category hues using the platform's light/dark palette tokens.
+// Keep category hues subtle against the table surface in both themes.
 export const categoryHeaderColors: Record<string, string> = {
-  Web: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
-  Pwn: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+  Web: "bg-blue-500/10 text-blue-950/70 dark:bg-blue-400/10 dark:text-blue-100/75",
+  Pwn: "bg-red-500/10 text-red-950/70 dark:bg-red-400/10 dark:text-red-100/75",
   Reverse:
-    "bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200",
+    "bg-yellow-500/10 text-yellow-950/70 dark:bg-yellow-400/10 dark:text-yellow-100/75",
   Crypto:
-    "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200",
-  Misc: "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-200",
+    "bg-violet-500/10 text-violet-950/70 dark:bg-violet-400/10 dark:text-violet-100/75",
+  Misc: "bg-teal-500/10 text-teal-950/70 dark:bg-teal-400/10 dark:text-teal-100/75",
   Forensics:
-    "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200",
+    "bg-indigo-500/10 text-indigo-950/70 dark:bg-indigo-400/10 dark:text-indigo-100/75",
 };
