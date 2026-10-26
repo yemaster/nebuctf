@@ -180,7 +180,7 @@ function ActivityPanel({
         initial={false}
         animate={{ width: open ? 384 : paper ? 48 : newHints ? 288 : 224 }}
         transition={{ duration: reduced ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
-        className={`fixed right-2 bottom-10 z-30 max-w-[calc(100vw-1rem)] ${hidden ? "invisible" : ""}`}
+        className={`fixed right-2 bottom-12 z-30 max-w-[calc(100vw-1rem)] ${hidden ? "invisible" : ""}`}
       >
         <Card className="gap-0 overflow-hidden py-0 shadow-lg">
           <CollapsibleTrigger asChild>

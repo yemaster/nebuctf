@@ -146,6 +146,12 @@ function AppShell() {
             user={user}
             onLogout={() => logout.mutate()}
             loggingOut={logout.isPending}
+            showCountdown={
+              !!contestId &&
+              !spectating &&
+              !contestManaging &&
+              !cardTransition.native
+            }
           />
           <main id="main" className="relative min-h-0 flex-1 overflow-hidden">
             <AnimatePresence

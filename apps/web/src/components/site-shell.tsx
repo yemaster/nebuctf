@@ -19,6 +19,7 @@ import { useContestCapabilities } from "@/lib/contest-access";
 import { cn } from "@/lib/utils";
 import { ThemeSettings } from "./theme-provider";
 import { NavigationIndicator } from "./navigation-indicator";
+import { ContestCountdown } from "./contest-countdown";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -69,11 +70,13 @@ export function SiteHeader({
   onLogout,
   loggingOut,
   contestId,
+  showCountdown = false,
 }: {
   user: User | null;
   onLogout: () => void;
   loggingOut: boolean;
   contestId?: string;
+  showCountdown?: boolean;
 }) {
   const { pathname, search } = useLocation();
   const contest = useAPI<Contest>(
@@ -393,6 +396,13 @@ export function SiteHeader({
           <NavigationIndicator
             activeKey={`${pathname}:${user?.id ?? "guest"}`}
           />
+          {showCountdown && contest.data?.clock && !contest.error && (
+            <ContestCountdown
+              key={contestId}
+              clock={contest.data.clock}
+              receivedAt={contest.dataUpdatedAt}
+            />
+          )}
         </div>
       </div>
     </header>

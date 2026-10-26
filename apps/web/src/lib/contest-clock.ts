@@ -56,3 +56,20 @@ export function roundAt(clock: ContestClock, now: number) {
             : "active",
   } as const;
 }
+
+export function contestCountdown(clock: ContestClock, now: number) {
+  const starts = Date.parse(clock.starts_at),
+    ends = Date.parse(clock.ends_at);
+  if (clock.practice) return { label: "赛后练习", remaining: null };
+  if (now >= ends) return { label: "比赛已结束", remaining: 0 };
+  if (now < starts) return { label: "距离开赛", remaining: starts - now };
+  const round = roundAt(clock, now);
+  if (round?.state === "scheduled")
+    return { label: "轮次开始", remaining: round.opens - now };
+  if (round && round.state !== "ended")
+    return {
+      label: `第 ${round.number} / ${round.total} 轮`,
+      remaining: Math.max(0, Math.min(round.closes, ends) - now),
+    };
+  return { label: "比赛剩余", remaining: ends - now };
+}
