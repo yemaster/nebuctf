@@ -489,3 +489,9 @@ AWD 初测发现靶机列表 SQL 参数混用 UUID 与文本导致 500，已修�
 - API、Worker、Web 已更新，数据库迁移版本为 20；API、Worker、Gateway 与 PostgreSQL 健康，Web 正常运行。公网全部 58 个脚本/样式共 4,596,413 字节与本地构建逐字节一致，健康接口返回 200。邮件验证与自动替换保持默认关闭，没有遗留启用的 AI 路由，也未修改现有比赛、题目、成绩、平台配额、验证码难度、端口或安全组。
 
 升级前备份 `.data/backups/before-system-settings-20261026.dump` 权限为 600，旧镜像保留为 `nebuctf-platform:before-system-settings-20261026` 和 `nebuctf-web:before-system-settings-20261026`。以本地 yemaster 配置按后端、前端、文档与性能修正提交，同步服务器，未推送 GitHub。沿用要求未打开本地页面；DOM 测试和公网验证不代替实际浏览器视觉验收，真实 SMTP 投递和商业模型连接需管理员配置服务商凭据后验证。
+
+## 基础设置面板统一
+
+2026-10-26：移除系统配置、容器策略、邮件策略和 AI 路由编辑的页面限宽，与题目、比赛编辑共用整宽 ConfigCard。统一表单分组、间距和开关对齐；邮件测试与配置合并到同一面板但保留独立提交，AI 接入信息按响应式网格排列。依据与组件约定见 [前端设计](FRONTEND.md#基础设置的布局)。
+
+前端完整回归 155 项全部通过，TypeScript、生产构建、Prettier 和 diff 检查通过。服务器仅更新 Web，Nginx 配置检查通过，API、Worker、Gateway 和数据库保持运行且健康。公网 58 个脚本/样式共 4,597,386 字节与本地构建逐字节一致，健康接口返回 200。旧 Web 镜像保留为 `nebuctf-web:before-settings-layout-20261026`，未改变业务配置或推送 GitHub。本轮未打开本地页面；浏览器工具没有可用会话，未完成浏览器视觉验收。

@@ -44,6 +44,14 @@
 
 浅色适配仅降低同一原色的亮度，使主色文字在现有浅色背景上可读；未新增其他色相。选中底色由当前主色按浅色 12%、深色 14% 与卡片背景混合，避免整页染色。四组配色的按钮文字、主色文字及选中项正文均经过至少 4.5:1 对比度检查。来源名称不显示在主题面板。
 
+## 基础设置的布局
+
+系统配置、容器策略、邮件策略和 AI 路由编辑与题目、比赛编辑共用 `ConfigCard`，使用现有 shadcn Card / CardContent 的表面、圆角、阴影及内边距。卡片填满后台内容区，不再设置页面自己的 `max-w-4xl`；内容区仍由管理布局统一限制最大宽度。
+
+表单用 FieldSet / FieldLegend 组织相关设置，区内间距 20 px，区间间距 24 px。短字段按内容需要限宽，同类字段按响应式网格排列；开关靠近标签，窄屏操作行可以换行。邮件配置和测试位于同一面板，测试仍使用独立表单；AI 接入地址、访问密钥及操作保持与编辑面板对齐。
+
+参考实际读取的 [shadcn Field](https://ui.shadcn.com/docs/components/field) 分组和响应式组合，以及 [Ant Design Form](https://ant.design/components/form/) 的布局示例与窄屏重排规则。只采用布局原则，不引入新的组件库或主题。
+
 ## shadcn/ui 选型
 
 先阅读官方文档和示例，再从官方 `new-york-v4` registry 引入 Radix 版本源码。组件位于 `apps/web/src/components/ui`，沿用项目现有 React、Tailwind 和 radix-ui 依赖，不另造组件交互。
