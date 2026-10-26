@@ -171,7 +171,7 @@ export function Registrations() {
               ].map((header, index) => (
                 <TableHead
                   key={index}
-                  className="px-4 text-xs text-muted-foreground"
+                  className={`px-4 text-xs text-muted-foreground ${index === 1 ? "pl-10" : ""}`}
                 >
                   {header}
                 </TableHead>
@@ -209,23 +209,25 @@ export function Registrations() {
                     />
                   </TableCell>
                   <TableCell className="font-medium">
-                    <CollapsibleTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-auto justify-start gap-2 px-0 py-1 text-left hover:bg-transparent dark:hover:bg-transparent"
-                        aria-label={`${expanded === r.team_id ? "收起" : "展开"} ${r.name} 的成员`}
-                      >
-                        <ChevronRight
-                          className={`shrink-0 motion-safe:transition-transform ${expanded === r.team_id ? "rotate-90" : ""}`}
-                        />
-                        {r.name}
-                      </Button>
-                    </CollapsibleTrigger>
-                    {r.practice_only && (
-                      <Badge variant="secondary">赛后练习</Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <CollapsibleTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto min-w-0 max-w-72 justify-start gap-2 px-0 py-1 text-left whitespace-normal hover:bg-transparent has-[>svg]:px-0 dark:hover:bg-transparent"
+                          aria-label={`${expanded === r.team_id ? "收起" : "展开"} ${r.name} 的成员`}
+                        >
+                          <ChevronRight
+                            className={`shrink-0 motion-safe:transition-transform ${expanded === r.team_id ? "rotate-90" : ""}`}
+                          />
+                          <span className="min-w-0 break-all">{r.name}</span>
+                        </Button>
+                      </CollapsibleTrigger>
+                      {r.practice_only && (
+                        <Badge variant="secondary">赛后练习</Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>{r.captain}</TableCell>
                   <TableCell>{r.member_count}</TableCell>
@@ -259,11 +261,12 @@ export function Registrations() {
                     aria-hidden={expanded !== r.team_id || undefined}
                     className="border-0 bg-muted/20 hover:bg-muted/20"
                   >
-                    <TableCell colSpan={8} className="p-0">
+                    <TableCell className="p-0" aria-hidden="true" />
+                    <TableCell colSpan={7} className="p-0">
                       <MeasuredCollapse open={expanded === r.team_id}>
                         <section
                           aria-label={`${r.name} 的成员`}
-                          className="px-4 py-2"
+                          className="py-2 pr-4 pl-10"
                         >
                           <RegistrationMembersPanel
                             apiBase={apiBase}
