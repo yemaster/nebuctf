@@ -30,9 +30,9 @@ export function SolveMark({ cell }: { cell?: ScoreCell }) {
   );
 }
 const identity =
-  "sticky left-0 z-10 w-44 min-w-44 max-w-44 bg-card px-3 sm:w-72 sm:min-w-72 sm:max-w-72";
+  "sticky left-0 z-10 w-44 min-w-44 max-w-44 px-3 sm:w-72 sm:min-w-72 sm:max-w-72";
 const scoreColumn =
-  "w-24 min-w-24 bg-card px-3 text-right tabular-nums sm:sticky sm:left-72 sm:z-10";
+  "w-24 min-w-24 px-3 text-right tabular-nums sm:sticky sm:left-72 sm:z-10";
 export function ScoreboardTable({
   rows,
   columns,
@@ -70,14 +70,14 @@ export function ScoreboardTable({
             <TableRow className="hover:bg-transparent">
               <TableHead
                 rowSpan={matrix ? 2 : 1}
-                className={`${identity} border-b text-muted-foreground`}
+                className={`${identity} border-b bg-card text-muted-foreground`}
               >
                 {grouped ? "组内 / 全局" : "全局排名"} /{" "}
                 {competition ? "战队" : "选手"}
               </TableHead>
               <TableHead
                 rowSpan={matrix ? 2 : 1}
-                className={`${scoreColumn} border-b`}
+                className={`${scoreColumn} border-b bg-card`}
               >
                 总分
               </TableHead>
@@ -139,12 +139,10 @@ export function ScoreboardTable({
               return (
                 <TableRow
                   key={row.id}
-                  className="group hover:bg-muted/40"
+                  className={`[&>td]:bg-inherit ${mine ? "bg-accent hover:bg-accent" : "bg-card hover:bg-muted"}`}
                   data-self={mine || undefined}
                 >
-                  <TableCell
-                    className={`${identity} border-b py-1 ${mine ? "bg-accent" : "group-hover:bg-muted"}`}
-                  >
+                  <TableCell className={`${identity} border-b py-1`}>
                     <Button
                       variant="ghost"
                       className="h-auto min-h-14 w-full justify-start gap-3 px-1 text-left hover:bg-transparent"
@@ -179,7 +177,7 @@ export function ScoreboardTable({
                     </Button>
                   </TableCell>
                   <TableCell
-                    className={`${scoreColumn} border-b font-semibold ${mine ? "bg-accent" : "group-hover:bg-muted"}`}
+                    className={`${scoreColumn} border-b font-semibold`}
                   >
                     {row.score.toLocaleString()}
                   </TableCell>
