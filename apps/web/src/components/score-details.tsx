@@ -262,7 +262,7 @@ function DetailContent({
                     return (
                       <li
                         key={`${cell.unit_id}-${cell.round_number ?? "solve"}`}
-                        className="flex items-start gap-3 py-4"
+                        className="flex items-center gap-3 py-4"
                       >
                         <span className="shrink-0">
                           <SolveMark cell={cell} />
@@ -295,7 +295,7 @@ function DetailContent({
                             </time>
                           </div>
                         </div>
-                        <span className="text-sm font-medium tabular-nums">
+                        <span className="min-w-16 shrink-0 text-right text-xl leading-none font-semibold tabular-nums">
                           {cell.score.toLocaleString()}
                         </span>
                       </li>
