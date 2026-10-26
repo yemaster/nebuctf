@@ -10,7 +10,6 @@ import {
   Flag,
   LockKeyhole,
   Loader2,
-  Trophy,
 } from "lucide-react";
 import { useContestRealtime } from "@/lib/contest-realtime";
 import { useAPI } from "@/lib/api";
@@ -18,6 +17,7 @@ import type { Contest, User } from "@/lib/types";
 import { useContestCapabilities } from "@/lib/contest-access";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { BloodMark } from "./blood-mark";
 import { Card } from "./ui/card";
 import {
   Collapsible,
@@ -286,9 +286,8 @@ function ActivityPanel({
                       const blood = event.blood_rank
                         ? ["一血", "二血", "三血"][event.blood_rank - 1]
                         : null;
-                      const Icon = blood
-                        ? Trophy
-                        : event.type === "hint"
+                      const Icon =
+                        event.type === "hint"
                           ? BellRing
                           : event.type === "withdraw"
                             ? FlagOff
@@ -300,9 +299,14 @@ function ActivityPanel({
                           key={event.id}
                           className="relative flex gap-3 py-3 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-2 motion-safe:duration-300"
                         >
-                          <Icon
-                            className={`mt-1 size-4 shrink-0 ${blood ? "text-warning" : "text-muted-foreground"}`}
-                          />
+                          {blood ? (
+                            <BloodMark
+                              rank={event.blood_rank!}
+                              className="mt-1 size-4"
+                            />
+                          ) : (
+                            <Icon className="mt-1 size-4 shrink-0 text-muted-foreground" />
+                          )}
                           <div className="min-w-0 flex-1 space-y-1.5">
                             <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
                               <span>

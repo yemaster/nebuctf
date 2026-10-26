@@ -1,11 +1,16 @@
 import { useMemo } from "react";
-import { Check, Medal, Minus } from "lucide-react";
+import { Check, Minus } from "lucide-react";
 import type { Score, ScoreCell, ScoreColumn } from "@/lib/types";
-import { bloodColors, bloodLabels } from "@/lib/scoreboard";
+import {
+  bloodColors,
+  bloodLabels,
+  categoryHeaderColors,
+} from "@/lib/scoreboard";
 import { date } from "@/lib/utils";
 import { activateFromRow } from "@/lib/row-action";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { BloodMark } from "./blood-mark";
 import {
   Table,
   TableHeader,
@@ -25,7 +30,7 @@ export function SolveMark({ cell }: { cell?: ScoreCell }) {
   if (!cell)
     return <Minus className="mx-auto size-6 text-muted-foreground/40" />;
   return cell.blood_rank ? (
-    <Medal className={`size-6 ${bloodColors[cell.blood_rank - 1]}`} />
+    <BloodMark rank={cell.blood_rank} />
   ) : (
     <Check className="size-6 text-success" />
   );
@@ -110,7 +115,7 @@ export function ScoreboardTable({
                     scope="colgroup"
                     key={group.category}
                     colSpan={group.count}
-                    className="h-9 bg-muted/60 text-center text-xs text-muted-foreground"
+                    className={`h-9 text-center text-xs ${categoryHeaderColors[group.category] ?? "bg-muted text-muted-foreground"}`}
                   >
                     {group.category}
                   </TableHead>

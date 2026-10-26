@@ -262,13 +262,13 @@ Dagre 与 React Flow 放在按需加载的同一包，首页不预加载该包�
 
 ## GZCTF 排行榜参考与实现
 
-本次实际查看 GZCTF 官方榜单截图，并读取 [ScoreboardTable](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/ScoreboardTable.tsx)、[ScoreTimeLine](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/charts/ScoreTimeLine.tsx) 和比赛榜单页面源码。采用上方积分走势、下方按题目分类的解题矩阵、固定身份列、组别筛选与三血标记的组织方式，保持 NebuCTF 当前主题、字体与 Lucide 图标。未复制 GZCTF 业务组件或引入三血加分规则。
+本次实际查看 GZCTF 官方榜单截图，并读取 [ScoreboardTable](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/ScoreboardTable.tsx)、[ScoreTimeLine](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/charts/ScoreTimeLine.tsx) 和比赛榜单页面源码。采用上方积分走势、下方按题目分类的解题矩阵、固定身份列、组别筛选与三血标记的组织方式，保持 NebuCTF 当前主题与字体；通用图标使用 Lucide，三血标记使用 GZCTF 同款 Material Design Icons 六边形。未复制 GZCTF 业务组件或引入三血加分规则。
 
 图表使用官方 [shadcn Chart](https://ui.shadcn.com/docs/components/radix/chart) 和 Recharts 3，Table、Tooltip、Sheet、Collapsible、InputGroup、NativeSelect、Pagination 复用现有组件。前五名以阶梯曲线显示累计分数，支持收起和时间范围拖动；动态计分使用当前分值回算历史，界面注明「按当前题目分值累计」。定时刷新不重播曲线动画。图表独立按需加载，首页不预加载 charts 或 graph-utils。
 
 比赛矩阵显示分类、题目/小题、分值、通过状态和三血。同一题目的大标题按 challenge_id 合并表头，下层分别列出小题名称和分值；普通题目纵向合并，全部为普通题目时不增加表头层级。同名的不同题目保持独立。桌面固定排名/队名和总分，窄屏缩小身份列并允许矩阵内部滚动。每页 30 支战队，大量小题每组展示 36 个计分单元，可按分类筛选或切换下一组，限制 DOM 规模。比赛作答目录保持完整。练习榜使用紧凑选手表格，不展开整座题库。
 
-当前战队使用整行高亮，战队名、分数、解题数及全部题目格继承同一行的底色；固定列保持不透明，悬停不覆盖当前战队状态。普通行、队名和解题状态按钮在亮暗色下均不增加悬停背景，保留点击、提示及键盘焦点。已解答、未解答及三血图标统一为 24 px，沿用 Lucide 图标。此修复复核了 GZCTF 官方截图、ScoreboardTable 及其 [固定列样式](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/styles/components/ScoreboardTable.module.css)，在现有矩阵结构上完善本项目的当前战队标识，使用已有亮暗色主题变量。
+当前战队使用整行高亮，战队名、分数、解题数及全部题目格继承同一行的底色；固定列保持不透明，悬停不覆盖当前战队状态。普通行、队名和解题状态按钮在亮暗色下均不增加悬停背景，保留点击、提示及键盘焦点。已解答、未解答及三血图标统一为 24 px；已解答和未解答沿用 Lucide，三血使用官方 Material Design Icons。此修复复核了 GZCTF 官方截图、ScoreboardTable 及其 [固定列样式](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/styles/components/ScoreboardTable.module.css)，在现有矩阵结构上完善本项目的当前战队标识，使用已有亮暗色主题变量。
 
 搜索、组别、页码与「我的排名」写入 URL；筛选期间保留已显示的榜单，搜索保留真实排名。查看队名或已解格可打开同一个解题详情侧栏，显示当前分数、三血和通过时间。「我的排名」使用本场报名的战队 ID。封榜时格子、曲线、分数和解出数同时截止，未开赛不泄露题目名称。
 
@@ -435,3 +435,10 @@ PDF 通过现有管理员文件接口鉴权读取，预览携带版本号；文�
 - 客观题使用单个「客观题」工作区，单选、多选、填空顺序排列。左侧可折叠题号导航直接定位正文，颜色为未作答灰、已填写蓝、判对绿、判错红，状态保留无障碍标签，导航不额外展示文字图例；选中及键盘焦点使用内描边，避免折叠区裁切。无三血与解出人数。
 - 草稿保留在当前比赛浏览器中，切换 CTF 工作区不丢失。统一保存与交卷，确认未完成数量，等待期间禁用编辑；冲突时保留输入并提供重新读取。定时读取全队状态，正式交卷后禁用输入；练习修改后只重置对应题的颜色。
 - 比赛页脚汇集赛程倒计时、统一轮次和剩余时间、封榜状态、队名与分组。单独计时阶段在作答页显示对应阶段倒计时。比赛信息入口提供起止时间、报名队数和各阶段开始操作；顶部标题和目录不再重复堆放时钟。
+
+
+### 分类表头与三血图标
+
+核对 GZCTF 的 [Shared 分类及提交标记配置](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/utils/Shared.tsx) 和 [ScoreboardTable](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/ScoreboardTable.tsx)：Web 蓝、Pwn 红、Reverse 黄、Crypto 紫、Misc 青绿、Forensics 靛蓝。沿用这组语义映射，以 Tailwind 现有亮暗色阶呈现分类底色和文字，不改变分类合并范围与题目表头。
+
+三血统一使用 `@mdi/js` 的 `mdiHexagonSlice6`、`mdiHexagonSlice4`、`mdiHexagonSlice2` 和官方 `@mdi/react` 渲染器；通过共享 BloodMark 组件覆盖排行榜、图例、赛题目录与比赛动态。只导入三枚图标，不使用图标字体，不手绘路径。颜色继续区分金、银、铜，保留悬停、触屏、键盘与无障碍名称。

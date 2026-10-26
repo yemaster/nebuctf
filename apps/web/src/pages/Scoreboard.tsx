@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Lock,
-  Medal,
   RefreshCw,
   Search,
   Check,
@@ -15,7 +14,8 @@ import {
 import { useUser } from "@/App";
 import { api, useAPI } from "@/lib/api";
 import type { Contest, Score, ScoreboardData } from "@/lib/types";
-import { bloodColors, bloodLabels } from "@/lib/scoreboard";
+import { bloodLabels } from "@/lib/scoreboard";
+import { BloodMark } from "@/components/blood-mark";
 import { ScopeSelect } from "./Instances";
 import { ScoreboardTable } from "@/components/scoreboard-table";
 import { ScoreDetails } from "@/components/score-details";
@@ -368,7 +368,7 @@ function Board({
                 >
                   {bloodLabels.map((label, index) => (
                     <span key={label} className="flex items-center gap-1.5">
-                      <Medal className={`size-4 ${bloodColors[index]}`} />
+                      <BloodMark rank={index + 1} className="size-4" />
                       {label}
                     </span>
                   ))}

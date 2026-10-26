@@ -42,3 +42,16 @@ export const bloodColors = [
   "text-slate-500 dark:text-slate-300",
   "text-orange-700 dark:text-orange-400",
 ];
+
+// Match GZCTF's category hues using the platform's light/dark palette tokens.
+export const categoryHeaderColors: Record<string, string> = {
+  Web: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
+  Pwn: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+  Reverse:
+    "bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200",
+  Crypto:
+    "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200",
+  Misc: "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-200",
+  Forensics:
+    "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200",
+};

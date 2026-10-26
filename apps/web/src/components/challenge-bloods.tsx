@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
-import { Medal } from "lucide-react";
+import { BloodMark } from "./blood-mark";
 import type { ChallengeBlood } from "@/lib/types";
-import { bloodColors, bloodLabels } from "@/lib/scoreboard";
+import { bloodLabels } from "@/lib/scoreboard";
 import { Button } from "./ui/button";
 import {
   Tooltip,
@@ -53,8 +53,10 @@ export function ChallengeBloods({
                   className="size-6 shrink-0 rounded-sm p-0 hover:bg-transparent dark:hover:bg-transparent"
                   aria-label={`${title} ${label}：${blood?.name ?? "暂无"}`}
                 >
-                  <Medal
-                    className={`size-4 ${blood ? bloodColors[index] : "text-muted-foreground/30"}`}
+                  <BloodMark
+                    rank={index + 1}
+                    muted={!blood}
+                    className="size-4"
                   />
                 </Button>
               </TooltipTrigger>
