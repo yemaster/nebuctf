@@ -46,6 +46,14 @@ const health: Record<string, string> = {
   checking: "巡检中",
   error: "巡检失败",
 };
+const hintCost = (round: Arena["history"][number]) =>
+  Math.max(
+    0,
+    round.details.attack +
+      round.details.defense +
+      round.details.availability -
+      round.points,
+  );
 export function AwdArena({ id, scope }: { id: string; scope: string }) {
   const query = useAPI<Arena>(
       `/challenges/${id}/arena?scope=${scope}`,
@@ -57,6 +65,7 @@ export function AwdArena({ id, scope }: { id: string; scope: string }) {
       undefined,
       false,
     );
+  const hasHintCost = query.data?.history.some((round) => hintCost(round) > 0);
   return (
     <section aria-label="AWD 对抗环境" className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -186,7 +195,14 @@ export function AwdArena({ id, scope }: { id: string; scope: string }) {
           <Table className="mt-3">
             <TableHeader>
               <TableRow>
-                {["轮次", "攻击", "防守", "服务可用", "合计"].map((t) => (
+                {[
+                  "轮次",
+                  "攻击",
+                  "防守",
+                  "服务可用",
+                  ...(hasHintCost ? ["提示扣分"] : []),
+                  "合计",
+                ].map((t) => (
                   <TableHead key={t}>{t}</TableHead>
                 ))}
               </TableRow>
@@ -198,6 +214,11 @@ export function AwdArena({ id, scope }: { id: string; scope: string }) {
                   <TableCell>{r.details.attack}</TableCell>
                   <TableCell>{r.details.defense}</TableCell>
                   <TableCell>{r.details.availability}</TableCell>
+                  {hasHintCost && (
+                    <TableCell className="tabular-nums text-muted-foreground">
+                      {hintCost(r) ? `−${hintCost(r)}` : "—"}
+                    </TableCell>
+                  )}
                   <TableCell>{r.points}</TableCell>
                 </TableRow>
               ))}
