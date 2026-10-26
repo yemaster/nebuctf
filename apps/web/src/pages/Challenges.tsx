@@ -767,9 +767,7 @@ function DirectoryItem({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
-      className={
-        selected === c.id ? "rounded-lg bg-secondary/70" : "rounded-lg"
-      }
+      className={`rounded-lg transition-colors duration-150 ${selected === c.id ? "bg-secondary/70 hover:bg-secondary" : "hover:bg-secondary/50"}`}
     >
       <div
         className="cursor-pointer py-1"

@@ -264,7 +264,7 @@ Dagre 与 React Flow 放在按需加载的同一包，首页不预加载该包�
 
 本次实际查看 GZCTF 官方榜单截图，并读取 [ScoreboardTable](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/ScoreboardTable.tsx)、[ScoreTimeLine](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/charts/ScoreTimeLine.tsx) 和比赛榜单页面源码。采用上方积分走势、下方按题目分类的解题矩阵、固定身份列、组别筛选与三血标记的组织方式，保持 NebuCTF 当前主题与字体；通用图标使用 Lucide，三血标记使用 GZCTF 同款 Material Design Icons 六边形。未复制 GZCTF 业务组件或引入三血加分规则。
 
-图表使用官方 [shadcn Chart](https://ui.shadcn.com/docs/components/radix/chart) 和 Recharts 3，Table、Tooltip、Sheet、Collapsible、InputGroup、NativeSelect、Pagination 复用现有组件。前五名以阶梯曲线显示累计分数；使用 shadcn Slider 按实际时间拖动范围，支持键盘、重置和「得分时段」缩放。缩放边界继承此前累计分，不插值；默认显示完整已发生时段。跨天刻度同时显示日期与时间，浮层显示完整时间及各队得分。图例可独立显隐各队曲线，刷新后颜色跟随战队身份而非排名。切换比赛或组别重置范围；动态计分使用当前分值回算历史，界面注明「按当前题目分值累计」。定时刷新不重播曲线动画。图表独立按需加载，首页不预加载 charts 或 graph-utils。
+图表使用官方 [shadcn Chart](https://ui.shadcn.com/docs/components/radix/chart) 和 Recharts 3，Table、Tooltip、Sheet、Collapsible、InputGroup、NativeSelect、Pagination 复用现有组件。前五名以阶梯曲线显示累计分数；使用 shadcn Slider 按实际时间拖动范围，支持键盘、重置和「得分时段」缩放。缩放边界继承此前累计分，不插值；默认显示完整已发生时段。跨天刻度同时显示日期与时间，浮层显示完整时间及各队得分。按 GZCTF 时间轴浏览方式，使用 Recharts 的 [useXAxisInverseScale](https://recharts.github.io/en-US/api/useXAxisInverseScale/) 把指针位置转换为连续时间，二分查找该时刻之前的累计分，空档时段也可查看；不吸附到头尾记录、不插值分数、不提前使用后续得分。游标及曲线标记使用 ReferenceLine/ReferenceDot，浮层复用 shadcn ChartTooltipContent，事件按动画帧合并。支持触屏点选、左右方向键、Home/End 和 Escape，缩放、隐藏战队及封榜范围保持一致。图例可独立显隐各队曲线，刷新后颜色跟随战队身份而非排名。切换比赛或组别重置范围；动态计分使用当前分值回算历史，界面注明「按当前题目分值累计」。定时刷新不重播曲线动画。图表独立按需加载，首页不预加载 charts 或 graph-utils。
 
 比赛矩阵显示分类、题目/小题、分值、通过状态和三血。同一题目的大标题按 challenge_id 合并表头，下层列出小题名称；普通题目纵向合并，全部为普通题目时省略小题行。同名的不同题目保持独立。所有题目分值放在表头最下方的统一行，以系统等宽数字突出显示，不重复附加「分」，无障碍名称保留题名和当前分值。桌面固定排名/队名和总分，窄屏缩小身份列并允许矩阵内部滚动。每页 30 支战队，大量小题每组展示 36 个计分单元，可按分类筛选或切换下一组，限制 DOM 规模。比赛作答目录保持完整。练习榜使用紧凑选手表格，不展开整座题库。
 
@@ -459,6 +459,6 @@ PDF 通过现有管理员文件接口鉴权读取，预览携带版本号；文�
 
 管理员未报名时，概览同时提供赛题预览与战队报名；报名仍遵守比赛时段、组别、战队范围及审核限制。已报名后显示进入赛场或进入练习。报名战队的内边距仅作用于主行，收起的成员区不占额外空白，整行展开、复选和审核操作保留各自行为。
 
-比赛动态距屏幕右侧 8px，普通页面距底部状态栏 8px；客观题页面另行预留答卷提交区。左侧题目、小题、展开按钮和客观题题号在亮暗主题下均不因 hover 改色，保留当前选中、作答状态和键盘焦点。
+比赛动态统一距屏幕右侧 8px、底部状态栏 4px，客观题页面不再额外抬高。客观题收起状态使用 48px 图标入口及新动态标记，提交区右侧预留空间；展开后仍显示完整动态。左侧题目由最外层容器统一 hover 底色，题名、统计、三血、小题和折叠入口保持同一块背景，内部按钮不叠加色块。客观题题号以整个按钮反馈 hover，保留作答状态颜色及选中、键盘焦点。
 
-减少动态效果模式将 CSS transition 时长及延迟设为 0，避免给原本静态的元素引入微小过渡；保留需要结束事件的短动画规则。积分浮层继续使用 Recharts 默认定位、显示和 Escape 行为。
+减少动态效果模式将 CSS transition 时长及延迟设为 0，避免给原本静态的元素引入微小过渡；保留需要结束事件的短动画规则。积分浮层复用 shadcn ChartTooltipContent，由连续时间轴预览组件处理定位和关闭。

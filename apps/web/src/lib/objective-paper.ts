@@ -59,11 +59,11 @@ export const answerLabels = {
 };
 export const answerColors = {
   empty:
-    "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted",
+    "bg-muted text-muted-foreground hover:bg-muted/70 hover:text-muted-foreground dark:hover:bg-muted/70",
   answered:
-    "bg-blue-100 text-blue-700 hover:bg-blue-100 hover:text-blue-700 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-950 dark:hover:text-blue-300",
+    "bg-blue-100 text-blue-700 hover:bg-blue-200 hover:text-blue-700 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900 dark:hover:text-blue-300",
   correct:
-    "bg-success/15 text-success hover:bg-success/15 hover:text-success dark:hover:bg-success/15",
+    "bg-success/15 text-success hover:bg-success/25 hover:text-success dark:hover:bg-success/25",
   incorrect:
-    "bg-destructive/10 text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/10",
+    "bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive dark:hover:bg-destructive/20",
 };

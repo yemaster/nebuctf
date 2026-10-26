@@ -208,7 +208,7 @@ export function ObjectivePaper({
         </div>
       )}
       {data.items.length > 0 && !data.preview && (
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t bg-card px-6 py-3">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t bg-card py-3 pl-6 pr-16">
           <span className="text-sm text-muted-foreground" role="status">
             {!editable.length
               ? "本卷仅供查看"

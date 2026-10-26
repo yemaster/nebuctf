@@ -178,30 +178,33 @@ function ActivityPanel({
       <m.div
         aria-label="比赛动态"
         initial={false}
-        animate={{ width: open ? 384 : newHints ? 288 : 224 }}
+        animate={{ width: open ? 384 : paper ? 48 : newHints ? 288 : 224 }}
         transition={{ duration: reduced ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
-        className={`fixed right-2 ${paper ? "bottom-38 sm:bottom-30" : "bottom-11"} z-30 max-w-[calc(100vw-1rem)] ${hidden ? "invisible" : ""}`}
+        className={`fixed right-2 bottom-10 z-30 max-w-[calc(100vw-1rem)] ${hidden ? "invisible" : ""}`}
       >
         <Card className="gap-0 overflow-hidden py-0 shadow-lg">
           <CollapsibleTrigger asChild>
             <Button
               variant="ghost"
-              className="h-12 w-full justify-start gap-3 rounded-xl px-4"
+              className={`relative h-12 w-full gap-3 rounded-xl ${paper && !open ? "justify-center px-0" : "justify-start px-4"}`}
               aria-label={open ? "收起比赛动态" : "展开比赛动态"}
+              title={paper && !open ? "比赛动态" : undefined}
             >
               {newHints && !open ? (
                 <BellRing className="text-warning motion-safe:animate-pulse" />
               ) : (
                 <Activity className="text-muted-foreground" />
               )}
-              <span>比赛动态</span>
-              {data.data?.frozen && (
+              <span className={paper && !open ? "sr-only" : undefined}>
+                比赛动态
+              </span>
+              {data.data?.frozen && !(paper && !open) && (
                 <LockKeyhole
                   className="size-3.5 text-muted-foreground"
                   aria-label="已封榜"
                 />
               )}
-              {newHints > 0 && !open && (
+              {newHints > 0 && !open && !paper && (
                 <Badge
                   variant="secondary"
                   className="text-warning"
@@ -210,7 +213,7 @@ function ActivityPanel({
                   新提示 {newHints}
                 </Badge>
               )}
-              {unread > 0 && (
+              {unread > 0 && !(paper && !open) && (
                 <Badge
                   aria-label={`${unread} 条新动态`}
                   className="motion-safe:animate-in motion-safe:zoom-in-75"
@@ -218,9 +221,18 @@ function ActivityPanel({
                   {unread === 99 ? "99+" : unread}
                 </Badge>
               )}
-              <ChevronUp
-                className={`ml-auto shrink-0 text-muted-foreground motion-safe:transition-transform motion-safe:duration-300 ${open ? "rotate-180" : ""}`}
-              />
+              {paper && !open ? (
+                (newHints > 0 || unread > 0) && (
+                  <span
+                    aria-hidden
+                    className="absolute top-2 right-2 size-2 rounded-full bg-primary"
+                  />
+                )
+              ) : (
+                <ChevronUp
+                  className={`ml-auto shrink-0 text-muted-foreground motion-safe:transition-transform motion-safe:duration-300 ${open ? "rotate-180" : ""}`}
+                />
+              )}
             </Button>
           </CollapsibleTrigger>
           <span role="status" className="sr-only">
