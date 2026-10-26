@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { TabsContent } from "../ui/tabs";
-import { Card, CardContent } from "../ui/card";
+import { ConfigCard } from "./config-card";
 
 export function ConfigPanel({
   value,
@@ -20,9 +20,7 @@ export function ConfigPanel({
       data-config-tab={value}
       className="min-w-0 data-[state=inactive]:hidden"
     >
-      <Card className="min-w-0 border-0">
-        <CardContent>{children}</CardContent>
-      </Card>
+      <ConfigCard>{children}</ConfigCard>
     </TabsContent>
   );
 }

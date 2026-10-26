@@ -20,6 +20,8 @@ import { Switch } from "@/components/ui/switch";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertTitle } from "@/components/ui/alert";
+import { FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field";
+import { ConfigCard } from "@/components/admin/config-card";
 import { ToggleField } from "./SystemSettings";
 type AIRoute = {
   id: string;
@@ -277,14 +279,16 @@ function RouteForm({ route }: { route?: AIRoute }) {
     return (
       <>
         <PageTitle>路由已创建</PageTitle>
-        <div className="max-w-3xl space-y-5">
-          {secret && (
-            <SecretReceipt value={secret} onDismiss={() => setSecret("")} />
-          )}
-          <Button asChild>
-            <Link to={`/admin/ai/${createdId}/edit`}>查看接入信息</Link>
-          </Button>
-        </div>
+        <ConfigCard>
+          <div className="space-y-5">
+            {secret && (
+              <SecretReceipt value={secret} onDismiss={() => setSecret("")} />
+            )}
+            <Button asChild>
+              <Link to={`/admin/ai/${createdId}/edit`}>查看接入信息</Link>
+            </Button>
+          </div>
+        </ConfigCard>
       </>
     );
   return (
@@ -295,251 +299,271 @@ function RouteForm({ route }: { route?: AIRoute }) {
         form="ai-route"
         pending={save.isPending}
       />
-      <div className="max-w-4xl space-y-6">
+      <div className="w-full min-w-0 space-y-6">
         {secret && (
           <SecretReceipt value={secret} onDismiss={() => setSecret("")} />
         )}
-        <form
-          id="ai-route"
-          className="space-y-7 rounded-xl bg-card p-5 shadow-sm sm:p-6"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            save.mutate({
-              name: f.get("name"),
-              base_url: f.get("base_url"),
-              api_key: f.get("api_key"),
-              enabled,
-              protocol,
-              models,
-              ...Object.fromEntries(
-                [
-                  "rpm",
-                  "daily_limit",
-                  "concurrency",
-                  "max_tokens",
-                  "timeout_seconds",
-                ].map((key) => [key, Number(f.get(key))]),
-              ),
-            });
-          }}
-        >
-          <div className="grid items-end gap-4 sm:grid-cols-[2fr_1fr]">
-            <Field label="路由名称">
-              <Input
-                name="name"
-                required
-                maxLength={80}
-                defaultValue={data.name}
+        <ConfigCard>
+          <form
+            id="ai-route"
+            className="space-y-6"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              save.mutate({
+                name: f.get("name"),
+                base_url: f.get("base_url"),
+                api_key: f.get("api_key"),
+                enabled,
+                protocol,
+                models,
+                ...Object.fromEntries(
+                  [
+                    "rpm",
+                    "daily_limit",
+                    "concurrency",
+                    "max_tokens",
+                    "timeout_seconds",
+                  ].map((key) => [key, Number(f.get(key))]),
+                ),
+              });
+            }}
+          >
+            <div className="grid items-end gap-5 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <Field label="路由名称">
+                <Input
+                  name="name"
+                  required
+                  maxLength={80}
+                  defaultValue={data.name}
+                />
+              </Field>
+              <ToggleField
+                label="启用转发"
+                checked={enabled}
+                onChange={setEnabled}
               />
-            </Field>
-            <ToggleField
-              label="启用转发"
-              checked={enabled}
-              onChange={setEnabled}
-            />
-          </div>
-          <section className="space-y-4">
-            <h2 className="font-medium">上游连接</h2>
-            <Field label="上游协议">
-              <RadioGroup
-                className="flex gap-6"
-                value={protocol}
-                onValueChange={(v) => setProtocol(v as typeof protocol)}
-              >
-                {[
-                  ["openai", "OpenAI"],
-                  ["anthropic", "Anthropic"],
-                ].map(([v, label]) => (
-                  <label key={v} className="flex items-center gap-2 text-sm">
-                    <RadioGroupItem value={v!} />
-                    {label}
-                  </label>
-                ))}
-              </RadioGroup>
-            </Field>
-            <Field label="API 基础地址">
-              <Input
-                name="base_url"
-                type="url"
-                required
-                maxLength={500}
-                defaultValue={data.base_url}
-                placeholder={
-                  protocol === "openai"
-                    ? "https://api.example.com/v1"
-                    : "https://api.anthropic.com/v1"
-                }
-              />
-            </Field>
-            <Field label="上游 API 密钥">
-              <Input
-                name="api_key"
-                type="password"
-                autoComplete="new-password"
-                required={!route?.key_set}
-                maxLength={2048}
-                placeholder={route?.key_set ? "已设置，留空保留" : ""}
-              />
-            </Field>
-          </section>
-          <section className="space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="font-medium">模型映射</h2>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={models.length >= 50}
-                onClick={() =>
-                  setModels([...models, { alias: "", upstream: "" }])
-                }
-              >
-                <Plus />
-                添加模型
-              </Button>
             </div>
-            <div className="space-y-3">
-              {models.map((model, index) => (
-                <div
-                  className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-3"
-                  key={index}
-                >
-                  <Field label={index === 0 ? "调用模型名" : ""}>
-                    <Input
-                      aria-label={`调用模型名 ${index + 1}`}
-                      required
-                      maxLength={100}
-                      value={model.alias}
-                      onChange={(e) =>
-                        setModels(
-                          models.map((m, i) =>
-                            i === index ? { ...m, alias: e.target.value } : m,
-                          ),
-                        )
-                      }
-                    />
-                  </Field>
-                  <Field label={index === 0 ? "上游模型名" : ""}>
-                    <Input
-                      aria-label={`上游模型名 ${index + 1}`}
-                      required
-                      maxLength={200}
-                      value={model.upstream}
-                      onChange={(e) =>
-                        setModels(
-                          models.map((m, i) =>
-                            i === index
-                              ? { ...m, upstream: e.target.value }
-                              : m,
-                          ),
-                        )
-                      }
-                    />
-                  </Field>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    disabled={models.length === 1}
-                    aria-label={`移除模型 ${index + 1}`}
-                    onClick={() =>
-                      setModels(models.filter((_, i) => i !== index))
-                    }
+            <FieldSet className="min-w-0">
+              <FieldLegend>上游连接</FieldLegend>
+              <FieldGroup className="gap-5">
+                <Field label="上游协议">
+                  <RadioGroup
+                    className="flex min-h-9 flex-wrap items-center gap-x-6 gap-y-3"
+                    value={protocol}
+                    onValueChange={(v) => setProtocol(v as typeof protocol)}
                   >
-                    <Trash2 />
-                  </Button>
+                    {[
+                      ["openai", "OpenAI"],
+                      ["anthropic", "Anthropic"],
+                    ].map(([v, label]) => (
+                      <label
+                        key={v}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <RadioGroupItem value={v!} />
+                        {label}
+                      </label>
+                    ))}
+                  </RadioGroup>
+                </Field>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Field label="API 基础地址">
+                    <Input
+                      name="base_url"
+                      type="url"
+                      required
+                      maxLength={500}
+                      defaultValue={data.base_url}
+                      placeholder={
+                        protocol === "openai"
+                          ? "https://api.example.com/v1"
+                          : "https://api.anthropic.com/v1"
+                      }
+                    />
+                  </Field>
+                  <Field label="上游 API 密钥">
+                    <Input
+                      name="api_key"
+                      type="password"
+                      autoComplete="new-password"
+                      required={!route?.key_set}
+                      maxLength={2048}
+                      placeholder={route?.key_set ? "已设置，留空保留" : ""}
+                    />
+                  </Field>
                 </div>
-              ))}
-            </div>
-          </section>
-          <section className="space-y-4">
-            <h2 className="font-medium">调用限制</h2>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {[
-                ["rpm", "每分钟次数", 1, 10000],
-                ["daily_limit", "每日次数", 1, 1000000],
-                ["concurrency", "同时请求数", 1, 100],
-                ["max_tokens", "最大输出 tokens", 1, 131072],
-                ["timeout_seconds", "超时（秒）", 5, 300],
-              ].map(([key, label, min, max]) => (
-                <Field key={String(key)} label={String(label)}>
+              </FieldGroup>
+            </FieldSet>
+            <FieldSet className="min-w-0">
+              <FieldLegend className="flex w-full flex-wrap items-center justify-between gap-3">
+                <span>模型映射</span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={models.length >= 50}
+                  onClick={() =>
+                    setModels([...models, { alias: "", upstream: "" }])
+                  }
+                >
+                  <Plus />
+                  添加模型
+                </Button>
+              </FieldLegend>
+              <div className="space-y-3">
+                {models.map((model, index) => (
+                  <div
+                    className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-3"
+                    key={index}
+                  >
+                    <Field label={index === 0 ? "调用模型名" : ""}>
+                      <Input
+                        aria-label={`调用模型名 ${index + 1}`}
+                        required
+                        maxLength={100}
+                        value={model.alias}
+                        onChange={(e) =>
+                          setModels(
+                            models.map((m, i) =>
+                              i === index ? { ...m, alias: e.target.value } : m,
+                            ),
+                          )
+                        }
+                      />
+                    </Field>
+                    <Field label={index === 0 ? "上游模型名" : ""}>
+                      <Input
+                        aria-label={`上游模型名 ${index + 1}`}
+                        required
+                        maxLength={200}
+                        value={model.upstream}
+                        onChange={(e) =>
+                          setModels(
+                            models.map((m, i) =>
+                              i === index
+                                ? { ...m, upstream: e.target.value }
+                                : m,
+                            ),
+                          )
+                        }
+                      />
+                    </Field>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      disabled={models.length === 1}
+                      aria-label={`移除模型 ${index + 1}`}
+                      onClick={() =>
+                        setModels(models.filter((_, i) => i !== index))
+                      }
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </FieldSet>
+            <FieldSet className="min-w-0">
+              <FieldLegend>调用限制</FieldLegend>
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                {[
+                  ["rpm", "每分钟次数", 1, 10000],
+                  ["daily_limit", "每日次数", 1, 1000000],
+                  ["concurrency", "同时请求数", 1, 100],
+                  ["max_tokens", "最大输出 tokens", 1, 131072],
+                  ["timeout_seconds", "超时（秒）", 5, 300],
+                ].map(([key, label, min, max]) => (
+                  <Field key={String(key)} label={String(label)}>
+                    <Input
+                      name={String(key)}
+                      type="number"
+                      required
+                      min={Number(min)}
+                      max={Number(max)}
+                      defaultValue={data[key as keyof typeof data] as number}
+                    />
+                  </Field>
+                ))}
+              </div>
+            </FieldSet>
+            {save.error && (
+              <Alert variant="destructive">
+                <AlertTitle>{save.error.message}</AlertTitle>
+              </Alert>
+            )}
+          </form>
+        </ConfigCard>
+        {route && (
+          <ConfigCard>
+            <section className="space-y-5" aria-label="接入信息">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-medium">接入信息</h2>
+                <Button
+                  variant="secondary"
+                  disabled={test.isPending}
+                  onClick={() => test.mutate()}
+                >
+                  <PlugZap />
+                  测试已保存连接
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                两种格式均可调用。文本、工具调用与流式响应支持跨协议转换。
+              </p>
+              <div className="grid gap-5 sm:grid-cols-2">
+                {[
+                  [
+                    "OpenAI 基础地址",
+                    `${window.location.origin}/api/ai/${route.id}/v1`,
+                  ],
+                  [
+                    "Anthropic 基础地址",
+                    `${window.location.origin}/api/ai/${route.id}`,
+                  ],
+                ].map(([label, value]) => (
+                  <Field key={label} label={label!}>
+                    <div className="flex gap-2">
+                      <Input readOnly value={value} aria-label={label} />
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        aria-label={`复制${label}`}
+                        onClick={() => copy(value!)}
+                      >
+                        <Copy />
+                      </Button>
+                    </div>
+                  </Field>
+                ))}
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <Field label="访问密钥" className="min-w-0 flex-1">
                   <Input
-                    name={String(key)}
-                    type="number"
-                    required
-                    min={Number(min)}
-                    max={Number(max)}
-                    defaultValue={data[key as keyof typeof data] as number}
+                    readOnly
+                    value={`${route.access_prefix}…`}
+                    aria-label="访问密钥"
                   />
                 </Field>
-              ))}
-            </div>
-          </section>
-          {save.error && (
-            <Alert variant="destructive">
-              <AlertTitle>{save.error.message}</AlertTitle>
-            </Alert>
-          )}
-        </form>
-        {route && (
-          <section className="space-y-5 rounded-xl bg-card p-5 shadow-sm sm:p-6">
-            <div className="flex items-center justify-between">
-              <h2 className="font-medium">接入信息</h2>
-              <Button
-                variant="secondary"
-                disabled={test.isPending}
-                onClick={() => test.mutate()}
-              >
-                <PlugZap />
-                测试已保存连接
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              两种格式均可调用。文本、工具调用与流式响应支持跨协议转换。
-            </p>
-            {[
-              [
-                "OpenAI 基础地址",
-                `${window.location.origin}/api/ai/${route.id}/v1`,
-              ],
-              [
-                "Anthropic 基础地址",
-                `${window.location.origin}/api/ai/${route.id}`,
-              ],
-              ["访问密钥", `${route.access_prefix}…`],
-            ].map(([label, value]) => (
-              <Field key={label} label={label!}>
-                <div className="flex gap-2">
-                  <Input readOnly value={value} aria-label={label} />
-                  {label !== "访问密钥" && (
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      aria-label={`复制${label}`}
-                      onClick={() => copy(value!)}
-                    >
-                      <Copy />
-                    </Button>
-                  )}
-                </div>
-              </Field>
-            ))}
-            <div className="flex flex-wrap gap-3">
-              <Button variant="secondary" onClick={() => setConfirm("rotate")}>
-                <KeyRound />
-                重置访问密钥
-              </Button>
-              <Button
-                variant="ghost"
-                className="text-destructive"
-                onClick={() => setConfirm("delete")}
-              >
-                <Trash2 />
-                删除路由
-              </Button>
-            </div>
-          </section>
+                <Button
+                  variant="secondary"
+                  onClick={() => setConfirm("rotate")}
+                >
+                  <KeyRound />
+                  重置访问密钥
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="text-destructive"
+                  onClick={() => setConfirm("delete")}
+                >
+                  <Trash2 />
+                  删除路由
+                </Button>
+              </div>
+            </section>
+          </ConfigCard>
         )}
       </div>
       <ConfirmAction

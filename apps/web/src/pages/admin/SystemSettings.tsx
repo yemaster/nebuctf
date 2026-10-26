@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertTitle } from "@/components/ui/alert";
+import { FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field";
+import { Separator } from "@/components/ui/separator";
+import { ConfigCard } from "@/components/admin/config-card";
 
 type Section = "site" | "containers" | "mail";
 const titles = { site: "系统配置", containers: "容器策略", mail: "邮件策略" };
@@ -33,10 +36,10 @@ export function SystemSettings({ section }: { section: Section }) {
 }
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="space-y-4">
-      <h2 className="font-medium">{title}</h2>
-      {children}
-    </section>
+    <FieldSet className="min-w-0">
+      <FieldLegend>{title}</FieldLegend>
+      <FieldGroup className="gap-5">{children}</FieldGroup>
+    </FieldSet>
   );
 }
 export function ToggleField({
@@ -51,8 +54,9 @@ export function ToggleField({
   children?: ReactNode;
 }) {
   return (
-    <label className="flex items-center justify-between gap-6 py-2 text-sm">
-      <span className="space-y-1">
+    <label className="flex min-h-9 items-center gap-3 text-sm">
+      <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
+      <span className="min-w-0 space-y-1">
         <span className="block font-medium">{label}</span>
         {children && (
           <span className="block text-xs leading-5 text-muted-foreground">
@@ -60,7 +64,6 @@ export function ToggleField({
           </span>
         )}
       </span>
-      <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
     </label>
   );
 }
@@ -92,10 +95,10 @@ function SettingsForm({
       >
         {titles[section]}
       </PageTitle>
-      <div className="max-w-4xl space-y-8">
+      <ConfigCard>
         <form
           id="system-settings"
-          className="space-y-8 rounded-xl bg-card p-5 shadow-sm sm:p-6"
+          className="space-y-6"
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget),
@@ -147,7 +150,7 @@ function SettingsForm({
                     placeholder="留空显示系统名称与年份"
                   />
                 </Field>
-                <div className="grid gap-4 sm:grid-cols-[1fr_2fr]">
+                <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
                   <Field label="链接名称">
                     <Input
                       name="footer_link_label"
@@ -170,7 +173,7 @@ function SettingsForm({
           ) : section === "containers" ? (
             <>
               <Group title="时长与续期">
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-5 sm:grid-cols-3">
                   <Field label="默认时长（分钟）">
                     <Input
                       name="default_ttl"
@@ -237,8 +240,11 @@ function SettingsForm({
                 </p>
               </Group>
               <Group title="发件服务器">
-                <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
-                  <Field label="SMTP 地址">
+                <div className="grid items-start gap-5 sm:grid-cols-3 xl:grid-cols-12">
+                  <Field
+                    label="SMTP 地址"
+                    className="sm:col-span-2 xl:col-span-6"
+                  >
                     <Input
                       name="host"
                       defaultValue={data.host}
@@ -247,7 +253,7 @@ function SettingsForm({
                       placeholder="smtp.example.com"
                     />
                   </Field>
-                  <Field label="端口">
+                  <Field label="端口" className="xl:col-span-2">
                     <Input
                       name="port"
                       type="number"
@@ -257,29 +263,32 @@ function SettingsForm({
                       defaultValue={data.port}
                     />
                   </Field>
-                </div>
-                <Field label="连接加密">
-                  <RadioGroup
-                    className="flex flex-wrap gap-6"
-                    value={security}
-                    onValueChange={setSecurity}
+                  <Field
+                    label="连接加密"
+                    className="sm:col-span-3 xl:col-span-4"
                   >
-                    {[
-                      ["starttls", "STARTTLS"],
-                      ["tls", "TLS"],
-                      ["none", "无加密"],
-                    ].map(([value, label]) => (
-                      <label
-                        key={value}
-                        className="flex items-center gap-2 text-sm"
-                      >
-                        <RadioGroupItem value={value!} />
-                        {label}
-                      </label>
-                    ))}
-                  </RadioGroup>
-                </Field>
-                <div className="grid gap-4 sm:grid-cols-2">
+                    <RadioGroup
+                      className="flex min-h-9 flex-wrap items-center gap-x-6 gap-y-3"
+                      value={security}
+                      onValueChange={setSecurity}
+                    >
+                      {[
+                        ["starttls", "STARTTLS"],
+                        ["tls", "TLS"],
+                        ["none", "无加密"],
+                      ].map(([value, label]) => (
+                        <label
+                          key={value}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <RadioGroupItem value={value!} />
+                          {label}
+                        </label>
+                      ))}
+                    </RadioGroup>
+                  </Field>
+                </div>
+                <div className="grid gap-5 sm:grid-cols-2">
                   <Field label="用户名">
                     <Input
                       name="username"
@@ -305,7 +314,7 @@ function SettingsForm({
                     onChange={setClearPassword}
                   />
                 )}
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-5 sm:grid-cols-2">
                   <Field label="发件邮箱">
                     <Input
                       name="from_address"
@@ -332,8 +341,13 @@ function SettingsForm({
             </Alert>
           )}
         </form>
-        {section === "mail" && <MailTest />}
-      </div>
+        {section === "mail" && (
+          <>
+            <Separator className="my-6" />
+            <MailTest />
+          </>
+        )}
+      </ConfigCard>
     </>
   );
 }
@@ -345,8 +359,8 @@ function MailTest() {
     false,
   );
   return (
-    <section className="space-y-4 rounded-xl bg-card p-5 shadow-sm sm:p-6">
-      <div className="flex items-center justify-between gap-4">
+    <section className="space-y-5" aria-label="测试已保存配置">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-medium">测试已保存配置</h2>
         <Button
           variant="secondary"
@@ -358,7 +372,7 @@ function MailTest() {
         </Button>
       </div>
       <form
-        className="flex items-end gap-3"
+        className="flex flex-col gap-3 sm:flex-row sm:items-end"
         onSubmit={(e) => {
           e.preventDefault();
           test.mutate(String(new FormData(e.currentTarget).get("recipient")));
