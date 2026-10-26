@@ -195,6 +195,7 @@ export function RegistrationReviewActions({
       )}
       {(r.status === "pending" || accepted) && (
         <ReviewReasonAction
+          key={accepted ? "suspended" : "rejected"}
           teamIds={[r.team_id]}
           title={r.name}
           status={accepted ? "suspended" : "rejected"}

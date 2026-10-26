@@ -504,12 +504,27 @@ test(
           checkContext();
           await click(button("重新审核 审核战队"));
           await settle(() => !!button("拒绝 审核战队"));
+          await click(button("拒绝 审核战队"));
+          await settle(
+            () => !!document.querySelector('[role="dialog"] textarea'),
+          );
+          await fillReason("未提交的拒绝原因");
+          await click(button("取消"));
           await click(button("通过 审核战队"));
           await settle(() => !!button("暂停 审核战队"));
           checkContext();
           await click(button("暂停 审核战队"));
           await settle(
             () => !!document.querySelector('[role="dialog"] textarea'),
+          );
+          assert.equal(
+            (
+              document.querySelector(
+                '[role="dialog"] textarea',
+              ) as HTMLTextAreaElement
+            ).value,
+            "",
+            "a cancelled rejection draft must not become a suspension reason",
           );
           await fillReason("参赛资料待核实");
           await click(button("确认暂停"));
