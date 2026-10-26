@@ -26,7 +26,10 @@ export function PageTitle({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+    <div
+      data-slot="page-title"
+      className="mb-8 flex flex-wrap items-center justify-between gap-3"
+    >
       <h1 className="text-2xl font-semibold ">{children}</h1>
       {action}
     </div>

@@ -88,6 +88,14 @@ test(
       registration: null,
       groups: [],
       challenge_ids: [],
+      clock: {
+        server_time: new Date().toISOString(),
+        starts_at: new Date(Date.now() - 3600000).toISOString(),
+        ends_at: new Date(Date.now() + 7200000).toISOString(),
+        freeze_at: null,
+        practice: false,
+        rounds: null,
+      },
     };
     const registration = {
       team_id: team,
@@ -271,6 +279,11 @@ test(
           await mount(`/contests/${id}/manage/teams`);
           await settle(
             () => !!host.querySelector('input[aria-label="搜索战队或队长"]'),
+          );
+          assert.match(
+            host.querySelector('[role="timer"][aria-label="比赛倒计时"]')!
+              .textContent!,
+            /比赛剩余\d{2}:\d{2}:\d{2}/,
           );
           assert.equal(
             host.querySelectorAll(

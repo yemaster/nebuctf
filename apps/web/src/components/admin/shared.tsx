@@ -116,7 +116,10 @@ export function EditorHeading({
   backLabel?: string;
 }) {
   return (
-    <div className="sticky top-0 z-10 mb-6 flex flex-wrap items-center justify-between gap-4 bg-background py-4">
+    <div
+      data-slot="page-title"
+      className="sticky top-0 z-10 mb-6 flex flex-wrap items-center justify-between gap-4 bg-background py-4"
+    >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <Button asChild size="icon" variant="ghost">
           <Link to={back} aria-label={backLabel}>

@@ -177,7 +177,7 @@ export function ContestDetail() {
             >
               <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="flex min-w-0 flex-col gap-6 py-6 sm:py-8">
-                  <CardHeader className="block px-6 sm:px-8">
+                  <CardHeader className="block px-6 sm:px-8 md:pr-72 lg:pr-8">
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                       <h1
                         id="contest-title"

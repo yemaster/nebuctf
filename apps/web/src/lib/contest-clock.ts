@@ -60,7 +60,7 @@ export function roundAt(clock: ContestClock, now: number) {
 export function contestCountdown(clock: ContestClock, now: number) {
   const starts = Date.parse(clock.starts_at),
     ends = Date.parse(clock.ends_at);
-  if (clock.practice) return { label: "赛后练习", remaining: null };
+  if (clock.practice) return { label: "赛后练习", remaining: 0 };
   if (now >= ends) return { label: "比赛已结束", remaining: 0 };
   if (now < starts) return { label: "距离开赛", remaining: starts - now };
   const round = roundAt(clock, now);

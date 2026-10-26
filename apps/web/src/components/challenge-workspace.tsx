@@ -157,7 +157,9 @@ export function ChallengeWorkspace({
         fullPage
       />
       {c && !detail.error && (
-        <article className="mx-auto w-full max-w-5xl space-y-9 px-6 py-8 sm:px-10 lg:px-12 lg:py-12 xl:px-16">
+        <article
+          className={`mx-auto w-full max-w-5xl space-y-9 px-6 py-8 sm:px-10 lg:px-12 lg:py-12 xl:px-16 ${scope !== "practice" ? "md:pt-12" : ""}`}
+        >
           <header
             data-card-detail={
               scope === "practice" ? `practice:${id}` : undefined

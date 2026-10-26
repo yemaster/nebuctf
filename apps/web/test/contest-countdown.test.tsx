@@ -66,7 +66,7 @@ test("ordinary contests, delayed rounds and practice do not show a misleading ro
   });
   assert.deepEqual(
     contestCountdown({ ...clock, practice: true }, epoch + 1100000),
-    { label: "赛后练习", remaining: null },
+    { label: "赛后练习", remaining: 0 },
   );
 });
 
@@ -120,7 +120,10 @@ test("the countdown corrects client time and advances to the next round without 
         />,
       ),
     );
-    assert.equal(document.querySelector('[role="timer"]'), null);
+    assert.match(
+      document.querySelector('[role="timer"]')!.textContent!,
+      /赛后练习00:00:00/,
+    );
   } finally {
     await act(async () => root.unmount());
     t.mock.timers.reset();

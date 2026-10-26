@@ -607,7 +607,7 @@ function ChallengeBrowser({
               className="h-full min-h-0 gap-0"
             >
               <div
-                className={`flex h-14 shrink-0 items-center gap-2 px-3 ${scope !== "practice" ? "lg:pr-[calc(max(0px,(100vw-1680px)/2)+16rem)]" : ""}`}
+                className={`flex h-14 shrink-0 items-center gap-2 px-3 ${scope !== "practice" ? "md:pr-[calc(max(0px,(100vw-1680px)/2)+18rem)]" : ""}`}
               >
                 {scope === "practice" &&
                   (returnTo ? (

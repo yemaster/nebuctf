@@ -146,14 +146,12 @@ function AppShell() {
             user={user}
             onLogout={() => logout.mutate()}
             loggingOut={logout.isPending}
-            showCountdown={
-              !!contestId &&
-              !spectating &&
-              !contestManaging &&
-              !cardTransition.native
-            }
+            showCountdown={!!contestId && !spectating && !cardTransition.native}
           />
-          <main id="main" className="relative min-h-0 flex-1 overflow-hidden">
+          <main
+            id="main"
+            className={`relative min-h-0 flex-1 overflow-hidden ${contestId && !spectating ? (contestManaging ? "md:[&_[data-slot=page-title]]:pr-72" : "md:[&_[data-slot=page-title]]:pr-[max(0px,calc(18rem-(100vw-100%)/2))]") : ""}`}
+          >
             <AnimatePresence
               mode={cardTransition.native ? "sync" : "wait"}
               initial={false}

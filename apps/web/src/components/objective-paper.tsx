@@ -109,7 +109,7 @@ export function ObjectivePaper({
   return (
     <div className="flex h-full min-h-0 flex-col" aria-label="客观题答卷">
       <ScrollArea className="min-h-0 flex-1">
-        <div className="mx-auto w-full max-w-4xl px-6 py-8 sm:px-10 lg:py-10">
+        <div className="mx-auto w-full max-w-4xl px-6 py-8 sm:px-10 md:pt-12 lg:pb-10">
           <header className="mb-8 flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-2xl font-semibold">客观题</h1>
             <span className="text-sm tabular-nums text-muted-foreground">
