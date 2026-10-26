@@ -264,7 +264,7 @@ function DetailContent({
                         key={`${cell.unit_id}-${cell.round_number ?? "solve"}`}
                         className="flex items-start gap-3 py-4"
                       >
-                        <span className="mt-1">
+                        <span className="shrink-0">
                           <SolveMark cell={cell} />
                         </span>
                         <div className="min-w-0 flex-1">

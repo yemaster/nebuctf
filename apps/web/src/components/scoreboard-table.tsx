@@ -22,11 +22,11 @@ import {
 
 export function SolveMark({ cell }: { cell?: ScoreCell }) {
   if (!cell)
-    return <Minus className="mx-auto size-3 text-muted-foreground/40" />;
+    return <Minus className="mx-auto size-6 text-muted-foreground/40" />;
   return cell.blood_rank ? (
-    <Medal className={`size-4 ${bloodColors[cell.blood_rank - 1]}`} />
+    <Medal className={`size-6 ${bloodColors[cell.blood_rank - 1]}`} />
   ) : (
-    <Check className="size-4 text-success" />
+    <Check className="size-6 text-success" />
   );
 }
 const identity =
@@ -139,13 +139,13 @@ export function ScoreboardTable({
               return (
                 <TableRow
                   key={row.id}
-                  className={`[&>td]:bg-inherit ${mine ? "bg-accent hover:bg-accent" : "bg-card hover:bg-muted"}`}
+                  className={`[&>td]:bg-inherit ${mine ? "bg-accent hover:bg-accent" : "bg-card hover:bg-card"}`}
                   data-self={mine || undefined}
                 >
                   <TableCell className={`${identity} border-b py-1`}>
                     <Button
                       variant="ghost"
-                      className="h-auto min-h-14 w-full justify-start gap-3 px-1 text-left hover:bg-transparent"
+                      className="h-auto min-h-14 w-full justify-start gap-3 px-1 text-left hover:bg-transparent dark:hover:bg-transparent"
                       onClick={() => onSelect(row)}
                       aria-label={`查看${row.name}的解题详情`}
                     >
@@ -199,7 +199,7 @@ export function ScoreboardTable({
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="w-full"
+                                  className="w-full hover:bg-transparent dark:hover:bg-transparent"
                                   onClick={() => onSelect(row)}
                                   aria-label={`${row.name}，${name}，${cell.blood_rank ? bloodLabels[cell.blood_rank - 1] : "已解答"}，${cell.score} 分`}
                                 >
