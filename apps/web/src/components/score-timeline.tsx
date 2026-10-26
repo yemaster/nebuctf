@@ -7,13 +7,9 @@ import {
 } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { RotateCcw } from "lucide-react";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "./ui/chart";
+import { ChartContainer, type ChartConfig } from "./ui/chart";
 import { Button } from "./ui/button";
+import { TimelineInspector } from "./timeline-inspector";
 import { Slider } from "./ui/slider";
 import type { ScoreboardData } from "@/lib/types";
 import { scoreTimelineRows } from "@/lib/scoreboard";
@@ -68,6 +64,7 @@ const compact = new Intl.NumberFormat("zh-CN", {
 
 export function ScoreTimeline({ board }: { board: ScoreboardData }) {
   const mobile = useIsMobile();
+  const chart = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<"all" | "activity" | "custom">("all");
   const [selection, setSelection] = useState<TimeRange | null>(null);
   const [hidden, setHidden] = useState(new Set<string>());
@@ -136,11 +133,13 @@ export function ScoreTimeline({ board }: { board: ScoreboardData }) {
     <div className="space-y-3" aria-label="积分走势图控制">
       <ChartContainer
         config={config}
-        className="h-56 w-full aspect-auto sm:h-64"
+        ref={chart}
+        className="relative h-56 w-full aspect-auto touch-pan-y sm:h-64"
         aria-label="前五名战队积分走势"
       >
         <LineChart
           accessibilityLayer
+          aria-label="积分走势图，左右方向键查看时间"
           data={visible}
           margin={{ top: 12, right: 16, bottom: 0, left: 0 }}
         >
@@ -178,35 +177,6 @@ export function ScoreTimeline({ board }: { board: ScoreboardData }) {
               Math.abs(value) >= 10_000 ? compact.format(value) : String(value)
             }
           />
-          <ChartTooltip
-            isAnimationActive={false}
-            cursor={{ strokeDasharray: "3 3" }}
-            wrapperStyle={{ zIndex: 30 }}
-            itemSorter={(item) => -Number(item.value)}
-            content={
-              <ChartTooltipContent
-                className="min-w-52 max-w-[min(20rem,calc(100vw-2rem))] bg-popover px-3 py-2 shadow-md"
-                labelClassName="mb-1 text-muted-foreground tabular-nums"
-                labelFormatter={(_, payload) =>
-                  fullTime.format(payload[0]?.payload.time)
-                }
-                formatter={(value, name, item) => (
-                  <div className="flex w-full items-center gap-3">
-                    <span
-                      className="h-0.5 w-3 shrink-0 rounded-full"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span className="min-w-0 flex-1 truncate">
-                      {config[String(name)]?.label ?? name}
-                    </span>
-                    <span className="shrink-0 font-mono font-medium tabular-nums">
-                      {Number(value).toLocaleString()}
-                    </span>
-                  </div>
-                )}
-              />
-            }
-          />
           {board.timeline.map((team, index) => (
             <Line
               key={team.id}
@@ -215,11 +185,19 @@ export function ScoreTimeline({ board }: { board: ScoreboardData }) {
               stroke={`var(--color-team${index})`}
               strokeWidth={2}
               dot={false}
-              activeDot={{ r: 4 }}
+              activeDot={false}
               hide={hidden.has(team.id)}
               isAnimationActive={false}
             />
           ))}
+          <TimelineInspector
+            container={chart}
+            data={visible}
+            config={config}
+            teams={board.timeline}
+            hidden={hidden}
+            formatTime={(value) => fullTime.format(value)}
+          />
         </LineChart>
       </ChartContainer>
       <div className="flex flex-wrap items-start gap-x-5 gap-y-2">

@@ -9,7 +9,43 @@ import {
   timelineActivityRange,
   timelineTicks,
   timelineColors,
+  timelineAt,
 } from "../src/lib/score-timeline";
+
+test("timeline inspection resolves every instant without snapping forward to a solve", () => {
+  const data = [
+    { time: 0, team0: 0, team1: 0 },
+    { time: 1000, team0: 100, team1: 0 },
+    { time: 6000, team0: 100, team1: -50 },
+    { time: 10000, team0: 300, team1: 150 },
+    { time: 1000000, team0: 300, team1: 150 },
+  ];
+  for (const time of [
+    0, 999, 1000, 1001, 5999, 6000, 9999, 10000, 500000, 999999, 1000000,
+  ]) {
+    const earned = data.findLast((point) => point.time <= time)!;
+    assert.deepEqual(timelineAt(data, time), { ...earned, time });
+  }
+  assert.deepEqual(timelineAt(data, 9999), {
+    time: 9999,
+    team0: 100,
+    team1: -50,
+  });
+  const zoom = timelineWindow(data, [4000, 7000]);
+  assert.deepEqual(timelineAt(zoom, 5000), {
+    time: 5000,
+    team0: 100,
+    team1: 0,
+  });
+  for (const time of [-1, 1000001, NaN])
+    assert.equal(timelineAt(data, time), null);
+  assert.equal(timelineAt([], 0), null);
+  assert.equal(
+    data[1]!.time,
+    1000,
+    "inspecting must not mutate recorded timestamps",
+  );
+});
 
 test("zoomed score timelines carry boundary scores without interpolating gains", () => {
   const data = [
@@ -719,6 +755,85 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
             !!document.querySelector('[aria-label="前五名战队积分走势"] svg'),
         );
         await settle(() => !!document.querySelector(".recharts-line-curve"));
+        const chart = document.querySelector(
+          '[aria-label="前五名战队积分走势"]',
+        )!;
+        const inspectAt = async (x: number) => {
+          await act(async () => {
+            chart.dispatchEvent(
+              new dom.window.MouseEvent("pointermove", {
+                clientX: x,
+                clientY: 100,
+                bubbles: true,
+              }),
+            );
+            await new Promise<void>((resolve) =>
+              dom.window.requestAnimationFrame(() => resolve()),
+            );
+          });
+          await settle(
+            () =>
+              !!document.querySelector(
+                '[role="tooltip"][aria-label="积分详情"]',
+              ),
+          );
+          return document.querySelector(
+            '[role="tooltip"][aria-label="积分详情"]',
+          )!;
+        };
+        const early = await inspectAt(200);
+        const earlyTime = Number(early.getAttribute("data-time"));
+        assert(
+          early.textContent?.includes("Nebula0"),
+          "scores before a solve remain zero",
+        );
+        const later = await inspectAt(400);
+        const laterTime = Number(later.getAttribute("data-time"));
+        assert(
+          laterTime > earlyTime && laterTime < Date.parse(now),
+          "the pointer inspects intermediate times",
+        );
+        assert(later.textContent?.includes("Nebula100"));
+        await act(async () => {
+          chart.dispatchEvent(
+            new dom.window.KeyboardEvent("keydown", {
+              key: "Home",
+              bubbles: true,
+            }),
+          );
+        });
+        assert.equal(
+          Number(
+            document
+              .querySelector('[aria-label="积分详情"]')!
+              .getAttribute("data-time"),
+          ),
+          Date.parse(board.starts_at!),
+        );
+        await act(async () => {
+          chart.dispatchEvent(
+            new dom.window.KeyboardEvent("keydown", {
+              key: "ArrowRight",
+              bubbles: true,
+            }),
+          );
+        });
+        assert(
+          Number(
+            document
+              .querySelector('[aria-label="积分详情"]')!
+              .getAttribute("data-time"),
+          ) > Date.parse(board.starts_at!),
+        );
+        await act(async () => {
+          chart.dispatchEvent(
+            new dom.window.KeyboardEvent("keydown", {
+              key: "Escape",
+              bubbles: true,
+            }),
+          );
+        });
+        assert.equal(document.querySelector('[aria-label="积分详情"]'), null);
         const legend = document.querySelector(
           '[aria-label="隐藏Nebula的积分走势"]',
         )!;

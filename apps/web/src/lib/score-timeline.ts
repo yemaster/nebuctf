@@ -1,6 +1,28 @@
 export type TimeRange = [number, number];
 export type TimelineRow = { time: number } & Record<string, number>;
 
+// Resolve an arbitrary instant to the last earned score, never the nearest future gain.
+export function timelineAt(
+  data: TimelineRow[],
+  time: number,
+): TimelineRow | null {
+  if (
+    !data.length ||
+    !Number.isFinite(time) ||
+    time < data[0]!.time ||
+    time > data.at(-1)!.time
+  )
+    return null;
+  let low = 0,
+    high = data.length - 1;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (data[middle]!.time <= time) low = middle;
+    else high = middle - 1;
+  }
+  return { ...data[low]!, time };
+}
+
 // Keep the score already earned before a zoom boundary. Never interpolate gains.
 export function timelineWindow(data: TimelineRow[], [from, to]: TimeRange) {
   if (!data.length || !Number.isFinite(from + to) || to <= from) return [];
