@@ -8,6 +8,7 @@ import { sessionCookie } from "../src/auth.js";
 import { digest, flagHash } from "../src/security.js";
 import { registrationCodeHash } from "../src/contest-entry.js";
 import { creditSolve } from "../src/solve.js";
+import { readSpectatorEngagements } from "../src/contest-spectator.js";
 import { notifyContest } from "../src/activity-events.js";
 
 test(
@@ -640,6 +641,74 @@ test(
           (await request(`/challenges/${awd}/instances`, alice, { scope }))
             .statusCode,
           403,
+        );
+      },
+    );
+
+    await t.test(
+      "live engagement broadcasts contain only recent eligible teams on public unsolved questions",
+      async () => {
+        const scope = await contest(),
+          visible = await challenge(scope),
+          hidden = await challenge(scope, "Private question"),
+          past = Date.now() - 100000;
+        await db.query(
+          "INSERT INTO registrations(contest_id,team_id,status) VALUES($1,$2,'accepted'),($1,$3,'pending')",
+          [scope, alice.team, bob.team],
+        );
+        const add = async (
+          cid: string,
+          who: typeof alice,
+          practice = false,
+          at = Date.now(),
+        ) =>
+          db.query(
+            "INSERT INTO submissions(id,challenge_id,user_id,owner_key,scope,correct,contest_practice,created_at) VALUES($1,$2,$3,$4,$5,false,$6,$7)",
+            [
+              crypto.randomUUID(),
+              cid,
+              who.id,
+              "t:" + who.team,
+              scope,
+              practice,
+              new Date(at),
+            ],
+          );
+        await add(visible, alice, false, past);
+        await add(visible, alice, true);
+        await add(visible, bob);
+        await add(hidden, alice);
+        const [ct] = await db.query("SELECT * FROM contests WHERE id=$1", [
+          scope,
+        ]);
+        assert.deepEqual(
+          await readSpectatorEngagements(db, ct!, [visible]),
+          [],
+        );
+        await add(visible, alice);
+        const rows = await readSpectatorEngagements(db, ct!, [visible]);
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0]!.challenge_id, visible);
+        assert.deepEqual(
+          rows[0]!.teams.map((t: any) => t.id),
+          [alice.team],
+        );
+        assert(!JSON.stringify(rows).includes("submitted_hash"));
+        assert.deepEqual(
+          await readSpectatorEngagements(
+            db,
+            { ...ct, freeze_at: new Date(Date.now() - 1) },
+            [visible],
+          ),
+          [],
+        );
+        assert.deepEqual(
+          await readSpectatorEngagements(
+            db,
+            { ...ct, ends_at: new Date(Date.now() - 1) },
+            [visible],
+          ),
+          [],
         );
       },
     );

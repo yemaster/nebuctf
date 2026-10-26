@@ -16,7 +16,6 @@ import {
   Flag,
   Swords,
   Bell,
-  CircleHelp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -24,6 +23,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useSpectatorRealtime } from "@/lib/spectator-realtime";
 import {
   eventLabel,
+  activeEngagements,
+  SpectatorEvents,
   type SpectatorData,
   type SpectatorTeam,
   type SpectatorEvent,
@@ -35,12 +36,7 @@ import {
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import { Loading, QueryState } from "@/components/shared";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
+import { ContestClockLine } from "@/components/contest-clock";
 const ArenaScene = lazy(() => import("@/components/spectator/arena-scene"));
 const clock = new Intl.DateTimeFormat("zh-CN", {
   hour: "2-digit",
@@ -58,9 +54,7 @@ function Spectator({ scope }: { scope: string }) {
   const feed = useSpectatorRealtime(scope),
     reduced = !!useReducedMotion();
   const [paused, setPaused] = useState(false),
-    [selected, setSelected] = useState<string | null>(null),
     [fullscreen, setFullscreen] = useState(false);
-  const [selectedTeam, setSelectedTeam] = useState<SpectatorTeam | null>(null);
   const screen = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const update = () =>
@@ -89,9 +83,6 @@ function Spectator({ scope }: { scope: string }) {
     );
   const data = feed.data,
     ended = Date.parse(data.contest.ends_at) <= Date.now();
-  const focus =
-    data.leaders.find((t) => t.id === selected) ??
-    (selectedTeam?.id === selected ? selectedTeam : undefined);
   return (
     <div
       ref={screen}
@@ -107,9 +98,12 @@ function Spectator({ scope }: { scope: string }) {
               </Link>
             </Button>
           )}
-          <h1 className="truncate text-lg font-semibold">
-            {data.contest.title}
-          </h1>
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold">
+              {data.contest.title}
+            </h1>
+            {data.clock && <ContestClockLine clock={data.clock} />}
+          </div>
           <Badge variant="secondary">
             {!data.started
               ? "等待开赛"
@@ -162,16 +156,7 @@ function Spectator({ scope }: { scope: string }) {
           className="order-2 flex min-h-0 flex-col bg-card lg:order-first lg:overflow-y-auto lg:border-r"
           aria-label="观战数据"
         >
-          <Leaderboard
-            scope={scope}
-            groups={data.groups}
-            reduced={reduced}
-            selected={selected}
-            onSelect={(team) => {
-              setSelected(team.id);
-              setSelectedTeam(team);
-            }}
-          />
+          <Leaderboard scope={scope} groups={data.groups} reduced={reduced} />
           <EventFeed
             events={data.events}
             frozen={data.frozen}
@@ -183,75 +168,12 @@ function Spectator({ scope }: { scope: string }) {
           className="relative min-h-[420px] overflow-hidden lg:min-h-0"
           aria-label="比赛三维态势"
         >
-          <Suspense fallback={<Loading fullPage />}>
-            <ArenaScene
-              data={data}
-              live={feed.status === "live"}
-              paused={paused}
-              reduced={reduced}
-              selected={selected}
-              onSelect={setSelected}
-            />
-          </Suspense>
-          <dl className="pointer-events-none absolute inset-x-0 top-5 flex justify-center gap-6 px-4 sm:gap-10 lg:top-7">
-            {[
-              ["战队", data.stats.teams],
-              ["题目", data.stats.challenges],
-              ["解题", data.stats.solves],
-              ...(data.stats.attacks ? [["攻破", data.stats.attacks]] : []),
-            ].map(([label, value]) => (
-              <div key={label} className="text-center">
-                <dd className="text-2xl font-semibold tabular-nums sm:text-3xl">
-                  {number.format(Number(value))}
-                </dd>
-                <dt className="mt-1 text-xs text-muted-foreground">{label}</dt>
-              </div>
-            ))}
-          </dl>
-          {focus && (
-            <div className="absolute bottom-5 left-1/2 flex max-w-[80%] -translate-x-1/2 items-center gap-5 rounded-lg bg-card/95 px-5 py-3 shadow-lg">
-              <span className="text-primary tabular-nums">#{focus.rank}</span>
-              <span className="truncate font-medium">{focus.name}</span>
-              <span className="shrink-0 tabular-nums">
-                {number.format(focus.score)} 分
-              </span>
-            </div>
-          )}
-          {!focus && (
-            <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap text-xs text-muted-foreground">
-              {data.frozen ? (
-                <>
-                  <LockKeyhole className="size-3.5" />
-                  封榜期间显示冻结赛况
-                </>
-              ) : data.stats.teams ? (
-                <>
-                  {data.stats.teams > 60
-                    ? "场景显示前 60 支战队"
-                    : "拖动旋转，滚轮缩放"}
-                </>
-              ) : (
-                <>等待战队入场</>
-              )}
-            </div>
-          )}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="absolute bottom-3 right-3"
-                  aria-label="场景说明"
-                >
-                  <CircleHelp />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                外围节点代表战队，高度对应得分；解题轨迹连接对应题区，攻防轨迹连接目标战队。
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <CityView
+            data={data}
+            live={feed.status === "live"}
+            paused={paused}
+            reduced={reduced}
+          />
         </section>
       </div>
     </div>
@@ -261,14 +183,10 @@ function Leaderboard({
   scope,
   groups,
   reduced,
-  selected,
-  onSelect,
 }: {
   scope: string;
   groups: SpectatorData["groups"];
   reduced: boolean;
-  selected: string | null;
-  onSelect: (team: SpectatorTeam) => void;
 }) {
   const [page, setPage] = useState(1),
     [group, setGroup] = useState(""),
@@ -362,23 +280,19 @@ function Leaderboard({
           >
             {ranking.data?.items.map((team) => (
               <li key={team.id}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className={`h-8 w-full justify-start gap-3 rounded-md px-2 text-sm ${selected === team.id ? "bg-accent" : ""}`}
-                  onClick={() => onSelect(team)}
-                  aria-label={`查看 ${team.name}，第 ${team.rank} 名，${team.score} 分`}
-                >
+                <div className="flex h-8 items-center gap-3 rounded-md px-2 text-sm">
                   <span
                     className={`w-5 shrink-0 text-right tabular-nums ${team.rank <= 3 ? "text-primary font-semibold" : "text-muted-foreground"}`}
                   >
                     {team.rank}
                   </span>
-                  <span className="truncate">{team.name}</span>
+                  <span className="truncate" title={team.name}>
+                    {team.name}
+                  </span>
                   <span className="ml-auto tabular-nums">
                     {number.format(team.score)}
                   </span>
-                </Button>
+                </div>
               </li>
             ))}
             {!ranking.data?.items.length && (
@@ -496,5 +410,142 @@ function EventFeed({
         )}
       </ol>
     </section>
+  );
+}
+
+function CityView({
+  data,
+  live,
+  paused,
+  reduced,
+}: {
+  data: SpectatorData;
+  live: boolean;
+  paused: boolean;
+  reduced: boolean;
+}) {
+  const [now, setNow] = useState(Date.now()),
+    [index, setIndex] = useState(0),
+    [notice, setNotice] = useState<SpectatorEvent | null>(null);
+  const ledger = useRef(new SpectatorEvents()),
+    expires = useRef(0);
+  useEffect(() => {
+    const fresh = ledger.current.ingest(data.events, live);
+    if (!data.frozen && !paused) {
+      const solved = fresh.find(
+        (e) => e.type === "solve" || e.type === "attack",
+      );
+      if (solved) {
+        setNotice(solved);
+        expires.current = Date.now() + 6500;
+      }
+    }
+    if (!live || data.frozen) setNotice(null);
+  }, [data.events, data.frozen, live, paused]);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+      if (expires.current && Date.now() >= expires.current) {
+        setNotice(null);
+        expires.current = 0;
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (paused || reduced) return;
+    const timer = setInterval(() => {
+      if (!document.hidden) setIndex((i) => i + 1);
+    }, 7000);
+    return () => clearInterval(timer);
+  }, [paused, reduced]);
+  const engagements = live ? activeEngagements(data, now) : [],
+    engagement = engagements.length
+      ? engagements[index % engagements.length]
+      : null;
+  const focus = notice?.challenge_id ?? engagement?.challenge_id ?? null;
+  return (
+    <>
+      <Suspense fallback={<Loading fullPage />}>
+        <ArenaScene
+          data={data}
+          live={live}
+          paused={paused}
+          reduced={reduced}
+          focus={focus}
+        />
+      </Suspense>
+      <dl className="pointer-events-none absolute inset-x-0 top-5 flex justify-center gap-6 px-4 text-slate-50 sm:gap-10 lg:top-7">
+        {[
+          ["战队", data.stats.teams],
+          ["题目", data.stats.challenges],
+          ["解题", data.stats.solves],
+          ...(data.stats.attacks ? [["攻破", data.stats.attacks]] : []),
+        ].map(([label, value]) => (
+          <div key={label} className="text-center">
+            <dd className="text-2xl font-semibold tabular-nums sm:text-3xl">
+              {number.format(Number(value))}
+            </dd>
+            <dt className="mt-1 text-xs text-slate-300">{label}</dt>
+          </div>
+        ))}
+      </dl>
+      <div
+        className="pointer-events-none absolute inset-x-5 bottom-6 flex justify-center"
+        role="status"
+        aria-live="polite"
+      >
+        <AnimatePresence mode="wait" initial={false}>
+          {notice ? (
+            <m.div
+              key={notice.id}
+              initial={{ opacity: 0, y: reduced ? 0 : 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: reduced ? 0 : 0.24 }}
+              className="max-w-xl rounded-lg bg-slate-950/90 px-6 py-4 text-center text-sm text-slate-100 shadow-lg"
+            >
+              <span className="mr-3 font-medium text-amber-300">
+                {eventLabel(notice)}
+              </span>
+              <span>{notice.team_name}</span>
+              <span className="mx-2">
+                {notice.type === "attack" ? "攻破" : "解出"}
+              </span>
+              <span className="font-medium text-cyan-200">
+                {notice.challenge_title}
+                {notice.part_title ? ` / ${notice.part_title}` : ""}
+              </span>
+            </m.div>
+          ) : engagement ? (
+            <m.div
+              key={engagement.challenge_id}
+              initial={{ opacity: 0, y: reduced ? 0 : 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: reduced ? 0 : 0.24 }}
+              className="max-w-xl rounded-lg bg-slate-950/90 px-6 py-3 text-center text-sm leading-6 text-slate-200 shadow-lg"
+            >
+              <span className="font-medium text-cyan-200">
+                {engagement.challenge_title}
+              </span>{" "}
+              正在被{" "}
+              <span className="font-medium text-white">
+                {engagement.teams.map((t) => t.name).join("、")}
+              </span>{" "}
+              攻打
+            </m.div>
+          ) : data.frozen ? (
+            <m.div
+              key="frozen"
+              className="flex items-center gap-2 text-xs text-slate-300"
+            >
+              <LockKeyhole className="size-3.5" />
+              封榜期间显示冻结赛况
+            </m.div>
+          ) : null}
+        </AnimatePresence>
+      </div>
+    </>
   );
 }

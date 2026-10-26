@@ -1,190 +1,203 @@
 import * as T from "three";
-import type { SpectatorEvent } from "@/lib/spectator";
+import { cityHash, type SpectatorEvent } from "@/lib/spectator";
 
-/** At most twelve short-lived real events; geometry and materials are reclaimed together. */
-export function createArenaEffects(
-  world: T.Group,
-  accent: T.Color,
-  dark: boolean,
-) {
-  const effects: ReturnType<typeof build>[] = [];
-  function build(
-    event: SpectatorEvent,
-    from: T.Vector3 | undefined,
-    to: T.Vector3,
-  ) {
-    const group = new T.Group(),
-      blood = event.type === "solve" && !!event.blood_rank;
-    const tint = blood
-      ? new T.Color("#ffc56e")
-      : event.type === "attack"
-        ? new T.Color("#ff776c")
-        : accent.clone();
-    tint.multiplyScalar(dark ? 3 : 1.25);
-    const resources: (T.BufferGeometry | T.Material)[] = [];
-    const own = <V extends T.BufferGeometry | T.Material>(v: V) => {
-      resources.push(v);
-      return v;
-    };
-    const origin = from ?? to,
-      midpoint = origin.clone().lerp(to, 0.5);
-    midpoint.y += Math.max(4, origin.distanceTo(to) * 0.45);
-    const curve = new T.QuadraticBezierCurve3(origin, midpoint, to);
-    const trailMaterial = own(
-      new T.ShaderMaterial({
-        uniforms: {
-          tint: { value: tint },
-          progress: { value: 0 },
-          opacity: { value: 1 },
-        },
-        vertexShader: `varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-        fragmentShader: `uniform vec3 tint; uniform float progress; uniform float opacity; varying vec2 vUv;
-        void main(){float tail=smoothstep(progress-.4,progress,vUv.x)*(1.-smoothstep(progress,progress+.025,vUv.x)); gl_FragColor=vec4(tint,tail*opacity);}`,
+export function createArenaEffects(world: T.Group) {
+  const coreGeometry = new T.IcosahedronGeometry(1, 1),
+    ringGeometry = new T.TorusGeometry(1, 0.055, 5, 48);
+  type Effect = {
+    root: T.Group;
+    age: number;
+    life: number;
+    core: T.Mesh<T.BufferGeometry, T.MeshBasicMaterial>;
+    ring: T.Mesh<T.BufferGeometry, T.MeshBasicMaterial>;
+    halo: T.Mesh<T.BufferGeometry, T.MeshBasicMaterial>;
+    particles: T.Points<T.BufferGeometry, T.ShaderMaterial>;
+    trail: T.Line<T.BufferGeometry, T.LineBasicMaterial>;
+    to: T.Vector3;
+    from: T.Vector3;
+    explosion: boolean;
+    dispose: () => void;
+  };
+  const active: Effect[] = [];
+  const add = (event: SpectatorEvent, to: T.Vector3 | undefined) => {
+    if (!to || active.length >= 12 || event.type === "withdraw") return false;
+    const explosion = event.type === "solve" || event.type === "attack";
+    const color = new T.Color(
+      explosion ? (event.blood_rank === 1 ? "#ffd58a" : "#ff794b") : "#31d8f1",
+    );
+    const root = new T.Group();
+    world.add(root);
+    const core = new T.Mesh(
+      coreGeometry,
+      new T.MeshBasicMaterial({
+        color: color.clone().multiplyScalar(4),
         transparent: true,
         depthWrite: false,
-        blending: dark ? T.AdditiveBlending : T.NormalBlending,
+        blending: T.AdditiveBlending,
       }),
     );
-    const trail = new T.Mesh(
-      own(new T.TubeGeometry(curve, 80, blood ? 0.085 : 0.045, 5, false)),
-      trailMaterial,
+    core.position.copy(to);
+    root.add(core);
+    const halo = new T.Mesh(
+      coreGeometry,
+      new T.MeshBasicMaterial({
+        color: color.clone().multiplyScalar(1.8),
+        wireframe: true,
+        transparent: true,
+        depthWrite: false,
+        blending: T.AdditiveBlending,
+      }),
     );
-    trail.visible = !!from;
-    group.add(trail);
-    const head = new T.Mesh(
-      own(new T.SphereGeometry(blood ? 0.22 : 0.13, 12, 8)),
-      own(new T.MeshBasicMaterial({ color: tint })),
+    halo.position.copy(to);
+    root.add(halo);
+    const ring = new T.Mesh(
+      ringGeometry,
+      new T.MeshBasicMaterial({
+        color: color.clone().multiplyScalar(2),
+        transparent: true,
+        depthWrite: false,
+        blending: T.AdditiveBlending,
+      }),
     );
-    group.add(head);
-    const impact = new T.Group();
-    impact.position.copy(to);
-    impact.position.y = 0.55;
-    group.add(impact);
-    const rings = [0, 1].map(() => {
-      const mesh = new T.Mesh(
-        own(new T.TorusGeometry(1, 0.035, 5, 64)),
-        own(
-          new T.MeshBasicMaterial({
-            color: tint,
-            transparent: true,
-            opacity: 0,
-            depthWrite: false,
-          }),
-        ),
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(to.x, 0.85, to.z);
+    root.add(ring);
+    const count = explosion ? 72 : 24,
+      positions = new Float32Array(count * 3),
+      velocities = new Float32Array(count * 3);
+    let seed = cityHash(event.id);
+    const random = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    for (let i = 0; i < count; i++) {
+      const angle = random() * Math.PI * 2,
+        speed = 2 + random() * 6;
+      velocities.set(
+        [Math.cos(angle) * speed, 1 + random() * 9, Math.sin(angle) * speed],
+        i * 3,
       );
-      mesh.rotation.x = Math.PI / 2;
-      impact.add(mesh);
-      return mesh;
-    });
-    const beam = new T.Mesh(
-      own(
-        new T.CylinderGeometry(
-          blood ? 0.6 : 0.25,
-          blood ? 1.3 : 0.65,
-          blood ? 12 : 7,
-          24,
-          1,
-          true,
-        ),
-      ),
-      own(
-        new T.ShaderMaterial({
-          uniforms: { tint: { value: tint }, opacity: { value: 0 } },
-          vertexShader: `varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-          fragmentShader: `uniform vec3 tint; uniform float opacity; varying vec2 vUv; void main(){gl_FragColor=vec4(tint,pow(1.-vUv.y,2.)*opacity*.35);}`,
-          transparent: true,
-          side: T.DoubleSide,
-          depthWrite: false,
-          blending: dark ? T.AdditiveBlending : T.NormalBlending,
-        }),
-      ),
-    );
-    beam.position.y = blood ? 6 : 3.5;
-    impact.add(beam);
-    const points = new Float32Array(36 * 3);
-    for (let i = 0; i < 36; i++) {
-      const a = (i / 36) * Math.PI * 2;
-      points[i * 3] = Math.cos(a);
-      points[i * 3 + 1] = (i % 5) * 0.22;
-      points[i * 3 + 2] = Math.sin(a);
     }
-    const sparks = new T.Points(
-      own(
-        new T.BufferGeometry().setAttribute(
-          "position",
-          new T.BufferAttribute(points, 3),
-        ),
-      ),
-      own(
-        new T.PointsMaterial({
-          color: tint,
-          size: 0.09,
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-        }),
-      ),
+    const pg = new T.BufferGeometry();
+    pg.setAttribute("position", new T.BufferAttribute(positions, 3));
+    pg.setAttribute("velocity", new T.BufferAttribute(velocities, 3));
+    const pm = new T.ShaderMaterial({
+      uniforms: {
+        age: { value: 0 },
+        tint: { value: color.clone().multiplyScalar(3) },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: T.AdditiveBlending,
+      vertexShader: `attribute vec3 velocity;uniform float age;varying float life;void main(){float t=max(age,0.);vec3 p=position+velocity*t;p.y-=t*t*2.8;vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;gl_PointSize=clamp(170./max(1.,-mv.z),1.,6.);life=max(0.,1.-t/2.6);}`,
+      fragmentShader: `uniform vec3 tint;varying float life;void main(){float r=length(gl_PointCoord-.5)*2.;if(r>1.)discard;gl_FragColor=vec4(tint,pow(1.-r,1.4)*life);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+      }`,
+    });
+    const particles = new T.Points(pg, pm);
+    particles.position.copy(to);
+    particles.frustumCulled = false;
+    root.add(particles);
+    const direction = random() * Math.PI * 2,
+      from = to
+        .clone()
+        .add(
+          new T.Vector3(Math.cos(direction) * 25, 22, Math.sin(direction) * 25),
+        );
+    const trailGeometry = new T.BufferGeometry().setFromPoints([from, from]);
+    const trail = new T.Line(
+      trailGeometry,
+      new T.LineBasicMaterial({
+        color: color.clone().multiplyScalar(3),
+        transparent: true,
+        depthWrite: false,
+        blending: T.AdditiveBlending,
+      }),
     );
-    impact.add(sparks);
-    world.add(group);
-    return {
-      group,
-      curve,
-      trailMaterial,
-      head,
-      rings,
-      beam,
-      sparks,
+    root.add(trail);
+    const effect: Effect = {
+      root,
       age: 0,
-      travel: from ? 1.2 : 0,
-      duration: blood ? 3.4 : 2.6,
-      dispose() {
-        world.remove(group);
-        resources.forEach((r) => r.dispose());
+      life: 3.3,
+      core,
+      ring,
+      halo,
+      particles,
+      trail,
+      to: to.clone(),
+      from,
+      explosion,
+      dispose: () => {
+        world.remove(root);
+        core.material.dispose();
+        halo.material.dispose();
+        ring.material.dispose();
+        pg.dispose();
+        pm.dispose();
+        trailGeometry.dispose();
+        trail.material.dispose();
+        root.clear();
       },
     };
-  }
-  return {
-    add(
-      event: SpectatorEvent,
-      from: T.Vector3 | undefined,
-      to: T.Vector3 | undefined,
-    ) {
-      // Unknown/off-screen endpoints must not be replaced with fabricated team positions.
-      if (!to || effects.length >= 12) return;
-      effects.push(build(event, from, to));
-    },
-    tick(delta: number) {
-      for (let i = effects.length - 1; i >= 0; i--) {
-        const e = effects[i]!;
-        e.age += delta;
-        if (e.age >= e.duration) {
-          e.dispose();
-          effects.splice(i, 1);
-          continue;
-        }
-        const travel = e.travel ? Math.min(1.4, e.age / e.travel) : 1.4;
-        e.trailMaterial.uniforms.progress!.value = travel;
-        e.head.visible = travel < 1;
-        if (e.head.visible) e.head.position.copy(e.curve.getPoint(travel));
-        const impact = Math.max(
-          0,
-          (e.age - e.travel) / (e.duration - e.travel),
-        );
-        for (let j = 0; j < e.rings.length; j++) {
-          const ring = e.rings[j]!,
-            t = Math.max(0, impact - j * 0.12);
-          ring.scale.setScalar(0.5 + t * 6);
-          ring.material.opacity = t > 0 ? (1 - t) * 0.85 : 0;
-        }
-        e.beam.material.uniforms.opacity!.value =
-          impact > 0 ? Math.sin(Math.PI * Math.sqrt(impact)) : 0;
-        e.sparks.scale.setScalar(1 + impact * 5);
-        e.sparks.material.opacity = impact > 0 ? (1 - impact) * 0.8 : 0;
+    active.push(effect);
+    return true;
+  };
+  const a = new T.Vector3(),
+    b = new T.Vector3();
+  const tick = (delta: number) => {
+    for (let i = active.length - 1; i >= 0; i--) {
+      const e = active[i]!;
+      e.age += delta;
+      if (e.age >= e.life) {
+        e.dispose();
+        active.splice(i, 1);
+        continue;
       }
+      const impact = e.age - 0.6,
+        progress = Math.min(1, e.age / 0.6);
+      e.trail.visible = e.explosion && impact < 0.15;
+      a.lerpVectors(e.from, e.to, Math.max(0, progress - 0.22));
+      b.lerpVectors(e.from, e.to, progress);
+      const p = e.trail.geometry.attributes.position as T.BufferAttribute;
+      p.setXYZ(0, a.x, a.y, a.z);
+      p.setXYZ(1, b.x, b.y, b.z);
+      p.needsUpdate = true;
+      e.trail.geometry.computeBoundingSphere();
+      e.core.visible =
+        e.halo.visible =
+        e.ring.visible =
+        e.particles.visible =
+          impact >= 0;
+      if (impact < 0) continue;
+      e.particles.material.uniforms.age!.value = impact;
+      e.core.scale.setScalar(
+        e.explosion
+          ? Math.max(0.01, Math.sin(Math.min(1, impact / 0.8) * Math.PI) * 2.8)
+          : 0.4,
+      );
+      e.core.material.opacity = Math.max(0, 1 - impact / 1.1);
+      e.halo.scale.setScalar(0.3 + impact * 4.5);
+      e.halo.rotation.set(impact * 0.6, impact, impact * 0.2);
+      e.halo.material.opacity = Math.max(0, 0.45 - impact * 0.25);
+      e.ring.scale.setScalar(0.4 + impact * 5.2);
+      e.ring.material.opacity = Math.max(0, 0.9 - impact * 0.45);
+    }
+  };
+  const clear = () => {
+    active.splice(0).forEach((e) => e.dispose());
+  };
+  return {
+    add,
+    tick,
+    clear,
+    dispose: () => {
+      clear();
+      coreGeometry.dispose();
+      ringGeometry.dispose();
     },
-    clear() {
-      effects.splice(0).forEach((e) => e.dispose());
+    get count() {
+      return active.length;
     },
   };
 }

@@ -7,6 +7,7 @@ import { readContestActivity } from "./contest-activity.js";
 import { visibleChallengeIds } from "./group-permissions.js";
 import { readScoreboard } from "./scoreboard.js";
 import { contestCutoff } from "./contest-practice.js";
+import { readContestClock } from "./contest-clock.js";
 import { sessionCookie } from "./auth.js";
 import { config } from "./config.js";
 import { id, page } from "./schemas.js";
@@ -20,6 +21,48 @@ async function spectatorAccess(db: DB, scope: string, user?: User) {
       href: `/contests/${scope}`,
     });
   return contest;
+}
+
+// An attack broadcast means recent, observed submissions, never inferred traffic
+// or a fabricated team. Limit the source scan and exclude frozen/practice data.
+export async function readSpectatorEngagements(
+  db: DB,
+  contest: Row,
+  visible: string[] | null,
+  now = Date.now(),
+) {
+  if (
+    new Date(contest.starts_at).getTime() > now ||
+    new Date(contest.ends_at).getTime() <= now ||
+    (contest.freeze_at && new Date(contest.freeze_at).getTime() <= now)
+  )
+    return [];
+  return db.query(
+    `WITH submissions_recent AS (
+    SELECT s.challenge_id,s.owner_key,s.created_at FROM submissions s
+    WHERE s.scope=$1::text AND NOT s.contest_practice AND s.created_at>$2 AND s.created_at<=$3
+    ORDER BY s.created_at DESC LIMIT 1000
+  ), attacks_recent AS (
+    SELECT r.challenge_id,a.attacker_key owner_key,a.created_at
+    FROM awd_attacks a JOIN awd_flags f ON f.flag_hash=a.flag_hash JOIN contest_rounds r ON r.id=f.round_id
+    JOIN ranked_registrations defender ON defender.contest_id=r.contest_id AND 't:'||defender.team_id=f.owner_key
+    WHERE r.contest_id=$1::uuid AND a.created_at>$2 AND a.created_at<=$3
+    ORDER BY a.created_at DESC LIMIT 1000
+  ), recent AS (SELECT * FROM submissions_recent UNION ALL SELECT * FROM attacks_recent), eligible AS (
+    SELECT s.challenge_id,c.title challenge_title,t.id team_id,t.name team_name,max(s.created_at) last_seen
+    FROM recent s JOIN challenges c ON c.id=s.challenge_id
+    JOIN contest_challenges cc ON cc.challenge_id=c.id AND cc.contest_id=$1::uuid
+    JOIN ranked_registrations r ON r.contest_id=$1::uuid AND 't:'||r.team_id=s.owner_key JOIN teams t ON t.id=r.team_id
+    WHERE c.published AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=$3)
+      AND c.challenge_type<>'objective' AND ($4::uuid[] IS NULL OR c.id=ANY($4::uuid[]))
+      AND NOT EXISTS(SELECT 1 FROM solves solved WHERE solved.scope=$1::text AND solved.challenge_id=c.id AND solved.owner_key=s.owner_key AND NOT solved.contest_practice)
+    GROUP BY s.challenge_id,c.title,t.id,t.name
+  ), ranked AS (SELECT *,row_number() OVER(PARTITION BY challenge_id ORDER BY last_seen DESC,team_id) n FROM eligible)
+  SELECT challenge_id,challenge_title,max(last_seen) last_seen,
+    json_agg(json_build_object('id',team_id,'name',team_name,'last_seen',last_seen) ORDER BY last_seen DESC,team_id) teams
+  FROM ranked WHERE n<=3 GROUP BY challenge_id,challenge_title ORDER BY max(last_seen) DESC,challenge_id LIMIT 12`,
+    [contest.id, new Date(now - 90000), new Date(now), visible],
+  );
 }
 
 // Deliberately independent from the privileged monitor feed. Even staff see the
@@ -70,6 +113,8 @@ export async function readSpectatorSnapshot(db: DB, contest: Row, user?: User) {
     started: board.started,
     frozen: board.frozen,
     cutoff: board.cutoff,
+    clock: await readContestClock(db, contest),
+    engagements: await readSpectatorEngagements(db, contest, visible),
     stats: {
       teams: board.participants,
       challenges: board.challenge_count,

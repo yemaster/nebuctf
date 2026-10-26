@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import React, { act } from "react";
 import { JSDOM } from "jsdom";
 import {
-  arenaNodes,
-  arenaSectors,
+  cityFacilities,
+  activeEngagements,
   SpectatorEvents,
   type SpectatorEvent,
   type SpectatorData,
@@ -31,21 +31,32 @@ const event = (id: string, time: number): SpectatorEvent => ({
   created_at: new Date(time).toISOString(),
 });
 
-test("arena layout stays deterministic across ranking changes and bounds GPU work", () => {
-  const teams = Array.from({ length: 20 }, (_, i) => team(i));
-  const a = arenaNodes(teams),
-    b = arenaNodes([...teams].reverse());
-  assert.deepEqual(a, b);
-  assert.equal(new Set(a.map((n) => `${n.x}:${n.z}`)).size, 20);
+const question = (i: number) => ({
+  id: `q-${i}`,
+  challenge_id: `q-${i}`,
+  title: `Question ${i}`,
+  category: "Web",
+  part_title: null,
+  solves: i,
+});
+test("city facilities stay fixed across solve updates and are bounded and collision-free", () => {
+  const questions = Array.from({ length: 200 }, (_, i) => question(i));
+  const a = cityFacilities(questions);
+  assert.deepEqual(
+    a,
+    cityFacilities(
+      [...questions].reverse().map((q) => ({ ...q, solves: q.solves + 10 })),
+    ),
+  );
+  assert.equal(new Set(a.map((n) => `${n.x}:${n.z}`)).size, 200);
   assert(
-    a.every((n) => Number.isFinite(n.x) && n.height >= 1 && n.height <= 4.8),
+    a.every((n) => Number.isFinite(n.x) && Math.abs(n.x) < 48 && n.height > 0),
   );
   assert.equal(
-    arenaNodes(Array.from({ length: 200 }, (_, i) => team(i))).length,
-    60,
+    cityFacilities(Array.from({ length: 300 }, (_, i) => question(i))).length,
+    256,
   );
-  assert.equal(arenaNodes([{ ...team(0), score: -100 }])[0]!.height, 1);
-  assert.deepEqual(arenaNodes([]), []);
+  assert.deepEqual(cityFacilities([]), []);
 });
 
 test("only new real events animate, without replaying snapshots, stale history or duplicate frames", () => {
@@ -284,8 +295,8 @@ test(
         resolveNext!(Response.json({ items: [team(10)], total: 11, page: 2 })),
       );
       await settle(() => document.body.textContent!.includes("Team 10"));
-      await act(async () => button("查看 Team 10，第 11 名，1000 分").click());
-      assert(document.body.textContent!.includes("#11"));
+      assert(!button("重置视角"));
+      assert(!button("查看 Team 10，第 11 名，1000 分"));
       await act(async () => {
         denied = true;
         Socket.current.onclose?.({ code: 1008 });
@@ -305,90 +316,93 @@ test(
   },
 );
 
-test("category islands map every real challenge once and bound large category sets", () => {
-  const challenges = Array.from({ length: 30 }, (_, i) => ({
+test("multi-flag challenges occupy one facility each", () => {
+  const questions = Array.from({ length: 30 }, (_, i) => ({
+    ...question(Math.floor(i / 2)),
     id: `part-${i}`,
-    challenge_id: `challenge-${Math.floor(i / 2)}`,
-    category: `Category ${Math.floor(i / 2)}`,
-    title: "Question",
-    part_title: "Part",
+    part_title: `Part ${i}`,
     solves: i,
   }));
-  const sectors = arenaSectors(challenges);
-  assert.equal(sectors.length, 8);
-  const ids = sectors.flatMap((s) => s.challengeIds);
-  assert.equal(ids.length, 15);
-  assert.equal(new Set(ids).size, 15);
-  assert.deepEqual(sectors, arenaSectors([...challenges].reverse()));
-  assert.deepEqual(arenaSectors([]), []);
+  const facilities = cityFacilities(questions);
+  assert.equal(facilities.length, 15);
+  assert.equal(new Set(facilities.map((f) => f.id)).size, 15);
+  assert.deepEqual(facilities, cityFacilities([...questions].reverse()));
   assert.equal(
-    arenaSectors([{ ...challenges[0]!, category: "" }])[0]!.name,
-    "其他",
+    cityFacilities([{ ...question(0), category: "" }])[0]!.category,
+    "Misc",
   );
 });
 
-test("scene models replace category geometry and reclaim bounded event effects", async () => {
+test("city buffers and attack effects remain bounded and are released", async () => {
   const T = await import("three"),
     { createArenaWorld } =
       await import("../src/components/spectator/arena-world"),
     { createArenaEffects } =
       await import("../src/components/spectator/arena-effects");
-  const world = createArenaWorld(new T.Color("#60a5fa"), true);
-  const question = {
-    id: "part",
-    challenge_id: "web",
-    title: "Web",
-    category: "Web",
-    part_title: null,
-    solves: 0,
-  };
-  world.setChallenges([question]);
-  const objectCount = () => {
-    let count = 0;
-    world.group.traverse(() => count++);
-    return count;
-  };
-  const initial = objectCount();
+  const world = createArenaWorld();
+  world.setChallenges([]);
+  let buildings = 0;
+  world.group.traverse((o) => {
+    if (o instanceof T.InstancedMesh) buildings += o.count;
+  });
+  assert(buildings > 400, "city is populated even before questions open");
+  world.setChallenges([{ ...question(0), challenge_id: "web" }]);
   let disposed = 0;
   world.group.traverse((o) => {
     if (o instanceof T.InstancedMesh)
       o.addEventListener("dispose", () => disposed++);
   });
-  world.setChallenges([{ ...question, challenge_id: "new" }]);
-  assert.equal(objectCount(), initial);
-  assert.equal(disposed, 1, "replaced category instance buffers are released");
-  assert.equal(world.anchors.has("web"), false);
-  assert.equal(world.anchors.has("new"), true);
-  const station = world.createStation("team");
-  station.object.position.set(18, 0, 0);
-  assert(
-    new T.Box3()
-      .setFromObject(station.object)
-      .getSize(new T.Vector3())
-      .length() > 0,
-  );
-  station.dispose();
-  assert.equal(objectCount(), initial);
-  const effects = createArenaEffects(world.group, new T.Color("#60a5fa"), true);
-  const children = world.group.children.length;
-  effects.add(event("missing", Date.now()), undefined, undefined);
+  world.setChallenges([{ ...question(0), challenge_id: "new" }]);
+  assert(disposed > 0, "replaced instance buffers are released");
+  assert(!world.anchors.has("web"));
+  assert(world.anchors.has("new"));
+  const replaced = disposed;
+  world.setChallenges([{ ...question(0), challenge_id: "new", solves: 10 }]);
   assert.equal(
-    world.group.children.length,
-    children,
-    "missing endpoints create no fabricated trajectory",
+    disposed,
+    replaced,
+    "score updates do not rebuild city geometry",
   );
+  const effects = createArenaEffects(world.group),
+    children = world.group.children.length;
+  assert.equal(effects.add(event("missing", Date.now()), undefined), false);
+  assert.equal(world.group.children.length, children);
   for (let i = 0; i < 30; i++)
-    effects.add(
-      event(`e-${i}`, Date.now()),
-      new T.Vector3(18, 2, 0),
-      new T.Vector3(0, 2, 10),
-    );
-  assert.equal(world.group.children.length, children + 12);
+    effects.add(event(`e-${i}`, Date.now()), world.anchors.get("new"));
+  assert.equal(effects.count, 12);
   effects.tick(0.6);
   effects.tick(4);
+  assert.equal(effects.count, 0);
   assert.equal(world.group.children.length, children);
-  effects.clear();
+  effects.dispose();
   world.dispose();
   assert.equal(world.group.children.length, 0);
   assert.equal(world.anchors.size, 0);
+});
+
+test("attack broadcasts expire and cannot reveal frozen, hidden or post-contest activity", () => {
+  const now = Date.now(),
+    at = new Date(now).toISOString();
+  const data = {
+    started: true,
+    frozen: false,
+    contest: { ends_at: new Date(now + 60000).toISOString() },
+    challenges: [question(0)],
+    engagements: [
+      {
+        challenge_id: "q-0",
+        challenge_title: "Question",
+        last_seen: at,
+        teams: [{ id: "t", name: "Team", last_seen: at }],
+      },
+    ],
+  } as SpectatorData;
+  assert.equal(activeEngagements(data, now).length, 1);
+  for (const hidden of [
+    { ...data, frozen: true },
+    { ...data, started: false },
+    { ...data, challenges: [] },
+  ])
+    assert.deepEqual(activeEngagements(hidden, now), []);
+  assert.deepEqual(activeEngagements(data, now + 91000), []);
 });
