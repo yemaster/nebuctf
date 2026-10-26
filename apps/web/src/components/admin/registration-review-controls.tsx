@@ -1,11 +1,20 @@
-import { useState, type ReactNode } from "react";
-import { Pencil } from "lucide-react";
+import { useState, type ComponentProps, type ReactNode } from "react";
+import {
+  Check,
+  Pause,
+  Pencil,
+  Play,
+  RotateCcw,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { ContestGroup } from "@/lib/types";
 import { Button } from "../ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { NativeSelect, NativeSelectOption } from "../ui/native-select";
 import { Textarea } from "../ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { Field } from "../shared";
 import type { Registration, ReviewStatus } from "./contest-management-shared";
 
@@ -16,6 +25,47 @@ export type ReviewChange = {
   review_note?: string;
 };
 export type ReviewSubmit = (change: ReviewChange) => Promise<unknown>;
+
+export function RegistrationActionButton({
+  label,
+  icon: Icon,
+  tone = "neutral",
+  ...props
+}: Omit<
+  ComponentProps<typeof Button>,
+  "children" | "size" | "variant" | "className"
+> & {
+  label: string;
+  icon: LucideIcon;
+  tone?: "neutral" | "success" | "danger" | "warning";
+}) {
+  return (
+    <Tooltip disableHoverableContent>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          {...props}
+          aria-label={props["aria-label"] ?? label}
+          variant="ghost"
+          size="icon-sm"
+          className={
+            {
+              neutral: "text-muted-foreground hover:text-foreground",
+              success: "text-success hover:text-success",
+              danger: "text-destructive hover:text-destructive",
+              warning: "text-warning hover:text-warning",
+            }[tone]
+          }
+        >
+          <Icon aria-hidden="true" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent sideOffset={6} data-row-action="ignore">
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 // These controls live inside an expandable row. Portalled content must not
 // bubble into its row action when the user clicks labels or submits a form.
@@ -76,16 +126,14 @@ export function ReviewReasonAction({
       title={`${verb} ${title}`}
       busy={busy}
       trigger={
-        <Button
-          size="sm"
-          variant="ghost"
-          className="px-2 text-destructive last:pr-0 hover:text-destructive"
+        <RegistrationActionButton
+          label={label ?? verb}
+          icon={status === "rejected" ? X : Pause}
+          tone={status === "rejected" ? "danger" : "warning"}
           disabled={busy}
           aria-label={`${verb} ${title}`}
           onClick={() => setError(null)}
-        >
-          {label ?? verb}
-        </Button>
+        />
       }
     >
       {(close) => (
@@ -182,16 +230,14 @@ export function RegistrationReviewActions({
       className="flex justify-end gap-1"
     >
       {!accepted && (
-        <Button
-          size="sm"
-          variant={r.status === "suspended" ? "ghost" : "secondary"}
-          className="px-2 last:pr-0"
+        <RegistrationActionButton
+          label={verb}
+          icon={r.status === "suspended" ? Play : Check}
+          tone="success"
           disabled={busy}
           aria-label={`${verb} ${r.name}`}
           onClick={() => direct("accepted")}
-        >
-          {verb}
-        </Button>
+        />
       )}
       {(r.status === "pending" || accepted) && (
         <ReviewReasonAction
@@ -204,16 +250,13 @@ export function RegistrationReviewActions({
         />
       )}
       {r.status === "rejected" && !r.accepted_at && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="px-2 pr-0"
+        <RegistrationActionButton
+          label="重新审核"
+          icon={RotateCcw}
           disabled={busy}
           aria-label={`重新审核 ${r.name}`}
           onClick={() => direct("pending")}
-        >
-          复审
-        </Button>
+        />
       )}
     </div>
   );

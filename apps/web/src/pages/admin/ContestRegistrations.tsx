@@ -42,9 +42,11 @@ import type { Contest } from "@/lib/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MeasuredCollapse } from "@/components/measured-collapse";
 import { Badge } from "@/components/ui/badge";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useContestNow } from "@/components/contest-clock";
 import {
+  RegistrationActionButton,
   RegistrationReviewActions,
   RegistrationGroupControl,
   ReviewReasonAction,
@@ -120,7 +122,7 @@ export function Registrations() {
     );
   const pending = data.data?.items.filter((r) => r.status === "pending") ?? [];
   return (
-    <>
+    <TooltipProvider delayDuration={150}>
       <PageTitle
         action={
           <Button asChild variant="outline">
@@ -166,8 +168,14 @@ export function Registrations() {
           </NativeSelect>
         )}
         {selected.length > 0 && (
-          <>
-            <Button
+          <div className="flex items-center gap-1">
+            <span className="mr-2 text-sm text-muted-foreground">
+              已选 {selected.length} 队
+            </span>
+            <RegistrationActionButton
+              label={`通过所选（${selected.length}）`}
+              icon={Check}
+              tone="success"
               disabled={review.isPending}
               onClick={() =>
                 review.mutate(
@@ -175,10 +183,7 @@ export function Registrations() {
                   { onError: (e) => toast.error(e.message) },
                 )
               }
-            >
-              <Check />
-              通过所选（{selected.length}）
-            </Button>
+            />
             <ReviewReasonAction
               key={selected.join(",")}
               teamIds={selected}
@@ -188,7 +193,7 @@ export function Registrations() {
               busy={review.isPending}
               submit={review.mutateAsync}
             />
-          </>
+          </div>
         )}
       </div>
       <div className="rounded-lg bg-card">
@@ -201,7 +206,7 @@ export function Registrations() {
             <col className="w-24" />
             <col className="w-24" />
             <col className="w-36" />
-            <col className="w-36" />
+            <col className="w-28" />
           </colgroup>
           <TableHeader className="bg-muted/70">
             <TableRow>
@@ -359,7 +364,7 @@ export function Registrations() {
         pageSize={10}
         hasMore={page * 10 < (data.data?.total ?? 0)}
       />
-    </>
+    </TooltipProvider>
   );
 }
 export function RegistrationDetail() {

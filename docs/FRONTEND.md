@@ -482,6 +482,6 @@ PDF 通过现有管理员文件接口鉴权读取，预览携带版本号；文�
 
 ### 报名列表原位审核
 
-参考 [GZCTF ParticipationStatusControl](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/admin/ParticipationStatusControl.tsx) 根据报名状态显示可用动作的方式。待审核队伍显示「通过 / 拒绝」，已通过显示「暂停」，已暂停显示「恢复」，未通过显示「通过 / 复审」。通过、恢复和复审直接提交；拒绝、暂停使用已有 shadcn Popover 就地填写必填原因，暂停明确告知将释放比赛环境。失败保留原因和就地错误，成功关闭弹层并更新当前比赛缓存。
+参考 [GZCTF ParticipationStatusControl](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/admin/ParticipationStatusControl.tsx) 根据报名状态显示可用动作的方式。审核动作统一使用 Lucide 图标与 shadcn ghost icon-sm 按钮：通过用勾、拒绝用叉、暂停用暂停符号、恢复用播放、复审用回转箭头。按钮为 32px 方形，操作列宽 112px；批量操作同样使用图标，旁边仅显示已选队数。悬停和键盘聚焦显示 Tooltip，按钮保留含战队名的无障碍名称。待审核队伍显示通过与拒绝，已通过显示暂停，已暂停显示恢复，未通过显示通过与复审。通过、恢复和复审直接提交；拒绝、暂停使用已有 shadcn Popover 就地填写必填原因，暂停明确告知将释放比赛环境。失败保留原因和就地错误，成功关闭弹层并更新当前比赛缓存。
 
 开赛前点击组别可原位调整；开赛后按服务器时间锁定。组别单独保存，不改审核状态或说明。批量选择仅包含本页待审核战队，支持通过和拒绝；审核期间禁用重复操作。更新保留页码、搜索和筛选、仍在结果集中的展开队伍；已处理选择移除。成员详情中的审核说明与成员资料连续排列。弹层、按钮和复选不会触发行展开，既有详情地址仍兼容，但列表不再依赖详情页完成审核。
