@@ -73,3 +73,22 @@ export function contestCountdown(clock: ContestClock, now: number) {
     };
   return { label: "比赛剩余", remaining: ends - now };
 }
+
+export function countdownTone(clock: ContestClock, now: number) {
+  const starts = Date.parse(clock.starts_at),
+    ends = Date.parse(clock.ends_at);
+  if (clock.practice || now >= ends) return "muted";
+  if (now < starts) return "scheduled";
+  const round = roundAt(clock, now);
+  if (round?.state === "scheduled" || round?.state === "transition")
+    return "scheduled";
+  const deadline =
+      round?.state === "active" ? Math.min(round.closes, ends) : ends,
+    opens = round?.state === "active" ? round.opens : starts,
+    duration = deadline - opens,
+    remaining = deadline - now;
+  // Scale short rounds and contests so a new period begins without an alert.
+  if (remaining <= Math.min(60_000, duration * 0.1)) return "urgent";
+  if (remaining <= Math.min(600_000, duration * 0.2)) return "warning";
+  return "running";
+}
