@@ -60,6 +60,22 @@ export function ScoreboardTable({
     [columns],
   );
   const matrix = competition && columns.length > 0;
+  const questions = useMemo(
+    () =>
+      columns.reduce<ScoreColumn[][]>((list, column) => {
+        const last = list.at(-1);
+        if (
+          last?.[0]?.challenge_id === column.challenge_id &&
+          last[0].category === column.category
+        )
+          last.push(column);
+        else list.push([column]);
+        return list;
+      }, []),
+    [columns],
+  );
+  const hasParts = matrix && columns.some((column) => !!column.part_title);
+  const headerRows = matrix ? (hasParts ? 3 : 2) : 1;
   return (
     <TooltipProvider delayDuration={150}>
       <div className="[&_[data-slot=table-container]]:max-h-[65dvh] [&_[data-slot=table-container]]:overflow-auto">
@@ -70,20 +86,20 @@ export function ScoreboardTable({
           <TableHeader className="sticky top-0 z-20 bg-card [&_tr]:border-0">
             <TableRow className="hover:bg-transparent">
               <TableHead
-                rowSpan={matrix ? 2 : 1}
+                rowSpan={headerRows}
                 className={`${identity} border-b bg-card text-muted-foreground`}
               >
                 {grouped ? "组内 / 全局" : "全局排名"} /{" "}
                 {competition ? "战队" : "选手"}
               </TableHead>
               <TableHead
-                rowSpan={matrix ? 2 : 1}
+                rowSpan={headerRows}
                 className={`${scoreColumn} border-b bg-card`}
               >
                 总分
               </TableHead>
               <TableHead
-                rowSpan={matrix ? 2 : 1}
+                rowSpan={headerRows}
                 className="w-24 min-w-24 border-b px-3 text-center"
               >
                 解题 / Flag
@@ -107,27 +123,51 @@ export function ScoreboardTable({
             </TableRow>
             {matrix && (
               <TableRow className="hover:bg-transparent">
-                {columns.map((column) => (
-                  <TableHead
-                    key={column.id}
-                    scope="col"
-                    className="w-28 min-w-28 border-b p-3 text-center"
-                    title={`${column.title}${column.part_title ? ` / ${column.part_title}` : ""}`}
-                  >
-                    {/* Fill the allocated column without enlarging the table's intrinsic width. */}
-                    <div className="w-0 min-w-full truncate text-xs font-medium">
-                      {column.title}
-                    </div>
-                    {column.part_title && (
-                      <div className="mt-1 w-0 min-w-full truncate text-xs text-muted-foreground">
+                {questions.map((question) => {
+                  const first = question[0]!;
+                  const multipart = !!first.part_title;
+                  return (
+                    <TableHead
+                      key={first.id}
+                      scope={multipart ? "colgroup" : "col"}
+                      colSpan={question.length}
+                      rowSpan={!multipart && hasParts ? 2 : 1}
+                      className={`min-w-28 px-3 text-center ${multipart ? "h-9 py-2" : "w-28 border-b py-3"}`}
+                      title={first.title}
+                    >
+                      {/* Fill the merged cell without enlarging the table's intrinsic width. */}
+                      <div className="w-0 min-w-full truncate text-xs font-medium">
+                        {first.title}
+                      </div>
+                      {!multipart && (
+                        <div className="mt-1.5 text-xs tabular-nums text-muted-foreground">
+                          {first.points} 分
+                        </div>
+                      )}
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            )}
+            {hasParts && (
+              <TableRow className="hover:bg-transparent">
+                {columns
+                  .filter((column) => !!column.part_title)
+                  .map((column) => (
+                    <TableHead
+                      key={column.id}
+                      scope="col"
+                      className="w-28 min-w-28 border-b px-3 pb-3 pt-1 text-center"
+                      title={`${column.title} / ${column.part_title}`}
+                    >
+                      <div className="w-0 min-w-full truncate text-xs text-muted-foreground">
                         {column.part_title}
                       </div>
-                    )}
-                    <div className="mt-1.5 text-xs tabular-nums text-muted-foreground">
-                      {column.points} 分
-                    </div>
-                  </TableHead>
-                ))}
+                      <div className="mt-1.5 text-xs tabular-nums text-muted-foreground">
+                        {column.points} 分
+                      </div>
+                    </TableHead>
+                  ))}
               </TableRow>
             )}
           </TableHeader>

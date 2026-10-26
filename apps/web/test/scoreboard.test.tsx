@@ -274,6 +274,17 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
         );
         assert.ok(document.body.textContent?.includes("第一关"));
         assert.ok(document.body.textContent?.includes("第二关"));
+        const heading = document.querySelector('thead th[title="Web 闯关"]')!;
+        assert.equal(
+          document.querySelectorAll('thead th[title="Web 闯关"]').length,
+          1,
+        );
+        assert.equal(heading.getAttribute("colspan"), "2");
+        assert.equal(heading.getAttribute("scope"), "colgroup");
+        assert.equal(
+          document.querySelector("thead th")!.getAttribute("rowspan"),
+          "3",
+        );
         assert.ok(
           document.querySelector(
             '[aria-label="Nebula，Web 闯关 / 第一关，一血，100 分"]',
@@ -349,6 +360,64 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
             (el) => el.textContent === "0",
           ),
         );
+        await cleanup();
+      },
+    );
+    await t.test(
+      "mixed headers merge by challenge id and span ordinary questions across the part row",
+      async () => {
+        board = {
+          ...base,
+          columns: [
+            ...columns,
+            {
+              ...columns[0]!,
+              id: "single",
+              challenge_id: "other",
+              part_title: null,
+            },
+            {
+              ...columns[0]!,
+              id: "crypto",
+              challenge_id: "crypto",
+              title: "RSA",
+              category: "Crypto",
+              part_title: null,
+            },
+          ],
+          challenge_count: 3,
+          flag_count: 4,
+        };
+        await mount(`/contests/${cid}/scoreboard`);
+        await settle(
+          () => !!document.querySelector('[aria-label="战队排行榜"]'),
+        );
+        const header = document.querySelector("thead")!;
+        assert.equal(header.children.length, 3);
+        const names = [
+          ...header.querySelectorAll<HTMLTableCellElement>(
+            'th[title="Web 闯关"]',
+          ),
+        ];
+        assert.equal(
+          names.length,
+          2,
+          "same names on different challenges are not merged",
+        );
+        assert.deepEqual(
+          names.map((cell) => [cell.colSpan, cell.rowSpan]),
+          [
+            [2, 1],
+            [1, 2],
+          ],
+        );
+        assert.equal(
+          header.children[0]!.children[3]!.getAttribute("colspan"),
+          "3",
+          "category includes every part and ordinary question",
+        );
+        assert.equal(header.children[2]!.children.length, 2);
+        assert.equal(document.querySelector("tbody tr")!.children.length, 7);
         await cleanup();
       },
     );
@@ -474,6 +543,7 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
           columns: Array.from({ length: 45 }, (_, i) => ({
             ...columns[0]!,
             id: `p-${i}`,
+            challenge_id: `c-${i}`,
             title: `题目 ${i}`,
             category: i < 40 ? "Web" : "Crypto",
             part_title: null,
@@ -484,6 +554,7 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
           () => !!document.querySelector('[aria-label="下一组赛题"]'),
         );
         assert.equal(document.querySelectorAll('th[scope="col"]').length, 36);
+        assert.equal(document.querySelector("thead")!.children.length, 2);
         await click(document.querySelector('[aria-label="下一组赛题"]')!);
         assert.equal(document.querySelectorAll('th[scope="col"]').length, 9);
         await act(async () => {

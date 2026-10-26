@@ -266,7 +266,7 @@ Dagre 与 React Flow 放在按需加载的同一包，首页不预加载该包�
 
 图表使用官方 [shadcn Chart](https://ui.shadcn.com/docs/components/radix/chart) 和 Recharts 3，Table、Tooltip、Sheet、Collapsible、InputGroup、NativeSelect、Pagination 复用现有组件。前五名以阶梯曲线显示累计分数，支持收起和时间范围拖动；动态计分使用当前分值回算历史，界面注明「按当前题目分值累计」。定时刷新不重播曲线动画。图表独立按需加载，首页不预加载 charts 或 graph-utils。
 
-比赛矩阵显示分类、题目/小题、分值、通过状态和三血；桌面固定排名/队名和总分，窄屏缩小身份列并允许矩阵内部滚动。每页 30 支战队，大量小题每组展示 36 个计分单元，可按分类筛选或切换下一组，限制 DOM 规模。比赛作答目录保持完整。练习榜使用紧凑选手表格，不展开整座题库。
+比赛矩阵显示分类、题目/小题、分值、通过状态和三血。同一题目的大标题按 challenge_id 合并表头，下层分别列出小题名称和分值；普通题目纵向合并，全部为普通题目时不增加表头层级。同名的不同题目保持独立。桌面固定排名/队名和总分，窄屏缩小身份列并允许矩阵内部滚动。每页 30 支战队，大量小题每组展示 36 个计分单元，可按分类筛选或切换下一组，限制 DOM 规模。比赛作答目录保持完整。练习榜使用紧凑选手表格，不展开整座题库。
 
 当前战队使用整行高亮，战队名、分数、解题数及全部题目格继承同一行的底色；固定列保持不透明，悬停不覆盖当前战队状态。普通行、队名和解题状态按钮在亮暗色下均不增加悬停背景，保留点击、提示及键盘焦点。已解答、未解答及三血图标统一为 24 px，沿用 Lucide 图标。此修复复核了 GZCTF 官方截图、ScoreboardTable 及其 [固定列样式](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/styles/components/ScoreboardTable.module.css)，在现有矩阵结构上完善本项目的当前战队标识，使用已有亮暗色主题变量。
 
