@@ -94,7 +94,7 @@ export function registrationRoutes(app: FastifyInstance, db: DB) {
         team_ids: z.array(id).min(1).max(100),
         status: registrationStatus.optional(),
         group_id: id.nullable().optional(),
-        review_note: z.string().trim().max(500).default(""),
+        review_note: z.string().trim().max(500).optional(),
       })
       .strict()
       .refine(
@@ -167,7 +167,8 @@ export function registrationRoutes(app: FastifyInstance, db: DB) {
             row.team_id,
             status,
             input.group_id === undefined ? row.group_id : input.group_id,
-            input.review_note,
+            input.review_note ??
+              (input.status === undefined ? row.review_note : ""),
             admin.id,
           ],
         );

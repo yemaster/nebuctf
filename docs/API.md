@@ -254,7 +254,7 @@ WebSocket 按组复用快照，每次发布重新验证会话、报名与题目�
 
 - `GET /admin/contests/:id/registrations`：`page`、`q`、`status`、`group` 筛选，每页 10 条，返回 `total`、`page_size`、状态计数。
 - `GET /admin/contests/:id/registrations/:team`：报名详情和成员，仅管理员可查看成员邮箱。
-- `PUT /admin/contests/:id/registrations`：`team_ids`（1–100）、可选 `status` / `group_id`、`review_note`。整批在事务中校验并提交。未通过和暂停必须填写原因。曾通过的队伍不能退回待审或拒绝，使用暂停参赛；开赛后不能调整组别。
+- `PUT /admin/contests/:id/registrations`：`team_ids`（1–100）、可选 `status` / `group_id`、`review_note`。整批在事务中校验并提交。未通过和暂停必须填写原因。曾通过的队伍不能退回待审或拒绝，使用暂停参赛；开赛后不能调整组别。仅传 `group_id` 且省略 `review_note` 时保留既有审核说明；显式更新状态但省略说明时清空旧说明，拒绝和暂停仍要求非空原因。
 - 公开比赛详情的 `registered` 仅表示报名已通过；`registration` 另含 `status`、`review_note`、`reviewed_at`、`is_captain`。待审、未通过队伍可由队长撤回；已通过队伍仅开赛前可撤回；暂停期间不能撤回。
 - `GET /admin/contests/:id/activity`：比赛范围内的 Flag 提交、题目上下线、提示更新、报名审核与补丁判题。`type`、`correct`、`q`、`page` 筛选，每页 10 条。
 - `GET /admin/contests/:id/activity/ws`：管理员专用 WebSocket。消息 `{ "type": "monitor", "data": { "revision": "..." } }` 通知客户端刷新当前比赛查询。要求有效管理员会话与同源 Origin，沿用每用户最多 4 个动态连接、连接限流、心跳和慢消费者限制；角色降级或会话撤销会关闭连接。

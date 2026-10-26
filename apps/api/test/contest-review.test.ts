@@ -161,6 +161,33 @@ test(
       (await ok(`/contests/${c.id}`, a)).registration.review_note,
       "补充队员信息",
     );
+    // Changing only a group must not erase the existing review decision or reason.
+    await ok(
+      `/admin/contests/${c.id}/registrations`,
+      admin,
+      {
+        team_ids: [a.team],
+        group_id: null,
+      },
+      "PUT",
+    );
+    const unchangedReview = (await ok(`/contests/${c.id}`, a)).registration;
+    assert.equal(unchangedReview.status, "rejected");
+    assert.equal(unchangedReview.review_note, "补充队员信息");
+    await ok(
+      `/admin/contests/${c.id}/registrations`,
+      admin,
+      {
+        team_ids: [a.team],
+        status: "pending",
+      },
+      "PUT",
+    );
+    assert.equal(
+      (await ok(`/contests/${c.id}`, a)).registration.review_note,
+      "",
+    );
+    await review([a.team], "rejected", "请补全报名资料");
     await ok(`/contests/${c.id}/register`, a, { team_id: a.team });
     await review([a.team, b.team], "accepted");
     assert.equal((await ok(`/contests/${c.id}`, a)).registered, true);
