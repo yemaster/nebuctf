@@ -485,3 +485,16 @@ PDF 通过现有管理员文件接口鉴权读取，预览携带版本号；文�
 参考 [GZCTF ParticipationStatusControl](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/admin/ParticipationStatusControl.tsx) 根据报名状态显示可用动作的方式。审核动作统一使用 Lucide 图标与 shadcn ghost icon-sm 按钮：通过用勾、拒绝用叉、暂停用暂停符号、恢复用播放、复审用回转箭头。按钮为 32px 方形，操作列宽 112px；批量操作同样使用图标，旁边仅显示已选队数。悬停和键盘聚焦显示 Tooltip，按钮保留含战队名的无障碍名称。待审核队伍显示通过与拒绝，已通过显示暂停，已暂停显示恢复，未通过显示通过与复审。通过、恢复和复审直接提交；拒绝、暂停使用已有 shadcn Popover 就地填写必填原因，暂停明确告知将释放比赛环境。失败保留原因和就地错误，成功关闭弹层并更新当前比赛缓存。
 
 开赛前点击组别可原位调整；开赛后按服务器时间锁定。组别单独保存，不改审核状态或说明。批量选择仅包含本页待审核战队，支持通过和拒绝；审核期间禁用重复操作。更新保留页码、搜索和筛选、仍在结果集中的展开队伍；已处理选择移除。成员详情中的审核说明与成员资料连续排列。弹层、按钮和复选不会触发行展开，既有详情地址仍兼容，但列表不再依赖详情页完成审核。
+
+
+### 紧凑提交区与攻防反馈
+
+多 Flag 使用紧凑两列小题进度，共用等宽字体 Flag 输入框；标题与分值相邻，解出数使用较小的次级文字。目录保留整行点击、折叠和三血悬停。参考 [Hackergame hub](https://github.com/ustclug/hackergame/blob/master/app/templates/hub.html) 的父题/小题层级和 [GeekGame 前端](https://github.com/PKU-GeekGame/gs-frontend) 的共享 Flag 提交方式。
+
+防守题复用同一提交区的 shadcn Tabs，不在外部再放防守卡片。切换保留 Flag 草稿和补丁选择；Check、服务异常、EXP 利用成功、防御成功使用统一图标与紧凑状态行，失败时保留上传入口。额度和冷却紧邻操作显示。靶机启动、专属附件生成采用主题色，销毁/删除采用 destructive 按钮。
+
+提示复用 Accordion 和 Dialog：锁定时仅返回价格，付费确认后加载正文，错误保留在当前操作处。后台「提示规则」「提交限制」采用统一全宽面板、Switch 与输入框，逐题覆盖每页 10 条。管理题库的范围列限制宽度并允许换行，长比赛名不会撑破表格。
+
+Markdown 代码使用 [Refractor](https://github.com/wooorm/refractor) 的按需语法注册和 React 节点渲染，保留原始 HTML 禁用。代码工具栏提供复制、换行、下载，HTTP 环境可复制。未知语言及超过 30000 字符的代码直接显示纯文本，避免大块高亮阻塞。
+
+比赛倒计时始终不拦截点击，指针位于窗口范围时降至 10% 不透明度，移开恢复；使用几何位置检测避免 pointer-events:none 导致 hover 反复失效。保留居中布局、按状态变色与减少动态效果设置。

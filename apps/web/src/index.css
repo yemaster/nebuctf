@@ -209,6 +209,29 @@
   .markdown pre code {
     @apply bg-transparent p-0;
   }
+  .markdown .token.comment,
+  .markdown .token.prolog,
+  .markdown .token.doctype {
+    @apply text-muted-foreground;
+  }
+  .markdown .token.keyword,
+  .markdown .token.tag,
+  .markdown .token.boolean {
+    @apply text-primary;
+  }
+  .markdown .token.string,
+  .markdown .token.attr-value {
+    @apply text-success;
+  }
+  .markdown .token.number,
+  .markdown .token.function,
+  .markdown .token.class-name {
+    @apply text-warning;
+  }
+  .markdown .token.operator,
+  .markdown .token.punctuation {
+    @apply text-muted-foreground;
+  }
   .markdown blockquote {
     @apply my-5 border-l-2 border-border pl-5 text-muted-foreground;
   }
