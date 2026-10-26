@@ -19,15 +19,15 @@ RUN npm ci --omit=dev --workspace=apps/api --include-workspace-root=false --no-a
 FROM node:24.14-bookworm-slim AS api
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 DATA_DIR=/data
 WORKDIR /app
-COPY --from=runtime-dependencies /app/node_modules ./node_modules
-COPY --from=build /app/apps/api/dist ./dist
-COPY apps/api/package.json ./package.json
+COPY --chown=node:node --from=runtime-dependencies /app/node_modules ./node_modules
+COPY --chown=node:node --from=build /app/apps/api/dist ./dist
+COPY --chown=node:node apps/api/package.json ./package.json
 RUN mkdir -p /data/files && chown -R node:node /data
 USER node
 EXPOSE 3000
 CMD ["node", "dist/main.js"]
 
 FROM nginxinc/nginx-unprivileged:1.28-alpine AS web
-COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+COPY --chown=nginx:nginx deploy/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --chown=nginx:nginx --from=build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 8080
