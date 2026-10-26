@@ -352,7 +352,7 @@ function Board({
                       </div>
                     }
                   >
-                    <ScoreTimeline board={board} />
+                    <ScoreTimeline key={`${scope}:${group}`} board={board} />
                   </Suspense>
                   <p className="pt-3 text-right text-xs text-muted-foreground">
                     按当前题目分值累计

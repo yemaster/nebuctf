@@ -4,6 +4,52 @@ import React, { act } from "react";
 import { JSDOM } from "jsdom";
 import type { ScoreboardData } from "../src/lib/types";
 import { scoreTimelineRows } from "../src/lib/scoreboard";
+import {
+  timelineWindow,
+  timelineActivityRange,
+  timelineTicks,
+  timelineColors,
+} from "../src/lib/score-timeline";
+
+test("zoomed score timelines carry boundary scores without interpolating gains", () => {
+  const data = [
+    { time: 0, team0: 0, team1: 0 },
+    { time: 120000, team0: 100, team1: 0 },
+    { time: 180000, team0: 100, team1: -20 },
+    { time: 240000, team0: 300, team1: -20 },
+    { time: 86400000, team0: 300, team1: -20 },
+  ];
+  assert.deepEqual(timelineWindow(data, [150000, 210000]), [
+    { time: 150000, team0: 100, team1: 0 },
+    { time: 180000, team0: 100, team1: -20 },
+    { time: 210000, team0: 100, team1: -20 },
+  ]);
+  assert.deepEqual(timelineWindow(data, [120000, 240000]), data.slice(1, 4));
+  assert.deepEqual(timelineActivityRange(data), [60000, 300000]);
+  assert.equal(
+    timelineActivityRange([
+      { time: 0, team0: 0 },
+      { time: 1000, team0: 0 },
+    ]),
+    null,
+  );
+  assert.deepEqual(timelineWindow([], [0, 1]), []);
+  assert.deepEqual(timelineWindow(data, [100, 100]), []);
+  const ticks = timelineTicks([123, 86400001], 7);
+  assert.equal(ticks[0], 123);
+  assert.equal(ticks.at(-1), 86400001);
+  assert(ticks.every((tick, i) => i === 0 || tick > ticks[i - 1]!));
+  assert(ticks.length <= 7);
+  assert.deepEqual(timelineTicks([NaN, 100], 7), []);
+});
+
+test("team timeline colors survive ranking changes and new entrants reuse free colors", () => {
+  const initial = timelineColors(["a", "b", "c", "d", "e"], {});
+  const next = timelineColors(["c", "a", "f", "e", "b"], initial);
+  for (const id of ["a", "b", "c", "e"]) assert.equal(next[id], initial[id]);
+  assert.equal(next.f, initial.d);
+  assert.equal(new Set(Object.values(next)).size, 5);
+});
 
 test("score timeline uses cumulative steps, merges simultaneous solves and stops at the cutoff", () => {
   const at = (n: number) => new Date(n * 1000).toISOString();
@@ -81,6 +127,7 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
     Node: dom.window.Node,
     NodeFilter: dom.window.NodeFilter,
     HTMLInputElement: dom.window.HTMLInputElement,
+    HTMLFormElement: dom.window.HTMLFormElement,
     FormData: dom.window.FormData,
     getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
     ResizeObserver: class {
@@ -657,7 +704,12 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
               id: team,
               name: "Nebula",
               score: 100,
-              points: [{ time: now, score: 100 }],
+              points: [
+                {
+                  time: new Date(Date.parse(now) - 1800000).toISOString(),
+                  score: 100,
+                },
+              ],
             },
           ],
         };
@@ -667,6 +719,42 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
             !!document.querySelector('[aria-label="前五名战队积分走势"] svg'),
         );
         await settle(() => !!document.querySelector(".recharts-line-curve"));
+        const legend = document.querySelector(
+          '[aria-label="隐藏Nebula的积分走势"]',
+        )!;
+        await click(legend);
+        assert.equal(legend.getAttribute("aria-pressed"), "false");
+        assert.equal(document.querySelector(".recharts-line-curve"), null);
+        assert.ok(document.querySelector('[aria-label="战队排行榜"]'));
+        await click(legend);
+        await settle(() => !!document.querySelector(".recharts-line-curve"));
+        const rangeStart = () =>
+          Number(
+            document
+              .querySelector('[aria-label="时间范围开始"]')!
+              .getAttribute("aria-valuenow"),
+          );
+        const originalStart = rangeStart();
+        await click(
+          [...document.querySelectorAll("button")].find(
+            (button) => button.textContent === "得分时段",
+          )!,
+        );
+        assert(rangeStart() > originalStart);
+        await click(document.querySelector('[aria-label="重置时间范围"]')!);
+        assert.equal(rangeStart(), originalStart);
+        await act(async () => {
+          document.querySelector('[aria-label="时间范围开始"]')!.dispatchEvent(
+            new dom.window.KeyboardEvent("keydown", {
+              key: "ArrowRight",
+              bubbles: true,
+            }),
+          );
+        });
+        assert(
+          rangeStart() > originalStart,
+          "range can be adjusted with the keyboard",
+        );
         const toggle = [...document.querySelectorAll("button")].find((button) =>
           button.textContent?.includes("积分走势"),
         )!;
