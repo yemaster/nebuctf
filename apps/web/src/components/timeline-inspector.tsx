@@ -75,6 +75,9 @@ export function TimelineInspector({
       if (event.pointerType !== "touch") update(null);
     };
     const cancel = () => update(null);
+    const blur = (event: FocusEvent) => {
+      if (!root.contains(event.relatedTarget as Node | null)) update(null);
+    };
     const outside = (event: PointerEvent) => {
       if (!root.contains(event.target as Node)) update(null);
     };
@@ -108,7 +111,7 @@ export function TimelineInspector({
     root.addEventListener("pointerdown", move);
     root.addEventListener("pointerleave", leave);
     root.addEventListener("pointercancel", cancel);
-    root.addEventListener("focusout", cancel);
+    root.addEventListener("focusout", blur);
     root.addEventListener("keydown", key);
     document.addEventListener("pointerdown", outside);
     return () => {
@@ -117,7 +120,7 @@ export function TimelineInspector({
       root.removeEventListener("pointerdown", move);
       root.removeEventListener("pointerleave", leave);
       root.removeEventListener("pointercancel", cancel);
-      root.removeEventListener("focusout", cancel);
+      root.removeEventListener("focusout", blur);
       root.removeEventListener("keydown", key);
       document.removeEventListener("pointerdown", outside);
     };

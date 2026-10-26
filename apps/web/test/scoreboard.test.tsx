@@ -796,6 +796,31 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
         assert(later.textContent?.includes("Nebula100"));
         await act(async () => {
           chart.dispatchEvent(
+            new dom.window.FocusEvent("focusout", {
+              relatedTarget: chart.querySelector("svg"),
+              bubbles: true,
+            }),
+          );
+        });
+        assert.ok(
+          document.querySelector('[aria-label="积分详情"]'),
+          "touch moving focus inside the chart keeps inspection open",
+        );
+        await act(async () => {
+          chart.dispatchEvent(
+            new dom.window.FocusEvent("focusout", {
+              relatedTarget: document.body,
+              bubbles: true,
+            }),
+          );
+        });
+        assert.equal(
+          document.querySelector('[aria-label="积分详情"]'),
+          null,
+          "leaving the chart closes inspection",
+        );
+        await act(async () => {
+          chart.dispatchEvent(
             new dom.window.KeyboardEvent("keydown", {
               key: "Home",
               bubbles: true,
