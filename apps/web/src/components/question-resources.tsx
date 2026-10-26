@@ -24,9 +24,11 @@ import { ConfirmAction } from "./confirm-action";
 export function QuestionResources({
   challenge: c,
   scope,
+  accessNotice,
 }: {
   challenge: Challenge;
   scope: string;
+  accessNotice?: { message: string; label: string; href: string } | null;
 }) {
   const container = c.resources
       ? !!c.resources.container
@@ -45,12 +47,28 @@ export function QuestionResources({
       aria-label="题目资源"
       className="divide-y overflow-hidden rounded-xl bg-card shadow-sm ring-1 ring-border/60"
     >
-      {container && c.challenge_type !== "awd" && (
-        <ResourceLaunch challenge={c} scope={scope} type="container" />
+      {accessNotice && (container || attachment) ? (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 text-sm"
+        >
+          <span className="flex items-center gap-2 text-muted-foreground">
+            <Server className="size-4 shrink-0" />
+            {accessNotice.message}
+          </span>
+          <Button variant="secondary" size="sm" asChild>
+            <Link to={accessNotice.href}>{accessNotice.label}</Link>
+          </Button>
+        </div>
+      ) : (
+        container &&
+        c.challenge_type !== "awd" && (
+          <ResourceLaunch challenge={c} scope={scope} type="container" />
+        )
       )}
       {(attachment || c.attachments.length > 0) && (
         <section aria-label="附件" className="divide-y">
-          {attachment && (
+          {attachment && !accessNotice && (
             <ResourceLaunch challenge={c} scope={scope} type="attachment" />
           )}
           {c.attachments.map((a) => (
@@ -166,12 +184,22 @@ function ResourceLaunch({
         </Button>
       ) : (
         <>
-          <QueryState
-            loading={instances.isLoading}
-            error={instances.error}
-            retry={() => void instances.refetch()}
-          />
-          {current && !canStart && (
+          {instances.error ? (
+            <div className="flex items-start gap-3 p-5">
+              <ResourceError error={instances.error} />
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={instances.isFetching}
+                onClick={() => void instances.refetch()}
+              >
+                重试
+              </Button>
+            </div>
+          ) : (
+            <QueryState loading={instances.isLoading} error={null} />
+          )}
+          {current && !canStart && !instances.error && (
             <InstanceRow key={current.id} instance={current} compact />
           )}
           {canStart &&

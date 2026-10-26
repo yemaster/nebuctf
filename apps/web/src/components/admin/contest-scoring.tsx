@@ -168,26 +168,7 @@ export function ScoringEditor({
         <>
           {v.mode === "round" && v.round && (
             <div className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="每轮时长（秒）">
-                  <Input
-                    aria-label={`${c.title}每轮时长`}
-                    type="number"
-                    required
-                    min={60}
-                    max={3600}
-                    value={v.round.interval}
-                    onChange={(e) =>
-                      set({
-                        ...v,
-                        round: {
-                          ...v.round!,
-                          interval: Number(e.target.value),
-                        },
-                      })
-                    }
-                  />
-                </Field>
+              <div>
                 {c.challenge_type !== "awd" && (
                   <fieldset className="min-w-0 space-y-3">
                     <legend className="mb-3 text-sm font-medium">

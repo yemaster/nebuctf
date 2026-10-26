@@ -14,7 +14,14 @@ export interface User {
   email: string;
   role: "user" | "admin";
 }
+export type ChallengeBlood = {
+  rank: number;
+  team_id: string;
+  name: string;
+  created_at: string;
+};
 export interface ChallengePart {
+  bloods?: ChallengeBlood[];
   flag_env?: string | null;
   role?: "flag" | "attack" | "defense";
   id: string;
@@ -27,6 +34,7 @@ export interface ChallengePart {
   solved: boolean;
 }
 export interface Challenge {
+  bloods?: ChallengeBlood[];
   contest_practice?: boolean;
   permissions?: import("./group-permissions").GroupPermissions;
   challenge_type?: QuestionType;
@@ -94,6 +102,8 @@ export interface ContestGroup {
   rank_overall?: boolean;
 }
 export interface Contest {
+  clock?: import("./contest-clock").ContestClock;
+  round_duration?: number;
   visibility?: "public" | "private";
   resource_limits?: {
     containers_per_team: number | null;

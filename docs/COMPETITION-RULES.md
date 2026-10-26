@@ -60,7 +60,7 @@ score(n) = max(minimum, ceil(initial + (minimum - initial) × (n / decay)²))
 
 `n` 为该计分单元具有「影响动态分值」权限的有效解出队数，普通动态计分会同步更新此前解出队伍的分数。封榜以封榜截止时间重建可见榜单。管理员报名后按所在组权限参与计分。轮次结算同样遵守计分与动态衰减权限。
 
-轮次长度为 60–3600 秒，从实操开始和该题上线时间中较晚者起算，最后一轮截止到实操结束。每轮独立保存配置和积分，不重复结算，不再叠加普通解题分。动态轮次分只根据该轮有效得分队数计算，已结算历史轮次不随以后解出数改变。
+轮次属于比赛，在「时间规则 → 比赛轮次」统一设置长度（60–3600 秒，默认 300 秒）。所有轮次计分题从实操阶段开始按同一时钟编号；中途上线的题目加入当前轮次，不从第 1 轮重计。最后一轮截止到实操结束，可短于设定时长。每轮独立保存配置和积分，不重复结算，不再叠加普通解题分。动态轮次分只根据该轮有效得分队数计算，已结算历史轮次不随以后解出数改变。
 
 - CTF/AWDP「沿用已完成状态」开启：已完成的计分单元从完成后的轮次起持续得分。
 - 关闭该选项：每轮必须重新提交 Flag 或通过补丁校验，每个单元每轮最多得分一次。普通 CTF/AWDP 的 Flag 本身不会随轮次轮换。
@@ -144,3 +144,12 @@ Nginx 已转发 Upgrade/Connection，超时为 75 秒；外层负载均衡也要
 默认允许截止前替换。管理员可确认收到或退回补充；退回后即使未启用普通替换也可重新提交，但仍须在截止前。重新提交会清除旧版处理结果。多人同时提交时只有一个匹配版本的提交成功，其他人需刷新后重新选文件，避免静默覆盖队友的报告。历史记录保留提交/处理人和版本，文件仅保留最新版。
 
 设计参考 GZCTF 的 [选手提交组件](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/WriteupSubmitModal.tsx) 中的时间限制、文件替换和上传反馈，以及 [管理员收集页](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/pages/admin/games/[id]/Writeups.tsx) 的分组与批量导出。ret2shell 的 [按队伍组织 WriteUp 示例](https://github.com/ret2shell/ret2shell/blob/main/crates/bucket/arch/example_game/writeups/team_1/README.md) 用作 Markdown 与配套资源归档参考，不视为其已有同样的在线提交设置。本平台允许 ZIP 打包 Markdown 和图片，后台不解压执行。
+
+
+## 比赛统一轮次升级（迁移 21）
+
+`contest_ticks` 保存比赛级的轮次编号和起止时间，`contest_rounds` 保留各题的结算明细并关联同一个 tick。赛题只配置分值、持续得分、动态衰减、Flag 有效轮数和攻防/SLA 分值，不能单独设置每轮时长。开赛后比赛时长、实操时间与轮次长度均锁定。
+
+旧数据的历史轮次和得分不重排、不重复结算。已有独立轮次的进行中比赛，先完成已发轮次及 Flag 有效期，再在下一个比赛轮次边界切换；过渡期界面提示轮次切换，旧历史标为历史轮次。已结束比赛保留成绩。旧赛题时长一致时迁移为该比赛时长，不一致时使用 300 秒；请在未开赛的比赛中检查「时间规则」。旧请求中的赛题 `round.interval` 不再作为配置使用。
+
+这一结构参考 [saarCTF 统一 tick 规则](https://ctf.saarland/rules)、[saarCTF 中央计时调度](https://github.com/MarkusBauer/saarctf-gameserver)、[GZCTF A&D 分支的比赛级轮次](https://dimasc.tf/GZCTF/guide/features/attack-defense)。同时查看用户提供的 i春秋后台：轮次时长位于比赛基础设置，赛题分别配置积分。该后台只作功能流程参考。

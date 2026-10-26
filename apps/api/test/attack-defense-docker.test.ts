@@ -63,7 +63,7 @@ test(
       team,
     ]);
     await db.query(
-      "INSERT INTO contests(id,title,published,starts_at,ends_at) VALUES($1,'Docker rules',true,now()-interval '5 seconds',now()+interval '1 hour')",
+      "INSERT INTO contests(id,title,published,starts_at,ends_at,round_duration) VALUES($1,'Docker rules',true,now()-interval '5 seconds',now()+interval '1 hour',60)",
       [contest],
     );
     await db.query(
@@ -121,7 +121,7 @@ test(
           contestScoringInput.parse({
             mode: "round",
             points: { initial_points: 100, minimum_points: 10, decay: 10 },
-            round: { interval: 60 },
+            round: {},
           }),
         ),
       ],

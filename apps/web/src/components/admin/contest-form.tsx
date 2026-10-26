@@ -98,6 +98,9 @@ export function ContestForm({
             selected.includes(s.challenge_id),
           ),
           timing,
+          round_duration: Number(
+            f.get("round_duration") ?? c?.round_duration ?? 300,
+          ),
           writeup,
           groups: readGroups(f, selected),
         });
@@ -197,6 +200,26 @@ export function ContestForm({
               onChange={(practical) => setTiming({ ...timing, practical })}
               locked={pending || started}
             />
+            <fieldset disabled={pending} className="space-y-3 border-t pt-5">
+              <legend className="sr-only">比赛轮次</legend>
+              <h3 className="font-medium">比赛轮次</h3>
+              <div className="grid items-center gap-4 sm:grid-cols-2">
+                <Field label="每轮时长（秒）">
+                  <Input
+                    name="round_duration"
+                    type="number"
+                    min={60}
+                    max={3600}
+                    required
+                    readOnly={started}
+                    defaultValue={c?.round_duration ?? 300}
+                  />
+                </Field>
+                <p className="text-sm text-muted-foreground">
+                  所有轮次计分题共用，从实操阶段开始计时。
+                </p>
+              </div>
+            </fieldset>
           </div>
           {started && (
             <p className="mt-5 text-sm text-muted-foreground">

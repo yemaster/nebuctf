@@ -1,4 +1,5 @@
 import { RoundProgress } from "./round-progress";
+import { ChallengeBloods } from "./challenge-bloods";
 import { QuestionResources } from "./question-resources";
 import { ObjectiveAnswer } from "./objective-answer";
 import { PatchPanel } from "./patch-panel";
@@ -168,7 +169,16 @@ export function ChallengeWorkspace({
               <span>{c.category}</span>
               <span>{c.difficulty}</span>
               <span>{c.points} 分</span>
-              <span>{c.solves} 人全部解出</span>
+              {c.challenge_type !== "awd" && (
+                <span>
+                  {c.solves} {scope === "practice" ? "人" : "队"}全部解出
+                </span>
+              )}
+              {scope !== "practice" &&
+                !c.parts?.length &&
+                c.challenge_type !== "awd" && (
+                  <ChallengeBloods title={c.title} bloods={c.bloods} />
+                )}
               {!permissions.score && (
                 <span>
                   {c.contest_practice ? "赛后练习" : "本组作答不计分"}
@@ -199,7 +209,29 @@ export function ChallengeWorkspace({
               />
             )}
           {permissions.resources && (
-            <QuestionResources challenge={c} scope={scope} />
+            <QuestionResources
+              challenge={c}
+              scope={scope}
+              accessNotice={
+                !participating
+                  ? {
+                      message: contest.isLoading
+                        ? "正在读取报名状态"
+                        : contest.error
+                          ? "报名状态暂不可用"
+                          : registration?.status === "pending"
+                            ? "报名审核通过后可使用环境"
+                            : registration?.status === "suspended"
+                              ? "参赛资格已暂停"
+                              : registration?.status === "rejected"
+                                ? "报名未通过"
+                                : "报名比赛后可使用环境",
+                      label: registration ? "查看报名" : "前往报名",
+                      href: `/contests/${scope}`,
+                    }
+                  : null
+              }
+            />
           )}
           {c.contest_practice && c.challenge_type === "awd" && (
             <p className="text-sm text-muted-foreground">

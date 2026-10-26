@@ -13,8 +13,10 @@ import {
 } from "./ui/dialog";
 import { ActionError } from "./action-error";
 import { QueryState } from "./shared";
+import { ContestClockSummary } from "./contest-clock";
+import type { ContestClock } from "@/lib/contest-clock";
 export function ContestTiming({ id }: { id: string }) {
-  const query = useAPI<{ phases: Phase[] }>(
+  const query = useAPI<{ phases: Phase[]; clock?: ContestClock }>(
     `/contests/${id}/timing`,
     true,
     15000,
@@ -26,6 +28,13 @@ export function ContestTiming({ id }: { id: string }) {
         error={query.error}
         retry={() => void query.refetch()}
       />
+      {query.data?.clock && (
+        <ContestClockSummary
+          compact
+          clock={query.data.clock}
+          receivedAt={query.dataUpdatedAt}
+        />
+      )}
       {query.data && <PhaseCards scope={id} phases={query.data.phases} />}
     </>
   );
@@ -33,9 +42,11 @@ export function ContestTiming({ id }: { id: string }) {
 export function PhaseCards({
   scope,
   phases,
+  compact = false,
 }: {
   scope: string;
   phases: Phase[];
+  compact?: boolean;
 }) {
   const [now, setNow] = useState(Date.now()),
     [start, setStart] = useState<Phase | null>(null);
@@ -54,7 +65,10 @@ export function PhaseCards({
   const relevant = phases.filter((p) => p.mode !== "inherit");
   if (!relevant.length) return null;
   return (
-    <section aria-label="作答时间" className="grid w-full gap-5 md:grid-cols-2">
+    <section
+      aria-label="作答时间"
+      className={compact ? "grid gap-4" : "grid w-full gap-5 md:grid-cols-2"}
+    >
       {relevant.map((p) => {
         const end = Date.parse(p.deadline_at ?? p.closes_at!),
           remaining = Math.max(0, Math.ceil((end - now) / 1000)),
@@ -64,7 +78,11 @@ export function PhaseCards({
         return (
           <div
             key={p.section}
-            className="space-y-4 rounded-xl bg-card p-6 shadow-sm"
+            className={
+              compact
+                ? "space-y-2 text-sm"
+                : "space-y-4 rounded-xl bg-card p-6 shadow-sm"
+            }
           >
             <div className="flex items-center justify-between gap-4">
               <h3 className="font-medium">{title}</h3>
@@ -111,9 +129,11 @@ export function PhaseCards({
                 )}
               />
             )}
-            <p className="text-xs text-muted-foreground">
-              截止 {new Date(p.closes_at!).toLocaleString()}
-            </p>
+            {!compact && (
+              <p className="text-xs text-muted-foreground">
+                截止 {new Date(p.closes_at!).toLocaleString()}
+              </p>
+            )}
           </div>
         );
       })}

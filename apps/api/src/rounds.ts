@@ -1,32 +1,11 @@
 import type { DB, Row } from "./db.js";
 import { notifyContest } from "./activity-events.js";
-import { effectivePoints, phaseWindow } from "./competition-rules.js";
-import { score } from "./security.js";
+import { effectivePoints } from "./competition-rules.js";
+import { roundWindow, firstChallengeRound } from "./contest-clock.js";
+import { score, fail } from "./security.js";
 import { permissionSQL } from "./group-permissions.js";
 
-// Rounds are wall-clock intervals, anchored at this challenge's release inside the practical window.
-export function roundWindow(
-  contest: Row,
-  link: Row,
-  number?: number,
-  now = Date.now(),
-) {
-  const phase = phaseWindow(contest, "practical");
-  const start = Math.max(
-    Date.parse(phase.opens_at),
-    link.release_at ? new Date(link.release_at).getTime() : 0,
-  );
-  const end = Date.parse(phase.closes_at),
-    duration = link.scoring.round.interval * 1000;
-  const n = number ?? Math.floor((now - start) / duration) + 1;
-  const opens = start + (n - 1) * duration;
-  if (n < 1 || opens >= end || opens > now) return null;
-  return {
-    number: n,
-    starts_at: new Date(opens),
-    ends_at: new Date(Math.min(opens + duration, end)),
-  };
-}
+export { roundWindow } from "./contest-clock.js";
 export async function ensureRound(
   db: DB,
   contest: Row,
@@ -34,18 +13,45 @@ export async function ensureRound(
   number?: number,
   now = Date.now(),
 ) {
-  const window = roundWindow(contest, link, number, now);
-  if (!window) return null;
+  const window = roundWindow(contest, number, now);
+  if (
+    !window ||
+    window.number < firstChallengeRound(contest, link) ||
+    (contest.round_clock_from &&
+      window.starts_at.getTime() <
+        new Date(contest.round_clock_from).getTime()) ||
+    (link.release_at && new Date(link.release_at).getTime() > now)
+  )
+    return null;
+  const [tick] = await db.query(
+    `INSERT INTO contest_ticks(id,contest_id,number,starts_at,ends_at)
+     VALUES($1,$2,$3,$4,$5) ON CONFLICT(contest_id,number)
+     DO UPDATE SET number=excluded.number RETURNING *`,
+    [
+      crypto.randomUUID(),
+      contest.id,
+      window.number,
+      window.starts_at,
+      window.ends_at,
+    ],
+  );
   const [round] = await db.query(
-    `INSERT INTO contest_rounds(id,contest_id,challenge_id,number,starts_at,ends_at,settings) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(contest_id,challenge_id,number) DO UPDATE SET number=excluded.number RETURNING *`,
+    `INSERT INTO contest_rounds(id,contest_id,challenge_id,number,starts_at,ends_at,settings,tick_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(tick_id,challenge_id) DO UPDATE SET number=excluded.number RETURNING *`,
     [
       crypto.randomUUID(),
       contest.id,
       link.challenge_id,
-      window.number,
-      window.starts_at,
-      window.ends_at,
-      JSON.stringify(link.scoring),
+      tick!.number,
+      tick!.starts_at,
+      tick!.ends_at,
+      JSON.stringify({
+        ...link.scoring,
+        round: {
+          ...link.scoring.round,
+          interval: contest.round_duration ?? 300,
+        },
+      }),
+      tick!.id,
     ],
   );
   return round!;
@@ -63,6 +69,11 @@ export async function recordRoundSubmission(
   const [contest] = await db.query("SELECT * FROM contests WHERE id=$1", [
     scope,
   ]);
+  if (
+    contest?.round_clock_from &&
+    new Date(contest.round_clock_from).getTime() > Date.now()
+  )
+    fail(409, "比赛轮次正在切换，请稍后提交");
   const [link] = await db.query(
     "SELECT * FROM contest_challenges WHERE contest_id=$1 AND challenge_id=$2",
     [scope, challenge.id],
@@ -180,10 +191,22 @@ export async function tickRounds(db: DB, now = Date.now()) {
         `rounds:${link.contest_id}:${link.challenge_id}`,
       ]);
       const [last] = await tx.query(
-        "SELECT coalesce(max(number),0)::int n FROM contest_rounds WHERE contest_id=$1 AND challenge_id=$2 AND status='settled'",
+        "SELECT coalesce(max(number),0)::int n FROM contest_rounds WHERE contest_id=$1 AND challenge_id=$2 AND status='settled' AND tick_id IS NOT NULL",
         [link.contest_id, link.challenge_id],
       );
-      for (let n = last!.n + 1; n <= last!.n + 64; n++) {
+      // Finish previously issued legacy rounds, without replaying their points
+      // into the new competition clock during an upgrade.
+      const legacy = await tx.query(
+        "SELECT * FROM contest_rounds WHERE contest_id=$1 AND challenge_id=$2 AND tick_id IS NULL AND status='open' AND ends_at<=$3 ORDER BY number LIMIT 64",
+        [link.contest_id, link.challenge_id, new Date(now)],
+      );
+      for (const round of legacy)
+        await settleRound(tx, round, link.challenge, now);
+      const first = Math.max(
+        last!.n + 1,
+        firstChallengeRound(link.contest, link),
+      );
+      for (let n = first; n < first + 64; n++) {
         const round = await ensureRound(tx, link.contest, link, n, now);
         if (!round || !(await settleRound(tx, round, link.challenge, now)))
           break;

@@ -45,7 +45,6 @@ export type Scoring = {
   points?: Points;
   parts: { id: string; points: Points }[];
   round?: {
-    interval: number;
     dynamic: boolean;
     carry: boolean;
     flag_lifetime: number;
@@ -108,7 +107,6 @@ export function profiles(c: Challenge | null): Resources {
   };
 }
 export const defaultRound = () => ({
-  interval: 300,
   dynamic: false,
   carry: true,
   flag_lifetime: 1,

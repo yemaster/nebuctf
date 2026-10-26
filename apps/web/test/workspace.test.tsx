@@ -265,3 +265,27 @@ test("objective preview uses the same registration notice instead of answer cont
   assert(!html.includes('role="radiogroup"'));
   assert(!html.includes("确认提交"));
 });
+
+test("unregistered container preview offers a compact registration notice instead of loading denied resources", async () => {
+  const html = await render(
+    `/contests/${contestId}/challenges?challenge=${id}`,
+    false,
+    contestId,
+    false,
+    "active",
+    undefined,
+    [],
+    {
+      role: "admin",
+      challenge: {
+        kind: "dynamic_container",
+        resources: { container: true, attachment: true },
+      },
+    },
+  );
+  assert(html.includes("报名比赛后可使用环境"));
+  assert(html.includes("前往报名"));
+  assert(!html.includes("403"));
+  assert(!html.includes("启动靶机"));
+  assert(!html.includes("生成附件"));
+});

@@ -6,6 +6,7 @@ import { challengePhase, phaseName, phaseWindow } from "./competition-rules.js";
 import { id } from "./schemas.js";
 import { fail } from "./security.js";
 import { isContestPractice } from "./contest-practice.js";
+import { readContestClock } from "./contest-clock.js";
 
 export async function teamPhases(db: DB, contest: Row, owner: string) {
   if (isContestPractice(contest))
@@ -55,6 +56,7 @@ export function timingRoutes(app: FastifyInstance, db: DB) {
         sections.some((s) => s.section === p.section),
       ),
       server_time: new Date().toISOString(),
+      clock: await readContestClock(db, contest),
     };
   });
   app.post("/api/contests/:id/start/:section", async (req) => {

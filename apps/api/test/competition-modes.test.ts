@@ -213,6 +213,7 @@ test("mixed contest questions, scoped scores, clocks, objectives, rounds and AWD
     ends = new Date(Date.now() + 3600000).toISOString();
   const contest = await ok("/admin/contests", admin, {
     title: "Mixed " + stamp,
+    round_duration: 60,
     published: true,
     starts_at: starts,
     ends_at: ends,

@@ -225,3 +225,21 @@ CREATE INDEX IF NOT EXISTS ai_calls_pending ON ai_calls(route_id,expires_at) WHE
 CREATE INDEX IF NOT EXISTS ai_calls_retention ON ai_calls(created_at);
 CREATE INDEX IF NOT EXISTS ai_calls_expired ON ai_calls(expires_at) WHERE status=0;
 INSERT INTO schema_migrations(version) VALUES(20) ON CONFLICT DO NOTHING;
+
+ALTER TABLE contests ADD COLUMN IF NOT EXISTS round_duration integer NOT NULL DEFAULT 300 CHECK(round_duration BETWEEN 60 AND 3600);
+ALTER TABLE contests ADD COLUMN IF NOT EXISTS round_clock_from timestamptz;
+CREATE TABLE IF NOT EXISTS contest_ticks(id uuid PRIMARY KEY,contest_id uuid NOT NULL REFERENCES contests(id),number integer NOT NULL CHECK(number>0),starts_at timestamptz NOT NULL,ends_at timestamptz NOT NULL CHECK(ends_at>starts_at),UNIQUE(contest_id,number));
+ALTER TABLE contest_rounds ADD COLUMN IF NOT EXISTS tick_id uuid REFERENCES contest_ticks(id);
+ALTER TABLE contest_rounds DROP CONSTRAINT IF EXISTS contest_rounds_contest_id_challenge_id_number_key;
+CREATE UNIQUE INDEX IF NOT EXISTS contest_rounds_tick_challenge ON contest_rounds(tick_id,challenge_id);
+CREATE UNIQUE INDEX IF NOT EXISTS contest_rounds_legacy_number ON contest_rounds(contest_id,challenge_id,number) WHERE tick_id IS NULL;
+CREATE INDEX IF NOT EXISTS contest_rounds_pending ON contest_rounds(contest_id,challenge_id,ends_at) WHERE status='open';
+UPDATE contests c SET round_duration=r.duration FROM (SELECT contest_id,min((scoring->'round'->>'interval')::integer) duration FROM contest_challenges WHERE scoring->>'mode'='round' GROUP BY contest_id HAVING count(DISTINCT scoring->'round'->>'interval')=1) r WHERE c.id=r.contest_id AND r.duration BETWEEN 60 AND 3600 AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=21);
+WITH old AS (
+ SELECT c.id,c.round_duration,CASE WHEN coalesce(c.timing->'practical'->>'mode','inherit')='inherit' THEN c.starts_at ELSE (c.timing->'practical'->>'opens_at')::timestamptz END starts_at,
+ CASE WHEN coalesce(c.timing->'practical'->>'mode','inherit')='inherit' THEN c.ends_at ELSE (c.timing->'practical'->>'closes_at')::timestamptz END ends_at,
+ greatest(now(),max(r.ends_at+make_interval(secs=>coalesce((r.settings->'round'->>'interval')::integer,300)*greatest(0,coalesce((r.settings->'round'->>'flag_lifetime')::integer,1)-1)))) resume_at
+ FROM contests c JOIN contest_rounds r ON r.contest_id=c.id AND r.tick_id IS NULL GROUP BY c.id
+) UPDATE contests c SET round_clock_from=least(old.ends_at,old.starts_at+make_interval(secs=>ceil(extract(epoch FROM(old.resume_at-old.starts_at))/old.round_duration)*old.round_duration)) FROM old WHERE c.id=old.id AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=21);
+CREATE INDEX IF NOT EXISTS awd_attacks_recent ON awd_attacks(created_at DESC);
+INSERT INTO schema_migrations(version) VALUES(21) ON CONFLICT DO NOTHING;

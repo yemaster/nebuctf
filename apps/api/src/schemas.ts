@@ -208,6 +208,7 @@ export const contestInput = z
     published: z.boolean().default(false),
     challenge_ids: z.array(id).max(200).default([]),
     timing: timingInput.default({}),
+    round_duration: z.number().int().min(60).max(3600).default(300),
     challenge_settings: z.array(contestChallengeInput).max(200).optional(),
     groups: z
       .array(

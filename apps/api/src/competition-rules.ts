@@ -47,7 +47,6 @@ export const contestScoringInput = z
       .default([]),
     round: z
       .object({
-        interval: z.number().int().min(60).max(3600).default(300),
         dynamic: z.boolean().default(false),
         carry: z.boolean().default(true),
         flag_lifetime: z.number().int().min(1).max(5).default(1),

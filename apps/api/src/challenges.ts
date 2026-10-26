@@ -4,6 +4,7 @@ import { recordFlagAnomaly } from "./contest-monitor.js";
 import { notifyContest } from "./activity-events.js";
 import { creditSolve } from "./solve.js";
 import { teamPhases } from "./contest-timing.js";
+import { readContestClock } from "./contest-clock.js";
 import { flagMode } from "./challenge-model.js";
 import { challengeProgress } from "./challenge-parts.js";
 import type { FastifyInstance } from "fastify";
@@ -35,13 +36,13 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
       p.q,
       p.category,
       owner,
-      (p.page - 1) * 24,
+      p.scope === "practice" ? (p.page - 1) * 24 : 0,
       cutoff,
       sections,
       await visibleChallengeIds(db, p.scope, req.user ?? undefined),
     ];
     const rows = await db.query(
-      `SELECT c.*,count(*) OVER()::int total,(SELECT count(*)::int FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.created_at<=$6 AND NOT s.contest_practice) solves,EXISTS(SELECT 1 FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.owner_key=$4) solved FROM challenges c WHERE c.published AND (($1='practice' AND c.practice) OR EXISTS(SELECT 1 FROM contest_challenges cc WHERE cc.challenge_id=c.id AND cc.contest_id::text=$1 AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()) AND ($4='' OR CASE WHEN c.challenge_type='objective' THEN 'objective' ELSE 'practical' END=ANY($7::text[])))) AND ($8::uuid[] IS NULL OR c.id=ANY($8::uuid[])) AND ($2='' OR c.title ILIKE '%'||$2||'%') AND ($3='' OR c.category=$3) ORDER BY c.created_at,c.id LIMIT 24 OFFSET $5`,
+      `SELECT c.*,count(*) OVER()::int total,(SELECT count(*)::int FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.created_at<=$6 AND NOT s.contest_practice) solves,EXISTS(SELECT 1 FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.owner_key=$4) solved FROM challenges c WHERE c.published AND (($1='practice' AND c.practice) OR EXISTS(SELECT 1 FROM contest_challenges cc WHERE cc.challenge_id=c.id AND cc.contest_id::text=$1 AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()) AND ($4='' OR CASE WHEN c.challenge_type='objective' THEN 'objective' ELSE 'practical' END=ANY($7::text[])))) AND ($8::uuid[] IS NULL OR c.id=ANY($8::uuid[])) AND ($2='' OR c.title ILIKE '%'||$2||'%') AND ($3='' OR c.category=$3) ORDER BY c.created_at,c.id LIMIT CASE WHEN $1='practice' THEN 24 ELSE 200 END OFFSET $5`,
       args,
     );
     return {
@@ -63,6 +64,7 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
       total: rows[0]?.total ?? 0,
       page: p.page,
       phases,
+      clock: contest ? await readContestClock(db, contest) : null,
     };
   });
   app.get("/api/challenges/:id", async (req) => {

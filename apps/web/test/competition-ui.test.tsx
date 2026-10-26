@@ -420,11 +420,15 @@ test(
               '[aria-label="CTF service计分方式"] [role="radio"][value="round"]',
             )!,
           );
-          const interval = host().querySelector(
-            '[aria-label="CTF service每轮时长"]',
-          )!;
-          await change(interval, "60");
+          assert.equal(
+            host().querySelector('[aria-label="CTF service每轮时长"]'),
+            null,
+          );
           await tab("时间规则");
+          await change(
+            host().querySelector('input[name="round_duration"]')!,
+            "60",
+          );
           await change(
             host().querySelector('select[aria-label="客观题作答方式"]')!,
             "flexible",
@@ -460,11 +464,7 @@ test(
               .scoring.points.initial_points,
             400,
           );
-          assert.equal(
-            saved.challenge_settings.find((s: any) => s.challenge_id === ctf.id)
-              .scoring.round.interval,
-            60,
-          );
+          assert.equal(saved.round_duration, 60);
           assert.equal(
             saved.challenge_settings.find(
               (s: any) => s.challenge_id === awdp.id,

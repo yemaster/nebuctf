@@ -45,6 +45,29 @@ export async function challengeProgress(
      FROM challenge_parts p WHERE p.challenge_id=ANY($1::uuid[]) ORDER BY p.position,p.id`,
     [challenges.map((c) => c.id), scope, owner, cutoff],
   );
+  const bloods =
+    scope === "practice"
+      ? []
+      : await db.query(
+          `WITH units AS (
+      SELECT c.id unit_id,c.id challenge_id,false part FROM challenges c WHERE c.id=ANY($1::uuid[]) AND NOT EXISTS(SELECT 1 FROM challenge_parts p WHERE p.challenge_id=c.id)
+      UNION ALL SELECT p.id,p.challenge_id,true FROM challenge_parts p WHERE p.challenge_id=ANY($1::uuid[])
+    ) SELECT u.unit_id,b.team_id,b.name,b.created_at,row_number() OVER(PARTITION BY u.unit_id ORDER BY b.created_at,b.id)::int rank
+      FROM units u CROSS JOIN LATERAL (
+        SELECT s.id,t.id team_id,t.name,s.created_at FROM (
+          SELECT id,owner_key,created_at FROM solves WHERE NOT u.part AND challenge_id=u.unit_id AND scope=$2 AND created_at<=$3 AND NOT contest_practice
+          UNION ALL SELECT id,owner_key,created_at FROM part_solves WHERE u.part AND part_id=u.unit_id AND scope=$2 AND created_at<=$3 AND NOT contest_practice
+        ) s JOIN ranked_registrations r ON r.contest_id::text=$2 AND 't:'||r.team_id=s.owner_key
+        JOIN teams t ON t.id=r.team_id LEFT JOIN contest_groups g ON g.id=r.group_id
+        WHERE ${permissionSQL("g", "u.challenge_id", "blood")}
+        ORDER BY s.created_at,s.id LIMIT 3
+      ) b`,
+          [challenges.map((c) => c.id), scope, cutoff],
+        );
+  const firstSolves = (unit: string) =>
+    bloods
+      .filter((b) => b.unit_id === unit)
+      .map(({ unit_id: _unit, ...blood }) => blood);
   return challenges.map((original) => {
     const scoring = links.find((l) => l.challenge_id === original.id)?.scoring;
     const c: Row = {
@@ -88,6 +111,7 @@ export async function challengeProgress(
         ),
         solves: p.solves,
         solved: p.solved,
+        bloods: firstSolves(p.id),
       }));
     const points = parts.length
       ? parts.reduce((n, p) => n + p.points, 0)
@@ -104,6 +128,7 @@ export async function challengeProgress(
       points,
       solves: c.solves,
       solved: c.solved,
+      bloods: firstSolves(c.id),
       total_parts: parts.length || 1,
       solved_parts: parts.length
         ? parts.filter((p) => p.solved).length

@@ -397,6 +397,8 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
           )
             fail(400, "赛题配置必须属于当前比赛且不能重复");
           if (old && new Date(old.starts_at).getTime() <= Date.now()) {
+            if (data.round_duration !== old.round_duration)
+              fail(409, "开赛后不能更改比赛轮次时长");
             if (!isDeepStrictEqual(data.timing, old.timing ?? {}))
               fail(409, "开赛后不能更改作答时间规则");
             if (

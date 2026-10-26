@@ -37,14 +37,11 @@ export function validateContestQuestions(
     if (
       v.mode === "round" &&
       (!v.round ||
-        !integer(v.round.interval, 60, 3600) ||
         !integer(v.round.flag_lifetime, 1, 5) ||
         !integer(v.round.defense_points, 0, 10000) ||
         !integer(v.round.availability_points, 0, 10000))
     )
-      return error(
-        "检查轮次设置：每轮 60–3600 秒，Flag 有效 1–5 轮，得分为 0–10000 的整数。",
-      );
+      return error("检查轮次计分：Flag 有效 1–5 轮，得分为 0–10000 的整数。");
   }
   return null;
 }

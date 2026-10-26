@@ -19,6 +19,7 @@ import { useContestCapabilities } from "@/lib/contest-access";
 import { cn } from "@/lib/utils";
 import { ThemeSettings } from "./theme-provider";
 import { NavigationIndicator } from "./navigation-indicator";
+import { ContestClockLine } from "./contest-clock";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -76,7 +77,11 @@ export function SiteHeader({
   contestId?: string;
 }) {
   const { pathname, search } = useLocation();
-  const contest = useAPI<Contest>(`/contests/${contestId}`, !!contestId);
+  const contest = useAPI<Contest>(
+    `/contests/${contestId}`,
+    !!contestId,
+    contestId ? 15000 : undefined,
+  );
   const base = `/contests/${contestId}`;
   const access = useContestCapabilities(contest.data, user);
   const [arenaPaths, setArenaPaths] = useState<Record<string, string>>({});
@@ -209,7 +214,13 @@ export function SiteHeader({
               : "text-lg sm:text-xl lg:mr-2 xl:mr-6",
           )}
         >
-          {title}
+          <span className="block truncate">{title}</span>
+          {contestId && contest.data?.clock && (
+            <ContestClockLine
+              clock={contest.data.clock}
+              receivedAt={contest.dataUpdatedAt}
+            />
+          )}
         </Link>
         <nav
           key={contestId ?? "main"}

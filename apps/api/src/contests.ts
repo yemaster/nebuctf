@@ -1,5 +1,6 @@
 import { snapshotContestMembers } from "./writeup-config.js";
 import { isContestPractice } from "./contest-practice.js";
+import { readContestClock } from "./contest-clock.js";
 import {
   publicContest,
   checkRegistrationScope,
@@ -110,6 +111,7 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
       : [];
     return {
       ...publicContest(c!),
+      clock: await readContestClock(db, c!),
       eligible_team_ids:
         c!.registration_mode === "teams" && req.user
           ? (

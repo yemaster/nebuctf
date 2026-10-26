@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
 import { useAPI } from "@/lib/api";
 import { Progress } from "./ui/progress";
 import { Badge } from "./ui/badge";
 import { QueryState } from "./shared";
+import { roundAt, type ContestClock } from "@/lib/contest-clock";
+import { useContestNow } from "./contest-clock";
 type Data = {
+  clock?: ContestClock;
   round: {
     number: number;
     starts_at: string;
@@ -11,7 +13,7 @@ type Data = {
     status: string;
   } | null;
   total: number;
-  history: { number: number; points: number }[];
+  history: { id?: string; number: number; points: number; legacy?: boolean }[];
 };
 export function RoundProgress({
   id,
@@ -23,16 +25,19 @@ export function RoundProgress({
   carry: boolean;
 }) {
   const query = useAPI<Data>(
-      `/challenges/${id}/rounds?scope=${scope}`,
-      true,
-      5000,
-    ),
-    [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  const r = query.data?.round,
+    `/challenges/${id}/rounds?scope=${scope}`,
+    true,
+    5000,
+  );
+  const now = useContestNow(query.data?.clock, query.dataUpdatedAt);
+  const clockRound = query.data?.clock ? roundAt(query.data.clock, now) : null;
+  const r = clockRound
+      ? {
+          number: clockRound.number,
+          starts_at: new Date(clockRound.opens).toISOString(),
+          ends_at: new Date(clockRound.closes).toISOString(),
+        }
+      : query.data?.round,
     seconds = r
       ? Math.max(0, Math.ceil((Date.parse(r.ends_at) - now) / 1000))
       : 0;
@@ -76,8 +81,13 @@ export function RoundProgress({
           <summary className="cursor-pointer text-sm">最近轮次得分</summary>
           <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {query.data.history.map((row) => (
-              <div key={row.number} className="flex justify-between text-sm">
-                <dt className="text-muted-foreground">第 {row.number} 轮</dt>
+              <div
+                key={row.id ?? row.number}
+                className="flex justify-between text-sm"
+              >
+                <dt className="text-muted-foreground">
+                  {row.legacy ? "历史 " : ""}第 {row.number} 轮
+                </dt>
                 <dd>{row.points} 分</dd>
               </div>
             ))}

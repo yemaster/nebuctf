@@ -1,4 +1,7 @@
 import { PhaseCards } from "@/components/contest-timing";
+import { ContestClockSummary } from "@/components/contest-clock";
+import type { ContestClock } from "@/lib/contest-clock";
+import { ChallengeBloods } from "@/components/challenge-bloods";
 import type { Phase } from "@/lib/competition";
 import {
   Collapsible,
@@ -116,10 +119,13 @@ function ChallengeBrowser({
     filtered_total?: number;
     title?: string;
     phases?: Phase[];
+    clock?: ContestClock | null;
   }>(
     problemset
       ? `/problemsets/${encodeURIComponent(problemset)}?page=${page}${q ? `&q=${encodeURIComponent(q)}` : ""}${category ? `&category=${encodeURIComponent(category)}` : ""}`
       : `/challenges?scope=${scope}&category=${category}&q=${encodeURIComponent(q)}&page=${page}`,
+    true,
+    scope === "practice" ? undefined : 15000,
   );
   const total = data.data?.filtered_total ?? data.data?.total;
   const returnToSet = problemset
@@ -209,6 +215,20 @@ function ChallengeBrowser({
   };
   const directory = (
     <>
+      {data.data?.clock && (
+        <div className="px-5 pb-5">
+          <ContestClockSummary
+            clock={data.data.clock}
+            receivedAt={data.dataUpdatedAt}
+          />
+        </div>
+      )}
+      {scope !== "practice" &&
+        data.data?.phases?.some((p) => p.mode !== "inherit") && (
+          <div className="px-5 pb-5">
+            <PhaseCards scope={scope} phases={data.data.phases} compact />
+          </div>
+        )}
       <form
         className="px-5 pb-4"
         role="search"
@@ -284,6 +304,7 @@ function ChallengeBrowser({
                         c={c}
                         selected={selected}
                         select={select}
+                        contest={scope !== "practice"}
                       />
                     ))}
                   </AccordionContent>
@@ -292,11 +313,13 @@ function ChallengeBrowser({
             </Accordion>
           )}
           {data.data?.items.length === 0 && <Empty>没有符合条件的题目</Empty>}
-          <Pagination
-            page={page}
-            setPage={setPage}
-            hasMore={page * 24 < (total ?? 0)}
-          />
+          {scope === "practice" && (
+            <Pagination
+              page={page}
+              setPage={setPage}
+              hasMore={page * 24 < (total ?? 0)}
+            />
+          )}
         </div>
       </ScrollArea>
     </>
@@ -613,10 +636,12 @@ function DirectoryItem({
   c,
   selected,
   select,
+  contest = false,
 }: {
   c: Challenge;
   selected: string | null;
   select: (id: string) => void;
+  contest?: boolean;
 }) {
   const [open, setOpen] = useState(selected === c.id);
   useEffect(() => {
@@ -649,8 +674,10 @@ function DirectoryItem({
             <span className="block truncate">{c.title}</span>
             <span className="block text-xs text-muted-foreground">
               {c.total_parts > 1
-                ? `${c.solved_parts} / ${c.total_parts} 小题`
-                : `${c.solves} 人解出`}
+                ? `${c.solved_parts} / ${c.total_parts} 小题，${c.solves} ${contest ? "队全部解出" : "人全部解出"}`
+                : c.challenge_type === "awd"
+                  ? "AWD 对抗"
+                  : `${c.solves} ${contest ? "队解出" : "人解出"}`}
             </span>
           </span>
           <span
@@ -673,6 +700,11 @@ function DirectoryItem({
           </CollapsibleTrigger>
         )}
       </div>
+      {contest && !c.parts?.length && c.challenge_type !== "awd" && (
+        <div className="-mt-2 flex justify-end px-3 pb-2">
+          <ChallengeBloods title={c.title} bloods={c.bloods} />
+        </div>
+      )}
       {c.parts?.length > 0 && (
         <CollapsibleContent>
           <ul
@@ -699,6 +731,12 @@ function DirectoryItem({
                     {part.points}
                   </span>
                 </Button>
+                {contest && (
+                  <div className="flex items-center justify-between gap-2 pl-7 pr-2 text-xs text-muted-foreground">
+                    <span>{part.solves} 队解出</span>
+                    <ChallengeBloods title={part.title} bloods={part.bloods} />
+                  </div>
+                )}
               </li>
             ))}
           </ul>

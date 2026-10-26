@@ -1006,10 +1006,11 @@ async function rounds() {
       const rules = (value, carry) => ({
         mode: "round",
         points: points(value),
-        round: { interval: 60, carry, dynamic: false },
+        round: { carry, dynamic: false },
       });
       const contest = await makeContest("rounds", {
         title: "[测试] 三轮积分赛",
+        round_duration: 60,
         description:
           "每轮 60 秒。第一题解出后持续得分，第二题每轮重新提交；比赛结束后保留逐轮积分。",
         starts_at: iso(start),
@@ -1144,6 +1145,7 @@ async function awd() {
         end = start + 240000;
       const contest = await makeContest("awd", {
         title: "[测试] AWD 双队对抗赛",
+        round_duration: 60,
         description:
           "四轮真实对抗，每轮 60 秒。攻击 100 分、防守 40 分、可用性 10 分；BRAVO 在第二轮提交修复。保留逐轮成绩供检查。",
         starts_at: iso(start),
@@ -1156,7 +1158,6 @@ async function awd() {
               mode: "round",
               points: points(100),
               round: {
-                interval: 60,
                 carry: false,
                 dynamic: false,
                 flag_lifetime: 1,
