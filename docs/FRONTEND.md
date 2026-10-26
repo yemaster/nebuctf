@@ -2,6 +2,8 @@
 
 2026-10-23 更新。当前版本结合 Ret2Shell 的题目导航、Hackergame 的连续题面和 GeekGame 的资源与解题状态组织方式。题目直接展开，保持全屏应用布局。
 
+2026-10-26 设计约定：后续页面布局与交互优先参考 GZCTF 的实际页面、官方截图和对应源码，再用本项目的 shadcn/ui 组件和主题实现。先核对参考页面中的信息顺序、密度、对齐和状态反馈，再调整对应部分；已有明确要求的多 Flag、技能树等功能保留其适配。局部问题在现有结构内修复，避免借修复重新设计整个页面。
+
 ## 参考依据
 
 - [GZCTF 赛题界面](https://gzctf.gzti.me/images/game.challenges.webp)：实际查看官方截图，参考分类侧栏、紧凑题目区、解题状态和右侧动态的信息结构。
@@ -257,6 +259,8 @@ Dagre 与 React Flow 放在按需加载的同一包，首页不预加载该包�
 图表使用官方 [shadcn Chart](https://ui.shadcn.com/docs/components/radix/chart) 和 Recharts 3，Table、Tooltip、Sheet、Collapsible、InputGroup、NativeSelect、Pagination 复用现有组件。前五名以阶梯曲线显示累计分数，支持收起和时间范围拖动；动态计分使用当前分值回算历史，界面注明「按当前题目分值累计」。定时刷新不重播曲线动画。图表独立按需加载，首页不预加载 charts 或 graph-utils。
 
 比赛矩阵显示分类、题目/小题、分值、通过状态和三血；桌面固定排名/队名和总分，窄屏缩小身份列并允许矩阵内部滚动。每页 30 支战队，大量小题每组展示 36 个计分单元，可按分类筛选或切换下一组，限制 DOM 规模。比赛作答目录保持完整。练习榜使用紧凑选手表格，不展开整座题库。
+
+当前战队使用整行高亮，战队名、分数、解题数及全部题目格继承同一行的底色；固定列保持不透明，悬停不覆盖当前战队状态。普通行的悬停底色同样贯穿固定列与题目区。此修复复核了 GZCTF 官方截图、ScoreboardTable 及其 [固定列样式](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/styles/components/ScoreboardTable.module.css)，在现有矩阵结构上完善本项目的当前战队标识，使用已有亮暗色主题变量。
 
 搜索、组别、页码与「我的排名」写入 URL；筛选期间保留已显示的榜单，搜索保留真实排名。查看队名或已解格可打开同一个解题详情侧栏，显示当前分数、三血和通过时间。「我的排名」使用本场报名的战队 ID。封榜时格子、曲线、分数和解出数同时截止，未开赛不泄露题目名称。
 
