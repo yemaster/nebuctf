@@ -1,3 +1,4 @@
+import { randomUUID as hintUUID } from "@/lib/random-uuid";
 import { FlagInjection } from "./flag-injection";
 import { CheckerImageTools } from "./image-tools";
 import { lazy, Suspense, useRef, useState } from "react";
@@ -71,7 +72,13 @@ export function ChallengeForm({
     c?.awd_config ?? { checker_image: "", timeout: 20 },
   );
   const [description, setDescription] = useState(c?.description ?? "");
-  const [hints, setHints] = useState(c?.hints ?? []);
+  const [hints, setHints] = useState(() =>
+    (c?.hints ?? []).map((hint) =>
+      typeof hint === "string"
+        ? { id: hintUUID(), content: hint }
+        : { id: hint.id, content: hint.content ?? "" },
+    ),
+  );
   const [scoreValues, setScoreValues] = useState({
     initial: String(c?.initial_points ?? 500),
     minimum: String(c?.minimum_points ?? 100),
@@ -155,7 +162,7 @@ export function ChallengeForm({
           patch_config: attackDefense ? patch : null,
           awd_config: type === "awd" ? awd : null,
           parts: practical && multi ? readParts(f, parts) : [],
-          hints: hints.filter((hint) => hint.trim().length > 0),
+          hints: hints.filter((hint) => hint.content.trim().length > 0),
           published: publication === "enabled",
           publish_at: null,
           practice: type !== "awd" && f.has("practice"),

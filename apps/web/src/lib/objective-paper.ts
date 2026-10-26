@@ -11,6 +11,7 @@ export type ObjectiveSaved = {
   revision: string | null;
 };
 export type PaperQuestion = {
+  hints?: import("./hints").ChallengeHint[];
   id: string;
   title: string;
   description: string;

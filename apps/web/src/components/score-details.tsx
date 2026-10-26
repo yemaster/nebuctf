@@ -1,3 +1,4 @@
+import { hintPrice } from "@/lib/hints";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -87,6 +88,7 @@ function DetailContent({
   if (group) query.set("group", group);
   const [memberId, setMemberId] = useState("");
   const [page, setPage] = useState(1);
+  const [hintPage, setHintPage] = useState(1);
   const path = `/scoreboard/${row.id}?${query}`;
   const data = useQuery<ScoreDetail>({
     queryKey: [path],
@@ -133,6 +135,9 @@ function DetailContent({
               ? [["组内排名", summary.group_rank]]
               : []),
             ["得分", summary.score.toLocaleString()],
+            ...(summary.hint_cost
+              ? [["提示扣分", `−${summary.hint_cost}`]]
+              : []),
             ["解题 / Flag", `${summary.solves} / ${summary.flags}`],
           ].map(([label, value]) => (
             <div key={label}>
@@ -266,6 +271,43 @@ function DetailContent({
                 <p className="text-xs text-muted-foreground">
                   擅长方向按本场得分统计
                 </p>
+              </section>
+            )}
+            {!!detail.hint_deductions?.length && (
+              <section aria-label="提示扣分记录" className="space-y-3">
+                <h3 className="text-sm font-medium">提示记录</h3>
+                <ul className="divide-y">
+                  {detail.hint_deductions
+                    .slice((hintPage - 1) * 10, hintPage * 10)
+                    .map((h) => (
+                      <li
+                        key={h.id}
+                        className="flex items-center justify-between gap-4 py-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-medium">
+                            {h.title}
+                          </p>
+                          <div className="mt-1 flex flex-wrap gap-x-4 text-xs text-muted-foreground">
+                            <span>{h.username}</span>
+                            <time dateTime={h.created_at}>
+                              {date(h.created_at)}
+                            </time>
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-sm font-semibold tabular-nums">
+                          {hintPrice(h.policy)}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+                <Pagination
+                  page={hintPage}
+                  setPage={setHintPage}
+                  total={detail.hint_deductions.length}
+                  pageSize={10}
+                  hasMore={hintPage * 10 < detail.hint_deductions.length}
+                />
               </section>
             )}
             <section className="space-y-3">

@@ -494,7 +494,14 @@ test(
           await submit();
           assert.equal(saved.description, "## Preview heading\n\n**content**");
           assert.equal(saved.title, "Changed");
-          assert.deepEqual(saved.hints, ["one\ntwo", "third"]);
+          assert.deepEqual(
+            saved.hints.map((h: { content: string }) => h.content),
+            ["one\ntwo", "third"],
+          );
+          assert.equal(
+            new Set(saved.hints.map((h: { id: string }) => h.id)).size,
+            2,
+          );
           assert.equal(saved.practice, true);
           assert.equal(saved.published, false);
           assert.equal(saved.publish_at, null);

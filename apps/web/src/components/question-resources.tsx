@@ -240,7 +240,7 @@ function ResourceLaunch({
                 </ItemContent>
                 <ItemActions className="ml-auto max-sm:w-full max-sm:justify-end">
                   <Button
-                    variant={error ? "default" : "secondary"}
+                    variant="default"
                     disabled={
                       start.isPending ||
                       cooldown > 0 ||

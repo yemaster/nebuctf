@@ -34,6 +34,12 @@ export interface ChallengePart {
   solved: boolean;
 }
 export interface Challenge {
+  defense_enabled?: boolean;
+  submission_usage?: {
+    flag: import("./submission-limits").SubmissionUsage;
+    defense: import("./submission-limits").SubmissionUsage;
+  };
+  hint_factor?: number;
   bloods?: ChallengeBlood[];
   contest_practice?: boolean;
   permissions?: import("./group-permissions").GroupPermissions;
@@ -66,7 +72,7 @@ export interface Challenge {
   points: number;
   solves: number;
   solved: boolean;
-  hints: string[];
+  hints: (string | import("./hints").ChallengeHint)[];
   attachments: { id: string; name: string; size: number }[];
   initial_points: number;
   minimum_points: number;
@@ -102,6 +108,10 @@ export interface ContestGroup {
   rank_overall?: boolean;
 }
 export interface Contest {
+  submission_limits?: import("./submission-limits").SubmissionLimits;
+  submission_overrides?: import("./submission-limits").SubmissionOverride[];
+  hint_policy?: import("./hints").HintPolicy;
+  hint_overrides?: import("./hints").HintOverride[];
   clock?: import("./contest-clock").ContestClock;
   round_duration?: number;
   visibility?: "public" | "private";
@@ -193,6 +203,7 @@ export interface Team {
   members: { id: string; username: string }[];
 }
 export interface Score {
+  hint_cost?: number;
   id: string;
   rank: number;
   overall_rank: number | null;
@@ -231,6 +242,15 @@ export interface MemberScore {
   categories: CategoryScore[];
 }
 export interface ScoreDetail extends Score {
+  hint_deductions?: {
+    id: string;
+    challenge_id: string;
+    title: string;
+    policy: import("./hints").HintPolicy;
+    created_at: string;
+    user_id: string;
+    username: string;
+  }[];
   details_limited?: boolean;
   team_points?: number;
   cells: (ScoreCell & { solver_id: string; solver_name: string })[];

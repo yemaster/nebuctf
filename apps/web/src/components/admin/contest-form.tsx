@@ -1,3 +1,15 @@
+import { ContestSubmissionLimits } from "./contest-submission-limits";
+import {
+  validSubmissionLimit,
+  type SubmissionLimits,
+  type SubmissionOverride,
+} from "@/lib/submission-limits";
+import { ContestHints } from "./contest-hints";
+import {
+  validHintPolicy,
+  type HintPolicy,
+  type HintOverride,
+} from "@/lib/hints";
 import { ContestResourceSettings } from "./contest-resource-settings";
 import { ContestAccessSettings } from "./contest-access-settings";
 import { useSearchParams } from "react-router-dom";
@@ -38,8 +50,28 @@ export function ContestForm({
   const [settings, setSettings] = useState<ContestQuestion[]>(
     c?.challenge_settings ?? [],
   );
+  const [submissionLimits, setSubmissionLimits] = useState<SubmissionLimits>(
+    c?.submission_limits ?? { flag: null, defense: null },
+  );
+  const [submissionOverrides, setSubmissionOverrides] = useState<
+    SubmissionOverride[]
+  >(c?.submission_overrides ?? []);
+  const [submissionIssue, setSubmissionIssue] = useState<{
+    challenge_id?: string;
+    message: string;
+  } | null>(null);
+  const [hintPolicy, setHintPolicy] = useState<HintPolicy>(
+    c?.hint_policy ?? { mode: "free" },
+  );
+  const [hintOverrides, setHintOverrides] = useState<HintOverride[]>(
+    c?.hint_overrides ?? [],
+  );
   const [writeup, setWriteup] = useState({ ...defaultWriteup, ...c?.writeup });
   const [timing, setTiming] = useState(c?.timing ?? {});
+  const [hintIssue, setHintIssue] = useState<{
+    challenge_id?: string;
+    message: string;
+  } | null>(null);
   const [questionIssue, setQuestionIssue] = useState<QuestionIssue | null>(
     null,
   );
@@ -63,6 +95,40 @@ export function ContestForm({
           setSection("challenges");
           return;
         }
+        const invalidSubmission = submissionOverrides.find(
+          (v) =>
+            selected.includes(v.challenge_id) &&
+            (!validSubmissionLimit(v.flag) || !validSubmissionLimit(v.defense)),
+        );
+        if (
+          !validSubmissionLimit(submissionLimits.flag) ||
+          !validSubmissionLimit(submissionLimits.defense) ||
+          invalidSubmission
+        ) {
+          setSubmissionIssue({
+            challenge_id: invalidSubmission?.challenge_id,
+            message: "次数须为 1–100000 的整数。",
+          });
+          setSection("submissions");
+          return;
+        }
+        setSubmissionIssue(null);
+        const invalidHint = hintOverrides.find(
+          (h) =>
+            selected.includes(h.challenge_id) && !validHintPolicy(h.policy),
+        );
+        if (!validHintPolicy(hintPolicy) || invalidHint) {
+          setHintIssue({
+            challenge_id: !validHintPolicy(hintPolicy)
+              ? undefined
+              : invalidHint?.challenge_id,
+            message:
+              "扣分须为 1–10000 的整数，系数须为 0.01–0.99，最多两位小数。",
+          });
+          setSection("hints");
+          return;
+        }
+        setHintIssue(null);
         if (focusInvalidField(e.currentTarget, setSection)) return;
         save({
           title: f.get("title"),
@@ -98,6 +164,14 @@ export function ContestForm({
             selected.includes(s.challenge_id),
           ),
           timing,
+          submission_limits: submissionLimits,
+          submission_overrides: submissionOverrides.filter((v) =>
+            selected.includes(v.challenge_id),
+          ),
+          hint_policy: hintPolicy,
+          hint_overrides: hintOverrides.filter((h) =>
+            selected.includes(h.challenge_id),
+          ),
           round_duration: Number(
             f.get("round_duration") ?? c?.round_duration ?? 300,
           ),
@@ -116,6 +190,8 @@ export function ContestForm({
             <TabsTrigger value="content">基本信息</TabsTrigger>
             <TabsTrigger value="writeup">WriteUp 提交</TabsTrigger>
             <TabsTrigger value="challenges">赛题设置</TabsTrigger>
+            <TabsTrigger value="submissions">提交限制</TabsTrigger>
+            <TabsTrigger value="hints">提示规则</TabsTrigger>
             <TabsTrigger value="timing">时间规则</TabsTrigger>
             <TabsTrigger value="resources">资源限制</TabsTrigger>
             <TabsTrigger value="access">访问与报名</TabsTrigger>
@@ -160,6 +236,32 @@ export function ContestForm({
               onChange={setSettings}
               locked={started}
               issue={questionIssue}
+            />
+          </fieldset>
+        </ConfigPanel>
+        <ConfigPanel value="submissions" active={section}>
+          <fieldset disabled={pending}>
+            <legend className="sr-only">提交限制</legend>
+            <ContestSubmissionLimits
+              ids={selected}
+              value={submissionLimits}
+              onChange={setSubmissionLimits}
+              overrides={submissionOverrides}
+              onOverridesChange={setSubmissionOverrides}
+              issue={submissionIssue}
+            />
+          </fieldset>
+        </ConfigPanel>
+        <ConfigPanel value="hints" active={section}>
+          <fieldset disabled={pending}>
+            <legend className="sr-only">提示规则</legend>
+            <ContestHints
+              issue={hintIssue}
+              ids={selected}
+              policy={hintPolicy}
+              onPolicyChange={setHintPolicy}
+              overrides={hintOverrides}
+              onOverridesChange={setHintOverrides}
             />
           </fieldset>
         </ConfigPanel>

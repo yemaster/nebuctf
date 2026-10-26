@@ -778,7 +778,7 @@ function DirectoryItem({
         <div className="flex items-center pr-2">
           <Button
             variant="ghost"
-            className="h-auto min-h-10 min-w-0 flex-1 justify-start gap-3 px-3 py-2 font-normal hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
+            className="h-auto min-h-10 min-w-0 flex-1 justify-start gap-2 px-3 py-1.5 font-medium hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
             onClick={activate}
             aria-current={selected === c.id ? "true" : undefined}
           >
@@ -792,11 +792,11 @@ function DirectoryItem({
             ) : (
               <Circle className="size-4 shrink-0 text-muted-foreground" />
             )}
-            <span className="min-w-0 flex-1 truncate text-left" title={c.title}>
+            <span className="min-w-0 truncate text-left" title={c.title}>
               {c.title}
             </span>
             <span
-              className="min-w-8 shrink-0 text-right tabular-nums text-muted-foreground"
+              className="shrink-0 text-sm font-semibold tabular-nums text-foreground"
               aria-label={`${c.points} 分`}
             >
               {c.points}
@@ -818,7 +818,7 @@ function DirectoryItem({
           )}
         </div>
         {c.challenge_type !== "objective" && (
-          <div className="flex min-h-7 items-center justify-between gap-2 pl-10 pr-3 pb-1 text-xs text-muted-foreground">
+          <div className="flex min-h-6 items-center justify-between gap-2 pl-9 pr-3 pb-1 text-xs text-muted-foreground">
             <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
               {multipart && (
                 <span>
@@ -851,7 +851,7 @@ function DirectoryItem({
               >
                 <Button
                   variant="ghost"
-                  className="h-auto min-h-8 w-full justify-start gap-2 px-3 py-1.5 text-xs font-normal hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
+                  className="h-auto min-h-8 w-full justify-start gap-2 px-3 py-1 text-sm font-medium hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
                   onClick={() => select(c.id)}
                   aria-label={`${part.title} ${part.solved ? "已通过" : "未通过"}`}
                 >
@@ -861,12 +861,12 @@ function DirectoryItem({
                     <Circle className="size-3.5 shrink-0 text-muted-foreground" />
                   )}
                   <span
-                    className="min-w-0 flex-1 truncate text-left"
+                    className="min-w-0 truncate text-left"
                     title={part.title}
                   >
                     {part.title}
                   </span>
-                  <span className="min-w-8 pr-6 text-right tabular-nums text-muted-foreground">
+                  <span className="shrink-0 text-xs font-semibold tabular-nums text-foreground">
                     {part.points}
                   </span>
                 </Button>

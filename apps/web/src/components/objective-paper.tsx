@@ -1,3 +1,4 @@
+import { ChallengeHints } from "./challenge-hints";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, X, Circle, CheckCircle2, Save } from "lucide-react";
@@ -164,6 +165,14 @@ export function ObjectivePaper({
                     </span>
                   </div>
                   {q.description && <Markdown>{q.description}</Markdown>}
+                  {!!q.hints?.length && (
+                    <ChallengeHints
+                      challenge={{ id: q.id, hints: q.hints }}
+                      scope={scope}
+                      refresh={() => void query.refetch()}
+                      available={data.can_submit || data.preview}
+                    />
+                  )}
                   <ObjectiveFields
                     definition={q.objective}
                     answer={model.response(q)}

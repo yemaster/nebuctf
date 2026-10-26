@@ -200,8 +200,15 @@ export function ChallengeAdmin() {
                 ? c.parts.reduce((sum, p) => sum + p.initial_points, 0)
                 : c.initial_points}
             </TableCell>
-            <TableCell className="max-w-48">
-              <span className="text-sm">
+            <TableCell className="w-48 max-w-48 whitespace-normal">
+              <span
+                className="line-clamp-2 break-words text-sm [overflow-wrap:anywhere]"
+                title={
+                  c.practice
+                    ? "练习场"
+                    : c.contests?.map((v) => v.title).join("、")
+                }
+              >
                 {c.practice
                   ? "练习场"
                   : c.contests?.length

@@ -1,3 +1,5 @@
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
+import { ChallengeHints } from "./challenge-hints";
 import { RoundProgress } from "./round-progress";
 import { ChallengeBloods } from "./challenge-bloods";
 import { QuestionResources } from "./question-resources";
@@ -17,7 +19,6 @@ import { Alert, AlertTitle } from "./ui/alert";
 import { Skeleton } from "./ui/skeleton";
 import { ActionError } from "./action-error";
 import { FlagFeedback } from "./flag-feedback";
-import { Table, TableBody, TableRow, TableCell } from "./ui/table";
 import { Markdown } from "./markdown";
 import { ScrollArea } from "./ui/scroll-area";
 import {
@@ -26,12 +27,6 @@ import {
   InputGroupAddon,
   InputGroupButton,
 } from "./ui/input-group";
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from "./ui/accordion";
 import { Empty, QueryState } from "./shared";
 
 export function ChallengeWorkspace({
@@ -46,6 +41,7 @@ export function ChallengeWorkspace({
   solved?: boolean;
 }) {
   const user = useUser();
+  const [submissionTab, setSubmissionTab] = useState("attack");
   const location = useLocation();
   const loginHref = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
   const detail = useAPI<Challenge>(`/challenges/${id}?scope=${scope}`, active);
@@ -125,7 +121,10 @@ export function ChallengeWorkspace({
         `/challenges/${id}/${c?.challenge_type === "awd" ? "attack" : "submit"}`,
         "POST",
         { flag, scope },
-      );
+      ).catch((error) => {
+        void detail.refetch();
+        throw error;
+      });
       setFeedback({
         correct: result.correct,
         completed: result.completed,
@@ -144,10 +143,20 @@ export function ChallengeWorkspace({
     undefined,
     false,
   );
+  const hasDefense =
+    c?.defense_enabled ?? ["awdp", "awd"].includes(c?.challenge_type ?? "");
+  const flagUsage = c?.submission_usage?.flag;
   const completed =
     c?.scoring_mode === "round" && c?.round?.carry === false
       ? false
       : !!(solved || c?.solved || feedback?.completed);
+  const attackCompleted =
+    completed ||
+    (hasDefense &&
+      c?.challenge_type !== "awd" &&
+      !(c?.round && c.round.carry === false) &&
+      !!c?.parts?.length &&
+      c.parts.filter((p) => p.role !== "defense").every((p) => p.solved));
   return (
     <ScrollArea className="h-full min-h-0">
       <QueryState
@@ -244,24 +253,13 @@ export function ChallengeWorkspace({
             user &&
             participating &&
             permissions.resources && <AwdArena id={id} scope={scope} />}
-          {(c.challenge_type === "awdp" || c.challenge_type === "awd") &&
-            user &&
-            participating &&
-            permissions.submit &&
-            permissions.resources && <PatchPanel id={id} scope={scope} />}
           {c.hints.length > 0 && (
-            <section aria-label="题目提示">
-              <Accordion type="multiple">
-                {c.hints.map((hint, i) => (
-                  <AccordionItem key={i} value={String(i)} className="border-0">
-                    <AccordionTrigger>提示 {i + 1}</AccordionTrigger>
-                    <AccordionContent className="whitespace-pre-wrap break-words text-muted-foreground">
-                      {hint}
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            </section>
+            <ChallengeHints
+              key={`${scope}:${id}`}
+              challenge={c}
+              scope={scope}
+              refresh={() => void detail.refetch()}
+            />
           )}
           {c.challenge_type === "objective" && c.objective ? (
             previewNotice ? (
@@ -280,141 +278,229 @@ export function ChallengeWorkspace({
               </Button>
             )
           ) : (
-            <section
-              aria-label={completed ? "解答状态" : "提交 Flag"}
-              className="space-y-5 rounded-lg bg-card p-5 sm:p-7"
+            <Tabs
+              role="region"
+              value={submissionTab}
+              onValueChange={setSubmissionTab}
+              aria-label={
+                hasDefense ? "攻击与防守" : completed ? "解答状态" : "提交 Flag"
+              }
+              className="space-y-3 rounded-lg bg-card p-4 sm:p-5"
             >
               <div className="flex items-center justify-between gap-4">
-                <h2 className="font-medium">
-                  {c.total_parts > 1
-                    ? "小题"
-                    : completed
-                      ? "解答状态"
-                      : "提交 Flag"}
-                </h2>
-                {c.total_parts > 1 && (
-                  <span className="text-sm text-muted-foreground">
-                    {completed ? c.total_parts : c.solved_parts} /{" "}
-                    {c.total_parts} 已通过
-                  </span>
+                {hasDefense ? (
+                  <TabsList aria-label="作答方式">
+                    <TabsTrigger value="attack">攻击</TabsTrigger>
+                    <TabsTrigger value="defense">防守</TabsTrigger>
+                  </TabsList>
+                ) : (
+                  <h2 className="font-medium">
+                    {c.total_parts > 1
+                      ? "小题"
+                      : completed
+                        ? "解答状态"
+                        : "提交 Flag"}
+                  </h2>
                 )}
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  {(c.hint_factor ?? 1) < 1 && (
+                    <span className="tabular-nums">
+                      本题系数 × {Number(c.hint_factor!.toPrecision(5))}
+                    </span>
+                  )}
+                  {c.total_parts > 1 && (
+                    <span>
+                      {completed ? c.total_parts : c.solved_parts} /{" "}
+                      {c.total_parts} 已通过
+                    </span>
+                  )}
+                </div>
               </div>
-              {c.parts?.length > 0 && (
-                <Table>
-                  <TableBody>
-                    {c.parts.map((part) => (
-                      <TableRow key={part.id} className="border-0">
-                        <TableCell className="w-8 pl-0">
+              <TabsContent
+                value="attack"
+                forceMount
+                hidden={hasDefense && submissionTab !== "attack"}
+                className="space-y-3"
+              >
+                {c.parts?.filter((p) => !hasDefense || p.role !== "defense")
+                  .length > 0 && (
+                  <ul
+                    className="grid gap-x-6 gap-y-1 sm:grid-cols-2"
+                    aria-label="小题进度"
+                  >
+                    {c.parts
+                      .filter((p) => !hasDefense || p.role !== "defense")
+                      .map((part) => (
+                        <li
+                          key={part.id}
+                          className="flex min-w-0 items-start gap-2 py-2"
+                        >
                           {completed || part.solved ? (
                             <CheckCircle2
-                              className="size-4 text-success"
+                              className="mt-0.5 size-4 shrink-0 text-success"
                               aria-label="已通过"
                             />
                           ) : (
                             <Circle
-                              className="size-4 text-muted-foreground"
+                              className="mt-0.5 size-4 shrink-0 text-muted-foreground"
                               aria-label="未通过"
                             />
                           )}
-                        </TableCell>
-                        <TableCell className="py-3">
-                          <span className="font-medium">{part.title}</span>
-                          {part.description && (
-                            <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
-                              {part.description}
-                            </p>
-                          )}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-right text-muted-foreground">
-                          {part.points} 分
-                        </TableCell>
-                        <TableCell className="hidden whitespace-nowrap text-right text-xs text-muted-foreground sm:table-cell">
-                          {part.solves} 人通过
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-              {completed ? (
-                <FlagFeedback
-                  key={`solved-${feedback?.key ?? id}`}
-                  correct
-                  animate={!!feedback?.animate && !!feedback.completed}
-                  message="该题目已解答"
-                />
-              ) : previewNotice ? (
-                previewNotice
-              ) : !permissions.submit ? (
-                <p className="text-sm text-muted-foreground">
-                  {c.contest_practice && c.challenge_type === "awd"
-                    ? ""
-                    : "本组可查看此题，暂不开放作答。"}
-                </p>
-              ) : user ? (
-                <form
-                  className="space-y-4"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    submit.mutate();
-                  }}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline gap-2">
+                              <span className="min-w-0 break-words text-sm font-medium">
+                                {part.title}
+                              </span>
+                              <span className="shrink-0 text-sm font-semibold tabular-nums">
+                                {part.points}
+                                <span className="ml-0.5 text-xs font-normal text-muted-foreground">
+                                  分
+                                </span>
+                              </span>
+                            </div>
+                            {part.description && (
+                              <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
+                                {part.description}
+                              </p>
+                            )}
+                            <span className="text-xs tabular-nums text-muted-foreground">
+                              {part.solves} {scope === "practice" ? "人" : "队"}
+                              解出
+                            </span>
+                          </div>
+                        </li>
+                      ))}
+                  </ul>
+                )}
+                {attackCompleted ? (
+                  <FlagFeedback
+                    key={`solved-${feedback?.key ?? id}`}
+                    correct
+                    animate={!!feedback?.animate && !!feedback.completed}
+                    message={completed ? "该题目已解答" : "攻击部分已解答"}
+                  />
+                ) : previewNotice ? (
+                  previewNotice
+                ) : !permissions.submit ? (
+                  <p className="text-sm text-muted-foreground">
+                    {c.contest_practice && c.challenge_type === "awd"
+                      ? ""
+                      : "本组可查看此题，暂不开放作答。"}
+                  </p>
+                ) : user ? (
+                  <form
+                    className="space-y-4"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (flagUsage?.remaining !== 0) submit.mutate();
+                    }}
+                  >
+                    <label htmlFor={`flag-${id}`} className="sr-only">
+                      Flag
+                    </label>
+                    <m.div animate={shake}>
+                      <InputGroup className="h-12 border-0 bg-background shadow-none">
+                        <InputGroupInput
+                          className="font-mono"
+                          disabled={
+                            flagUsage?.remaining === 0 || submit.isPending
+                          }
+                          id={`flag-${id}`}
+                          value={flag}
+                          onChange={(e) => {
+                            setFlag(e.target.value);
+                            setFeedback(null);
+                          }}
+                          placeholder={
+                            c.total_parts > 1
+                              ? "提交任意小题的 Flag"
+                              : "flag{...}"
+                          }
+                          required
+                          maxLength={256}
+                          autoComplete="off"
+                          spellCheck={false}
+                          aria-invalid={
+                            feedback ? !feedback.correct : undefined
+                          }
+                          aria-describedby={
+                            feedback ? `feedback-${id}` : undefined
+                          }
+                        />
+                        <InputGroupAddon align="inline-end">
+                          <InputGroupButton
+                            type="submit"
+                            size="sm"
+                            variant="default"
+                            disabled={
+                              submit.isPending || flagUsage?.remaining === 0
+                            }
+                          >
+                            {submit.isPending ? "提交中" : "提交"}
+                          </InputGroupButton>
+                        </InputGroupAddon>
+                      </InputGroup>
+                    </m.div>
+                    {feedback && (
+                      <div id={`feedback-${id}`}>
+                        <FlagFeedback
+                          key={feedback.key}
+                          correct={feedback.correct}
+                          message={feedback.message}
+                          animate={feedback.animate}
+                        />
+                      </div>
+                    )}
+                    {flagUsage?.limit != null && (
+                      <p
+                        className={`text-xs tabular-nums ${flagUsage.remaining === 0 ? "text-destructive" : "text-muted-foreground"}`}
+                      >
+                        {flagUsage.remaining === 0
+                          ? "Flag 提交次数已用完"
+                          : `剩余 ${flagUsage.remaining} / ${flagUsage.limit} 次提交`}
+                      </p>
+                    )}
+                    {submit.error && <ActionError error={submit.error} />}
+                  </form>
+                ) : (
+                  <Button asChild>
+                    <Link to={loginHref}>登录后答题</Link>
+                  </Button>
+                )}
+              </TabsContent>
+              {hasDefense && (
+                <TabsContent
+                  value="defense"
+                  forceMount
+                  hidden={submissionTab !== "defense"}
                 >
-                  <label htmlFor={`flag-${id}`} className="sr-only">
-                    Flag
-                  </label>
-                  <m.div animate={shake}>
-                    <InputGroup className="h-12 border-0 bg-background shadow-none">
-                      <InputGroupInput
-                        id={`flag-${id}`}
-                        value={flag}
-                        onChange={(e) => {
-                          setFlag(e.target.value);
-                          setFeedback(null);
-                        }}
-                        placeholder={
-                          c.total_parts > 1
-                            ? "提交任意小题的 Flag"
-                            : "flag{...}"
-                        }
-                        required
-                        maxLength={256}
-                        autoComplete="off"
-                        spellCheck={false}
-                        aria-invalid={feedback ? !feedback.correct : undefined}
-                        aria-describedby={
-                          feedback ? `feedback-${id}` : undefined
+                  {previewNotice ??
+                    (!user ? (
+                      <Button asChild>
+                        <Link to={loginHref}>登录后答题</Link>
+                      </Button>
+                    ) : !permissions.submit || !permissions.resources ? (
+                      <p className="text-sm text-muted-foreground">
+                        本题未开放防守提交
+                      </p>
+                    ) : (
+                      <PatchPanel
+                        id={id}
+                        scope={scope}
+                        active={active && submissionTab === "defense"}
+                        completed={
+                          c.challenge_type !== "awd" &&
+                          !(c.round && c.round.carry === false) &&
+                          (completed ||
+                            c.parts.some(
+                              (p) => p.role === "defense" && p.solved,
+                            ))
                         }
                       />
-                      <InputGroupAddon align="inline-end">
-                        <InputGroupButton
-                          type="submit"
-                          size="sm"
-                          variant="default"
-                          disabled={submit.isPending}
-                        >
-                          {submit.isPending ? "提交中" : "提交"}
-                        </InputGroupButton>
-                      </InputGroupAddon>
-                    </InputGroup>
-                  </m.div>
-                  {feedback && (
-                    <div id={`feedback-${id}`}>
-                      <FlagFeedback
-                        key={feedback.key}
-                        correct={feedback.correct}
-                        message={feedback.message}
-                        animate={feedback.animate}
-                      />
-                    </div>
-                  )}
-                  {submit.error && <ActionError error={submit.error} />}
-                </form>
-              ) : (
-                <Button asChild>
-                  <Link to={loginHref}>登录后答题</Link>
-                </Button>
+                    ))}
+                </TabsContent>
               )}
-            </section>
+            </Tabs>
           )}
         </article>
       )}

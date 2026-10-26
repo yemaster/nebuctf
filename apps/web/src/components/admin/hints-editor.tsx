@@ -1,4 +1,4 @@
-import { useState } from "react";
+import type { HintDefinition } from "@/lib/hints";
 import { randomUUID } from "@/lib/random-uuid";
 import { ArrowUp, ArrowDown, Plus, X } from "lucide-react";
 import { Button } from "../ui/button";
@@ -10,25 +10,21 @@ export function HintsEditor({
   onChange,
   disabled,
 }: {
-  value: string[];
-  onChange: (value: string[]) => void;
+  value: HintDefinition[];
+  onChange: (value: HintDefinition[]) => void;
   disabled?: boolean;
 }) {
-  const [keys, setKeys] = useState(() => value.map(() => randomUUID()));
   function move(index: number, step: number) {
-    const next = [...value],
-      ids = [...keys];
+    const next = [...value];
     [next[index], next[index + step]] = [next[index + step]!, next[index]!];
-    [ids[index], ids[index + step]] = [ids[index + step]!, ids[index]!];
-    setKeys(ids);
     onChange(next);
   }
   return (
     <div className="space-y-4" aria-label="题目提示编辑">
       {value.map((hint, index) => (
-        <div key={keys[index]} className="space-y-2">
+        <div key={hint.id} className="space-y-2">
           <div className="flex items-center justify-between gap-3">
-            <FieldLabel htmlFor={`hint-${keys[index]}`}>
+            <FieldLabel htmlFor={`hint-${hint.id}`}>
               提示 {index + 1}
             </FieldLabel>
             <div className="flex gap-1">
@@ -59,7 +55,6 @@ export function HintsEditor({
                 aria-label={`删除提示 ${index + 1}`}
                 disabled={disabled}
                 onClick={() => {
-                  setKeys(keys.filter((_, i) => i !== index));
                   onChange(value.filter((_, i) => i !== index));
                 }}
               >
@@ -68,11 +63,15 @@ export function HintsEditor({
             </div>
           </div>
           <Textarea
-            id={`hint-${keys[index]}`}
+            id={`hint-${hint.id}`}
             aria-label={`提示 ${index + 1}`}
-            value={hint}
+            value={hint.content}
             onChange={(e) =>
-              onChange(value.map((v, i) => (i === index ? e.target.value : v)))
+              onChange(
+                value.map((v, i) =>
+                  i === index ? { ...v, content: e.target.value } : v,
+                ),
+              )
             }
             rows={2}
             maxLength={2000}
@@ -86,8 +85,7 @@ export function HintsEditor({
         size="sm"
         disabled={disabled || value.length >= 10}
         onClick={() => {
-          setKeys([...keys, randomUUID()]);
-          onChange([...value, ""]);
+          onChange([...value, { id: randomUUID(), content: "" }]);
         }}
       >
         <Plus />

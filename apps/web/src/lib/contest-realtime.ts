@@ -32,6 +32,17 @@ export function useContestRealtime(scope: string) {
         if (disposed) return;
         try {
           const payload = JSON.parse(String(event.data));
+          if (
+            payload.type === "judges" &&
+            typeof payload.revision === "string"
+          ) {
+            void cache.invalidateQueries({
+              predicate: (q) =>
+                String(q.queryKey[0]).startsWith("/challenges/") &&
+                String(q.queryKey[0]).includes(`scope=${scope}`),
+            });
+            return;
+          }
           if (payload.type === "retry") {
             setStatus("retrying");
             return;

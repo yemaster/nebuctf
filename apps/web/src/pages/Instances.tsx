@@ -223,7 +223,7 @@ export function InstanceRow({
                 </Button>
               )}
               <Button
-                variant="ghost"
+                variant="destructive"
                 size="sm"
                 disabled={
                   stop.isPending || renew.isPending || stopping || cooldown > 0
