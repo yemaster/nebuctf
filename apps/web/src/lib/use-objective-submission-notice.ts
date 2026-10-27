@@ -10,7 +10,7 @@ export function useObjectiveSubmissionNotice() {
 
   return {
     needsConfirmation: () => {
-      if (!key) return true;
+      if (!key || typeof window === "undefined") return true;
       if (remembered.get(window)?.has(key)) return false;
       try {
         return window.localStorage.getItem(key) !== "confirmed";
@@ -19,7 +19,7 @@ export function useObjectiveSubmissionNotice() {
       }
     },
     acknowledge: () => {
-      if (!key) return;
+      if (!key || typeof window === "undefined") return;
       try {
         window.localStorage.setItem(key, "confirmed");
       } catch {
