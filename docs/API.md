@@ -6,6 +6,7 @@
 | --- | --- |
 | 身份 | `GET /me`；`POST /auth/register`、`/auth/login`、`/auth/logout`、`/auth/password` |
 | 参赛资料 | `GET/PUT /account/profile`，仅操作当前登录账户的姓名、学号、电话 |
+| 个人提交 | `GET /submissions?page=1&page_size=10&q=&result=all`，仅当前登录用户的提交记录 |
 | 安全验证 | `POST /captcha/challenge`；登录、注册、创建战队和加入战队必须提交一次性 HashPow 结果 |
 | 战队 | `GET /teams/mine`、`/team?team=UUID`；`POST /teams`、`/team/join`、`/team/leave`、`/team/invite`、`/team/captain` |
 | 题库 | `GET /challenges?scope=practice&category=Web&q=&page=1`；`GET /challenges/:id`；`POST /challenges/:id/submit` |
@@ -32,6 +33,10 @@ Flag 提交请求：`{ "flag": "flag{...}", "scope": "practice" }`，返回 `cor
 `POST /auth/login` 接受 `{ identifier, password, captcha }`，`identifier` 可以是用户名或邮箱，忽略大小写和两端空白；密码保持原值。为兼容旧客户端，仍接受 `{ email, password, captcha }`，但 `identifier` 和 `email` 不能同时传入。注册仍要求独立的合法邮箱。
 
 用户名与邮箱共用同一账户的登录限流（每 15 分钟 10 次），并保留每 IP 每 15 分钟 30 次的限制及计算验证码。不存在、停用的账户或错误密码均返回 401「账号或密码错误」。查询复用用户名、邮箱的现有不区分大小写唯一索引，无需数据库迁移。
+
+## 个人提交记录
+
+`GET /submissions` 接受 `page`（1–10000）、`page_size`（1–100，默认 30）、`q`（题目名称子串，最多 100 字）与 `result`（all/correct/incorrect，默认 all），返回 `{ items, total, page, page_size }`。账户页面使用每页 10 条。记录按提交时间、ID 倒序排列，时间相同也保持分页顺序；条目与总数始终限制为当前登录用户，不返回提交内容、Flag 摘要或其他用户的记录。
 
 ## 计算验证码
 

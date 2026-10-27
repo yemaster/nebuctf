@@ -200,13 +200,26 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
   });
   app.get("/api/submissions", async (req) => {
     const u = requireUser(req);
-    const p = page.parse(req.query);
-    return {
-      items: await db.query(
-        "SELECT s.id,c.title,s.correct,s.created_at,s.scope,s.contest_practice,p.title part_title FROM submissions s LEFT JOIN challenge_parts p ON p.id=s.part_id JOIN challenges c ON c.id=s.challenge_id WHERE s.user_id=$1 ORDER BY s.created_at DESC LIMIT 30 OFFSET $2",
-        [u.id, (p.page - 1) * 30],
+    const p = page
+      .extend({
+        page_size: z.coerce.number().int().min(1).max(100).default(30),
+        result: z.enum(["all", "correct", "incorrect"]).default("all"),
+      })
+      .parse(req.query);
+    const where =
+      "s.user_id=$1 AND ($2='' OR c.title ILIKE '%'||$2||'%') AND ($3='all' OR s.correct=($3='correct'))";
+    const values = [u.id, p.q, p.result];
+    const [items, [count]] = await Promise.all([
+      db.query(
+        `SELECT s.id,c.title,s.correct,s.created_at,s.scope,s.contest_practice,p.title part_title FROM submissions s LEFT JOIN challenge_parts p ON p.id=s.part_id JOIN challenges c ON c.id=s.challenge_id WHERE ${where} ORDER BY s.created_at DESC,s.id DESC LIMIT $4 OFFSET $5`,
+        [...values, p.page_size, (p.page - 1) * p.page_size],
       ),
-    };
+      db.query(
+        `SELECT count(*)::int total FROM submissions s JOIN challenges c ON c.id=s.challenge_id WHERE ${where}`,
+        values,
+      ),
+    ]);
+    return { items, total: count!.total, page: p.page, page_size: p.page_size };
   });
   app.get("/api/stats", async (req) => {
     const [stats] = await db.query(
