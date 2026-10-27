@@ -87,6 +87,7 @@ test(
     let root: ReturnType<typeof createRoot> | undefined,
       cache: InstanceType<typeof QueryClient>,
       saved: any,
+      userId = "objective-player",
       answer: any = { answer: {}, correct: null, finalized_at: null };
     const requests: { path: string; body: any }[] = [];
     const ctf = {
@@ -135,6 +136,7 @@ test(
         body = init?.body ? JSON.parse(String(init.body)) : null;
       if (body) requests.push({ path, body });
       let data: any = {};
+      if (path === "/api/me") data = { user: { id: userId } };
       if (path.includes("/admin/challenges")) {
         const params =
           body ??
@@ -797,6 +799,7 @@ test(
         "practice submissions confirm once and stay locked after reload",
         async () => {
           for (const scope of ["practice", "contest"]) {
+            userId = `objective-player-${scope}`;
             answer = {
               answer: {},
               correct: null,
@@ -855,6 +858,63 @@ test(
               ].every((e) => e.disabled),
             );
           }
+        },
+      );
+      await t.test(
+        "objective submission notice is remembered across questions and reloads per account",
+        async () => {
+          userId = "notice-player";
+          const view = (id: string, scope = "practice") => (
+            <ObjectiveAnswer
+              id={id}
+              scope={scope}
+              definition={{
+                type: "single",
+                options: [{ id: "B", text: "Second" }],
+                blanks: [],
+                case_sensitive: true,
+                trim: true,
+              }}
+            />
+          );
+          const open = async (id: string, scope?: string) => {
+            answer = { answer: {}, correct: null, finalized_at: null };
+            await mount(view(id, scope));
+            await settle(
+              () => !!button("保存答案") && !button("保存答案").disabled,
+            );
+            await click(host().querySelector('[role="radio"]')!);
+          };
+          await open("notice-first");
+          const count = requests.length;
+          await click(button("提交答案"));
+          assert(document.querySelector('[role="dialog"]'));
+          await click(button("继续检查"));
+          assert.equal(requests.length, count);
+          await click(button("提交答案"));
+          assert(
+            document.querySelector('[role="dialog"]'),
+            "cancel does not acknowledge",
+          );
+          await click(button("确认提交"));
+          await settle(() => !!answer.finalized_at && !button("提交答案"));
+          assert.equal(requests.length, count + 1);
+          for (const scope of ["practice", "contest"]) {
+            await open(`notice-next-${scope}`, scope);
+            const before = requests.length;
+            await click(button("提交答案"));
+            assert(!document.querySelector('[role="dialog"]'));
+            await settle(() => !!answer.finalized_at && !button("提交答案"));
+            assert.equal(requests.length, before + 1);
+          }
+          userId = "notice-another-player";
+          await open("notice-account");
+          await click(button("提交答案"));
+          assert(
+            document.querySelector('[role="dialog"]'),
+            "different account is reminded",
+          );
+          await click(button("继续检查"));
         },
       );
       await t.test(

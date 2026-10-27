@@ -384,4 +384,36 @@ test("whole objective paper keeps navigation, drafts and team submission togethe
     ),
   );
   await wait(() => !document.querySelector('[role="tooltip"]'));
+
+  // The same account has already confirmed the rule; a complete new paper submits directly.
+  const reopen = async (blank: string) => {
+    paper.items = paper.items.map((q) => ({
+      ...q,
+      saved: {
+        ...empty,
+        answer:
+          q.objective.type === "blank"
+            ? { blanks: { value: blank } }
+            : { choices: ["A"] },
+      },
+    }));
+    await act(async () => cache.setQueryData([path], { ...paper }));
+    await wait(() => !!button("提交答卷") && !button("提交答卷").disabled);
+  };
+  await reopen("whoami");
+  const before = writes.length;
+  await click(button("提交答卷"));
+  assert(!document.querySelector('[role="dialog"]'));
+  await wait(() => writes.length === before + 1 && !button("提交答卷"));
+  await reopen("");
+  await click(button("提交答卷"));
+  const reminder = document.querySelector('[role="dialog"]')!;
+  assert(reminder.textContent!.includes("还有 1 题未完成"));
+  assert(!reminder.textContent!.includes("提交后不能修改"));
+  await click(button("继续检查"));
+  assert.equal(
+    writes.length,
+    before + 1,
+    "incomplete paper can still be cancelled",
+  );
 });

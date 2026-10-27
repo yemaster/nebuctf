@@ -24,6 +24,7 @@ import { ObjectiveFields } from "./objective-fields";
 import { PhaseCards } from "./contest-timing";
 import { useContestNow } from "./contest-clock";
 import { ActionError } from "./action-error";
+import { useObjectiveSubmissionNotice } from "@/lib/use-objective-submission-notice";
 
 export function ObjectiveNavigation({
   model,
@@ -74,6 +75,7 @@ export function ObjectivePaper({
   focus: string | null;
   active: boolean;
 }) {
+  const notice = useObjectiveSubmissionNotice();
   const { query, submit } = model,
     data = query.data,
     [confirm, setConfirm] = useState(false);
@@ -241,7 +243,11 @@ export function ObjectivePaper({
               </Button>
               <Button
                 disabled={submit.isPending}
-                onClick={() => setConfirm(true)}
+                onClick={() =>
+                  remaining > 0 || notice.needsConfirmation()
+                    ? setConfirm(true)
+                    : submit.mutate(true)
+                }
               >
                 提交答卷
               </Button>
@@ -257,7 +263,8 @@ export function ObjectivePaper({
               {remaining > 0
                 ? `还有 ${remaining} 题未完成。`
                 : "全部题目已填写。"}
-              全队共享本次提交，提交后不能修改。
+              {notice.needsConfirmation() &&
+                "全队共享本次提交，提交后不能修改。"}
             </DialogDescription>
           </DialogHeader>
           {submit.error && <ActionError error={submit.error} />}
@@ -267,9 +274,10 @@ export function ObjectivePaper({
             </Button>
             <Button
               disabled={submit.isPending || !canSubmit}
-              onClick={() =>
-                submit.mutate(true, { onSuccess: () => setConfirm(false) })
-              }
+              onClick={() => {
+                notice.acknowledge();
+                submit.mutate(true, { onSuccess: () => setConfirm(false) });
+              }}
             >
               {submit.isPending ? "提交中" : "确认交卷"}
             </Button>

@@ -13,6 +13,7 @@ import {
 } from "./ui/dialog";
 import { ActionError } from "./action-error";
 import type { ObjectiveReview } from "@/lib/objective-paper";
+import { useObjectiveSubmissionNotice } from "@/lib/use-objective-submission-notice";
 type Answer = { choices?: string[]; blanks?: Record<string, string> };
 type Saved = {
   review?: ObjectiveReview | null;
@@ -32,6 +33,7 @@ export function ObjectiveAnswer({
   definition: Objective;
   readOnly?: boolean;
 }) {
+  const notice = useObjectiveSubmissionNotice();
   const query = useAPI<Saved>(`/challenges/${id}/answer?scope=${scope}`),
     [answer, setAnswer] = useState<Answer>({}),
     [confirm, setConfirm] = useState(false),
@@ -109,7 +111,11 @@ export function ObjectiveAnswer({
           </Button>
           <Button
             disabled={!complete || submit.isPending || query.isLoading}
-            onClick={() => setConfirm(true)}
+            onClick={() =>
+              notice.needsConfirmation()
+                ? setConfirm(true)
+                : submit.mutate(true)
+            }
           >
             {submit.isPending ? "提交中" : "提交答案"}
           </Button>
@@ -137,7 +143,11 @@ export function ObjectiveAnswer({
             </Button>
             <Button
               disabled={submit.isPending || locked}
-              onClick={() => submit.mutate(true)}
+              onClick={() => {
+                notice.acknowledge();
+                setConfirm(false);
+                submit.mutate(true);
+              }}
             >
               确认提交
             </Button>
