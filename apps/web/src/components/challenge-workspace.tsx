@@ -321,8 +321,6 @@ export function ChallengeWorkspace({
                     <colgroup>
                       <col className="w-6" />
                       <col />
-                      <col className="w-20" />
-                      <col className="w-24" />
                     </colgroup>
                     <TableBody>
                       {c.parts
@@ -345,23 +343,27 @@ export function ChallengeWorkspace({
                                 />
                               )}
                             </TableCell>
-                            <TableCell className="whitespace-normal break-words py-1.5 pl-0 pr-3">
-                              <span className="font-medium">{part.title}</span>
+                            <TableCell className="whitespace-normal break-words py-1.5 pl-0 pr-0">
+                              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                                <span className="max-w-full break-words font-medium">
+                                  {part.title}
+                                </span>
+                                <span className="shrink-0 font-medium tabular-nums">
+                                  {part.points}
+                                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                    分
+                                  </span>
+                                </span>
+                                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                                  {part.solves}{" "}
+                                  {scope === "practice" ? "人" : "队"}解出
+                                </span>
+                              </div>
                               {part.description && (
                                 <p className="mt-0.5 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
                                   {part.description}
                                 </p>
                               )}
-                            </TableCell>
-                            <TableCell className="py-1.5 text-right font-medium tabular-nums">
-                              {part.points}
-                              <span className="ml-1 text-xs font-normal text-muted-foreground">
-                                分
-                              </span>
-                            </TableCell>
-                            <TableCell className="py-1.5 pr-0 text-right text-xs tabular-nums text-muted-foreground">
-                              {part.solves} {scope === "practice" ? "人" : "队"}
-                              解出
                             </TableCell>
                           </TableRow>
                         ))}
