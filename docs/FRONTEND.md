@@ -510,7 +510,7 @@ Markdown 代码使用 [Refractor](https://github.com/wooorm/refractor) 的按需
 
 参考 [GZCTF 比赛概览](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/pages/games/%5Bid%5D/Index.tsx) 的起止时间、比赛进度与参赛操作组合，以及 [Vijos 比赛详情](https://vijos.org/contest/5cb88fadf413627f7693f244) 的说明与赛事信息分栏。实际查看 [回归终端赛事页](https://ctf.xidian.edu.cn/games) 的海报与标题层级、[CTFy](https://ctfy.tsinghua.edu.cn/) 的报名截止展示；沿用本项目字体、主题与 shadcn 组件，不复制装饰背景或宣传文案。
 
-顶部集中显示标题、状态、报名战队数、队伍限制与报名范围，海报限制高度；起止时间之间用 Progress 展示正式比赛经过比例。报名/进入赛场为主操作，排行榜与观战为辅助操作。已报名队伍的名称、组别和审核状态集中在按钮上方，未报名不重复显示身份说明。下方左栏展示比赛说明与作答/WriteUp 操作，右栏连续展示赛程和组别；不重复添加一套整体比赛倒计时。
+顶部集中显示标题、状态、报名战队数、队伍限制与报名范围，海报限制高度；起止时间之间用 Progress 展示正式比赛经过比例。报名/进入赛场为主操作，排行榜与观战统一使用 secondary 按钮。桌面端将报名状态、战队名称、组别和操作按钮放在同一行并垂直居中，信息与按钮组间隔 20px，不拉开两端；长名称省略显示并保留悬停完整文本，审核备注独立显示。未报名不重复显示身份说明。下方左栏展示比赛说明与作答/WriteUp 操作，右栏连续展示赛程和组别；不重复添加一套整体比赛倒计时。
 
 赛程采用纵向时间轴，将报名、比赛、WriteUp、练习及封榜节点按实际时间排列；同一时刻的事项合并到一个节点，未启用的阶段不显示。客观题与实操题的单独开放、截止时间也进入时间轴，保留自由开始的作答时长。未设置报名开放时间时显示「发布后」，不虚构日期。「现在」标记位于已发生和待发生的节点之间，显示所有正在进行的阶段，允许报名、比赛和收集 WriteUp 时段重叠。参考 [Ant Design Timeline](https://ant.design/components/timeline/) 的时间排序与节点结构，使用已有 shadcn Separator、Badge 和 Lucide 图标实现。
 

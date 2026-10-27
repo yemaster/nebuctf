@@ -156,9 +156,9 @@ export function ContestDetail() {
             practice={access.practice}
             participation={
               (c.registered || c.registration) && (
-                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+                <div className="flex min-w-0 items-center gap-3 text-sm">
                   <p
-                    className={`text-sm ${c.registered ? "text-success" : "text-muted-foreground"}`}
+                    className={`shrink-0 ${c.registered ? "text-success" : "text-muted-foreground"}`}
                   >
                     {c.registered
                       ? c.registration?.practice_only
@@ -176,19 +176,20 @@ export function ContestDetail() {
                         : "未报名"}
                   </p>
                   {c.registration && (
-                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-                      <span className="min-w-0 break-words font-medium">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="truncate font-medium"
+                        title={c.registration.team_name}
+                      >
                         {c.registration.team_name}
                       </span>
-                      <Badge className="max-w-full whitespace-normal break-words">
+                      <Badge
+                        className="block max-w-28 shrink-0 truncate"
+                        title={c.registration.group_name ?? "公开组"}
+                      >
                         {c.registration.group_name ?? "公开组"}
                       </Badge>
                     </div>
-                  )}
-                  {c.registration?.review_note && (
-                    <p className="max-w-xl text-sm text-muted-foreground">
-                      {c.registration.review_note}
-                    </p>
                   )}
                 </div>
               )
@@ -287,7 +288,7 @@ export function ContestDetail() {
                   </Button>
                 )}
                 {access.spectate && (
-                  <Button variant="ghost" asChild>
+                  <Button variant="secondary" asChild>
                     <Link to={`/contests/${id}/spectate`}>
                       <MonitorPlay />
                       观战

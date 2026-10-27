@@ -73,8 +73,17 @@ export function ContestOverview({
             </header>
             <ContestProgress contest={c} receivedAt={receivedAt} />
             <div className="space-y-3">
-              {participation}
-              <div className="flex flex-wrap items-center gap-2">{actions}</div>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-3 xl:flex-nowrap">
+                {participation}
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  {actions}
+                </div>
+              </div>
+              {c.registration?.review_note && (
+                <p className="break-words text-sm text-muted-foreground">
+                  {c.registration.review_note}
+                </p>
+              )}
             </div>
           </div>
           <div className="order-first px-6 pt-6 sm:px-8 lg:order-none lg:py-8 lg:pl-0">
