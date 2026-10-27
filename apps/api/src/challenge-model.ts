@@ -167,6 +167,27 @@ export function gradeObjective(
   );
 }
 
+// Expose option IDs and per-blank verdicts only after this team has finalized.
+// Never include accepted fill-in answers in the review payload.
+export function objectiveReview(
+  definition: ObjectiveDefinition,
+  answer: ObjectiveAnswer,
+) {
+  return definition.type === "blank"
+    ? {
+        blanks: Object.fromEntries(
+          definition.blanks.map((blank) => [
+            blank.id,
+            gradeObjective(
+              { ...definition, blanks: [blank] },
+              { blanks: { [blank.id]: answer.blanks?.[blank.id] ?? "" } },
+            ),
+          ]),
+        ),
+      }
+    : { choices: definition.correct_options };
+}
+
 export const patchConfigInput = z.object({
   checker_image: imageReference,
   patch_root: z

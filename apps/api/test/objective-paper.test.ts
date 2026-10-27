@@ -5,6 +5,7 @@ import { buildApp } from "../src/app.js";
 import { sessionCookie } from "../src/auth.js";
 import { digest } from "../src/security.js";
 import { config } from "../src/config.js";
+import { objectiveInput, objectiveReview } from "../src/challenge-model.js";
 
 test("objective paper shares team drafts, submits atomically and respects sections, visibility and practice", async (t) => {
   const db = await openDB(process.env.TEST_POSTGRES !== "1"),
@@ -113,6 +114,7 @@ test("objective paper shares team drafts, submits atomically and respects sectio
   let paper = await ok();
   assert.equal(paper.items.length, 3);
   assert(paper.can_submit);
+  assert(paper.items.every((q: any) => q.saved.review === null));
   assert(!JSON.stringify(paper).includes("test-secret"));
   assert(!JSON.stringify(paper).includes("correct_options"));
   assert(!JSON.stringify(paper).includes("Hidden title"));
@@ -121,7 +123,11 @@ test("objective paper shares team drafts, submits atomically and respects sectio
   const preview = await ok(admin);
   assert(preview.preview);
   assert(!preview.can_submit);
-  assert(preview.items.every((q: any) => !q.saved.revision));
+  assert(
+    preview.items.every(
+      (q: any) => !q.saved.revision && q.saved.review === null,
+    ),
+  );
   assert.equal((await req(outsider)).statusCode, 403);
   await ok(alice, {
     finalize: false,
@@ -131,6 +137,7 @@ test("objective paper shares team drafts, submits atomically and respects sectio
     ],
   });
   paper = await ok(mate);
+  assert(paper.items.every((q: any) => q.saved.review === null));
   assert.deepEqual(paper.items.find((q: any) => q.id === single).saved.answer, {
     choices: ["A"],
   });
@@ -182,11 +189,41 @@ test("objective paper shares team drafts, submits atomically and respects sectio
     answer: q.id === blank ? { blanks: { a: "test-secret" } } : q.saved.answer,
     revision: q.saved.revision,
   }));
-  await Promise.all([
+  const replies = await Promise.all([
     ok(alice, { finalize: true, answers }),
     ok(mate, { finalize: true, answers }),
   ]);
+  for (const reply of replies) {
+    assert.deepEqual(reply.items.find((q: any) => q.id === multiple).review, {
+      choices: ["A", "B"],
+    });
+  }
   const result = await ok();
+  assert.deepEqual(
+    result.items.find((q: any) => q.id === single).saved.review,
+    { choices: ["A"] },
+  );
+  assert.deepEqual(
+    result.items.find((q: any) => q.id === multiple).saved.review,
+    { choices: ["A", "B"] },
+  );
+  assert.deepEqual(result.items.find((q: any) => q.id === blank).saved.review, {
+    blanks: { a: true },
+  });
+  const legacyRead = await app.inject({
+    url: `/api/challenges/${multiple}/answer?scope=${scope}`,
+    headers: { cookie: mate.cookie },
+  });
+  assert.equal(legacyRead.statusCode, 200);
+  assert.deepEqual(legacyRead.json().review, { choices: ["A", "B"] });
+  await db.query(
+    "INSERT INTO registrations(contest_id,team_id) VALUES($1,$2)",
+    [scope, outsider.team],
+  );
+  assert(
+    (await ok(outsider)).items.every((q: any) => q.saved.review === null),
+    "another team's submission does not reveal answers",
+  );
   assert.equal(result.items.filter((q: any) => q.saved.correct).length, 2);
   assert(result.items.every((q: any) => q.saved.finalized_at));
   assert.equal(
@@ -224,7 +261,11 @@ test("objective paper shares team drafts, submits atomically and respects sectio
   );
   paper = await ok();
   assert(paper.practice && paper.can_submit);
-  assert(paper.items.every((q: any) => q.saved.revision === null));
+  assert(
+    paper.items.every(
+      (q: any) => q.saved.revision === null && q.saved.review === null,
+    ),
+  );
   const practice = paper.items.map((q: any) => ({
     id: q.id,
     answer: {},
@@ -269,5 +310,32 @@ test("objective paper shares team drafts, submits atomically and respects sectio
     paper.items.length,
     0,
     "a section must be started before the paper is exposed",
+  );
+});
+
+test("objective item review respects normalization and never exposes accepted blank answers", () => {
+  const definition = objectiveInput.parse({
+    type: "blank",
+    case_sensitive: false,
+    trim: true,
+    blanks: [
+      { id: "a", label: "one", answers: ["Secret"] },
+      { id: "b", label: "two", answers: ["Other"] },
+    ],
+  });
+  const review = objectiveReview(definition, {
+    blanks: { a: "  SECRET ", b: "wrong" },
+  });
+  assert.deepEqual(review, { blanks: { a: true, b: false } });
+  assert.deepEqual(objectiveReview(definition, {}), {
+    blanks: { a: false, b: false },
+  });
+  assert(!JSON.stringify(review).includes("Secret"));
+  assert.deepEqual(
+    objectiveReview(
+      { ...definition, case_sensitive: true },
+      { blanks: { a: "secret" } },
+    ),
+    { blanks: { a: false, b: false } },
   );
 });

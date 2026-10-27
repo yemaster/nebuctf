@@ -424,3 +424,8 @@ POST 最多 200 题，单填空 500 字符、每题最多 10 个空位，总请�
 原有任务 status（queued/building/checking/passed/failed/cancelled）保留；stage 为 queued/building/functional/defense/complete。`result.image` 只供 Worker 使用，不返回选手。
 
 比赛动态 WebSocket 另推送 `{type:"judges",revision}`，仅通知当前队伍刷新补丁及题目状态，不包含补丁文件名、任务 ID 或结果内容。客户端使用同一比赛连接，判题期间另有 1 秒轮询兜底，防守页空闲时 10 秒刷新；练习场通过轮询更新。截止后仍可查看已有结果。
+
+
+### 客观题逐项反馈
+
+客观题单题读写与整卷接口的已保存答案新增 `review`：未提交或仅存草稿为 null；本队正式提交后，选择题返回 `{choices:[正确选项ID]}`，填空题返回 `{blanks:{空位ID:是否正确}}`。填空题不公开标准答案或可接受答案列表。选手选择保留在 answer 中，前端据此区分选对、漏选和选错。题目定义已有提交后不可修改，因此已有答卷也能得到一致反馈，无需重新判分或迁移数据。正式答案、赛后练习答案及不同战队之间继续隔离；管理员预览不会拿到其他队伍的反馈。

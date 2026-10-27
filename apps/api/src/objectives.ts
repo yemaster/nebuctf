@@ -17,6 +17,7 @@ import { teamPhases } from "./contest-timing.js";
 import {
   objectiveAnswer,
   gradeObjective,
+  objectiveReview,
   type ObjectiveAnswer,
 } from "./challenge-model.js";
 import { id, scope as scopeSchema } from "./schemas.js";
@@ -36,6 +37,9 @@ export function objectiveRoutes(app: FastifyInstance, db: DB) {
     );
     return {
       ...(answer ?? { answer: {}, finalized_at: null, correct: null }),
+      review: answer?.finalized_at
+        ? objectiveReview(challenge.objective, answer.answer)
+        : null,
       practice: scope === "practice" || !!challenge.contest_practice,
     };
   });
@@ -116,21 +120,32 @@ export function objectiveRoutes(app: FastifyInstance, db: DB) {
       ),
     );
     return {
-      items: items.map((q) => ({
-        hints: questionHints.get(q.id),
-        id: q.id,
-        title: q.title,
-        description: q.description,
-        objective: q.objective,
-        points: q.points,
-        permissions: q.permissions,
-        saved: answers.find((a) => a.challenge_id === q.id) ?? {
+      items: items.map((q) => {
+        const saved = answers.find((a) => a.challenge_id === q.id) ?? {
           answer: {},
           correct: null,
           finalized_at: null,
           revision: null,
-        },
-      })),
+        };
+        return {
+          hints: questionHints.get(q.id),
+          id: q.id,
+          title: q.title,
+          description: q.description,
+          objective: q.objective,
+          points: q.points,
+          permissions: q.permissions,
+          saved: {
+            ...saved,
+            review: saved.finalized_at
+              ? objectiveReview(
+                  questions.find((c) => c.id === q.id)!.objective,
+                  saved.answer,
+                )
+              : null,
+          },
+        };
+      }),
       phase,
       server_time: new Date().toISOString(),
       preview,
@@ -257,6 +272,7 @@ async function saveObjectiveAnswer(
       answer: old.answer,
       finalized_at: old.finalized_at,
       correct: old.correct,
+      review: objectiveReview(challenge.objective, old.answer),
       revision: old.revision,
       practice: false,
     };
@@ -300,6 +316,9 @@ async function saveObjectiveAnswer(
   }
   return {
     ...saved,
+    review: saved!.finalized_at
+      ? objectiveReview(challenge.objective, saved!.answer)
+      : null,
     practice: input.scope === "practice" || !!challenge.contest_practice,
   };
 }
