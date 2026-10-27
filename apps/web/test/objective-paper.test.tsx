@@ -158,6 +158,11 @@ test("whole objective paper keeps navigation, drafts and team submission togethe
       const items = body.answers.map((a: any) => ({
         ...a,
         correct: body.finalize ? a.id === "q1" : null,
+        review: body.finalize
+          ? a.id === "q3"
+            ? { blanks: { value: false } }
+            : { choices: a.id === "q1" ? ["A"] : ["B"] }
+          : null,
         finalized_at: body.finalize ? new Date().toISOString() : null,
         revision: `revision-${writes.length}`,
       }));
@@ -319,6 +324,21 @@ test("whole objective paper keeps navigation, drafts and team submission togethe
   assert(number(2).className.includes("text-destructive"));
   assert.equal(number(3).getAttribute("aria-label"), "第 3 题 未作答");
   assert(!button("提交答卷"));
+  assert(
+    document.querySelector('#paper-question-q1 label[data-result="correct"]'),
+  );
+  assert(
+    document.querySelector('#paper-question-q2 label[data-result="incorrect"]'),
+  );
+  assert(
+    document.querySelector('#paper-question-q2 label[data-result="missed"]'),
+  );
+  assert(
+    document.querySelector(
+      '#paper-question-q3 input[data-result="incorrect"][aria-invalid="true"]',
+    ),
+  );
+  assert(!document.querySelector("[data-feedback-motion]"));
   assert(
     (
       document.querySelector(

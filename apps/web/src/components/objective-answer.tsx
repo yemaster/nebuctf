@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { m, useAnimationControls, useReducedMotion } from "motion/react";
 import { api, useAPI, useAction } from "@/lib/api";
 import type { Objective } from "@/lib/competition";
 import { ObjectiveFields } from "./objective-fields";
@@ -13,9 +12,10 @@ import {
   DialogDescription,
 } from "./ui/dialog";
 import { ActionError } from "./action-error";
-import { FlagFeedback } from "./flag-feedback";
+import type { ObjectiveReview } from "@/lib/objective-paper";
 type Answer = { choices?: string[]; blanks?: Record<string, string> };
 type Saved = {
+  review?: ObjectiveReview | null;
   practice?: boolean;
   answer: Answer;
   correct: boolean | null;
@@ -36,9 +36,8 @@ export function ObjectiveAnswer({
     [answer, setAnswer] = useState<Answer>({}),
     [confirm, setConfirm] = useState(false),
     [feedback, setFeedback] = useState<Saved | null>(null),
-    loaded = useRef(false),
-    shake = useAnimationControls(),
-    reduced = useReducedMotion();
+    [edited, setEdited] = useState(false),
+    loaded = useRef(false);
   useEffect(() => {
     if (query.data && !loaded.current) {
       setAnswer(query.data.answer);
@@ -58,11 +57,7 @@ export function ObjectiveAnswer({
       });
       setFeedback(result);
       setConfirm(false);
-      if (result.correct === false && !reduced)
-        void shake.start({
-          x: [0, -8, 8, -5, 5, 0],
-          transition: { duration: 0.38 },
-        });
+      setEdited(false);
     },
     undefined,
     false,
@@ -88,14 +83,16 @@ export function ObjectiveAnswer({
         error={query.error}
         retry={() => void query.refetch()}
       />
-      <m.div animate={shake}>
-        <ObjectiveFields
-          definition={v}
-          answer={answer}
-          onChange={setAnswer}
-          disabled={locked || submit.isPending || query.isLoading}
-        />
-      </m.div>
+      <ObjectiveFields
+        definition={v}
+        answer={answer}
+        review={!edited && saved?.finalized_at ? saved.review : null}
+        onChange={(next) => {
+          setAnswer(next);
+          setEdited(true);
+        }}
+        disabled={locked || submit.isPending || query.isLoading}
+      />
       {!locked && (
         <div className="flex justify-end gap-3">
           <Button
@@ -121,13 +118,6 @@ export function ObjectiveAnswer({
         <p className="text-sm text-muted-foreground">
           本组可查看此题，暂不开放作答。
         </p>
-      )}
-      {saved?.finalized_at && (
-        <FlagFeedback
-          correct={!!saved.correct}
-          animate={!!feedback && !!saved.correct}
-          message={saved.correct ? "答案正确" : "答案不正确"}
-        />
       )}
       {submit.error && <ActionError error={submit.error} />}
       <Dialog open={confirm} onOpenChange={setConfirm}>

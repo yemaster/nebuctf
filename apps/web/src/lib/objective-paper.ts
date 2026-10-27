@@ -4,7 +4,12 @@ export type ObjectiveResponse = {
   choices?: string[];
   blanks?: Record<string, string>;
 };
+export type ObjectiveReview = {
+  choices?: string[];
+  blanks?: Record<string, boolean>;
+};
 export type ObjectiveSaved = {
+  review?: ObjectiveReview | null;
   answer: ObjectiveResponse;
   correct: boolean | null;
   finalized_at: string | null;

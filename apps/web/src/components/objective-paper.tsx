@@ -1,7 +1,7 @@
 import { ChallengeHints } from "./challenge-hints";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, X, Circle, CheckCircle2, Save } from "lucide-react";
+import { Check, X, Save } from "lucide-react";
 import type { ObjectivePaperModel } from "@/lib/use-objective-paper";
 import {
   answerColors,
@@ -135,11 +135,10 @@ export function ObjectivePaper({
           )}
           <div className="divide-y">
             {data.items.map((q, index) => {
-              const state = model.state(q),
-                locked =
-                  !withinTime ||
-                  !q.permissions.submit ||
-                  (!data.practice && !!q.saved.finalized_at);
+              const locked =
+                !withinTime ||
+                !q.permissions.submit ||
+                (!data.practice && !!q.saved.finalized_at);
               return (
                 <section
                   key={q.id}
@@ -176,23 +175,14 @@ export function ObjectivePaper({
                   <ObjectiveFields
                     definition={q.objective}
                     answer={model.response(q)}
+                    review={
+                      q.saved.finalized_at && !model.edited(q.id)
+                        ? q.saved.review
+                        : null
+                    }
                     disabled={locked || submit.isPending}
                     onChange={(answer) => model.change(q, answer)}
                   />
-                  {q.saved.finalized_at && !model.edited(q.id) && (
-                    <p
-                      className={`flex items-center gap-2 text-sm ${state === "correct" ? "text-success" : state === "incorrect" ? "text-destructive" : "text-muted-foreground"}`}
-                    >
-                      {state === "correct" ? (
-                        <CheckCircle2 className="size-4" />
-                      ) : state === "incorrect" ? (
-                        <X className="size-4" />
-                      ) : (
-                        <Circle className="size-4" />
-                      )}
-                      {answerLabels[state]}
-                    </p>
-                  )}
                   {!q.permissions.submit && (
                     <p className="text-xs text-muted-foreground">
                       本题未开放作答

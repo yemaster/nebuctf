@@ -173,6 +173,7 @@ test(
           answer = {
             answer: body.answer,
             correct: body.finalize ? true : null,
+            review: body.finalize ? { choices: ["B"] } : null,
             finalized_at: body.finalize ? new Date().toISOString() : null,
           };
         data = answer;
@@ -774,7 +775,16 @@ test(
             ),
           );
           await click(button("确认提交"));
-          await settle(() => host().textContent!.includes("答案正确"));
+          await settle(
+            () => !!host().querySelector('label[data-result="correct"]'),
+          );
+          assert(!host().textContent!.includes("答案正确"));
+          assert(!host().querySelector("[data-feedback-motion]"));
+          assert(
+            host()
+              .querySelector('label[data-result="correct"]')
+              ?.textContent?.includes("Second"),
+          );
           assert.equal(
             host().querySelectorAll<HTMLButtonElement>('[role="radio"]')[1]!
               .disabled,
