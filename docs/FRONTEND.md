@@ -489,7 +489,7 @@ PDF 通过现有管理员文件接口鉴权读取，预览携带版本号；文�
 
 ### 紧凑提交区与攻防反馈
 
-多 Flag 使用紧凑两列小题进度，共用等宽字体 Flag 输入框；标题与分值相邻，解出数使用较小的次级文字。目录保留整行点击、折叠和三血悬停。参考 [Hackergame hub](https://github.com/ustclug/hackergame/blob/master/app/templates/hub.html) 的父题/小题层级和 [GeekGame 前端](https://github.com/PKU-GeekGame/gs-frontend) 的共享 Flag 提交方式。
+多 Flag 使用 shadcn Table 呈现紧凑的小题列表，每题一行，状态、题名、分数和解出数横向对齐；说明保留在题名下方，解出数使用较小的次级文字。普通提交区标题统一为「提交 flag」，共用等宽字体输入框。目录保留整行点击、折叠和三血悬停。参考 [Hackergame hub](https://github.com/ustclug/hackergame/blob/master/app/templates/hub.html) 的父题/小题层级和 [GeekGame 前端](https://github.com/PKU-GeekGame/gs-frontend) 的共享 Flag 提交方式。
 
 防守题复用同一提交区的 shadcn Tabs，不在外部再放防守卡片。切换保留 Flag 草稿和补丁选择；Check、服务异常、EXP 利用成功、防御成功使用统一图标与紧凑状态行，失败时保留上传入口。额度和冷却紧邻操作显示。靶机启动、专属附件生成采用主题色，销毁/删除采用 destructive 按钮。
 

@@ -21,6 +21,7 @@ import { ActionError } from "./action-error";
 import { FlagFeedback } from "./flag-feedback";
 import { Markdown } from "./markdown";
 import { ScrollArea } from "./ui/scroll-area";
+import { Table, TableBody, TableRow, TableCell } from "./ui/table";
 import {
   InputGroup,
   InputGroupInput,
@@ -282,10 +283,8 @@ export function ChallengeWorkspace({
               role="region"
               value={submissionTab}
               onValueChange={setSubmissionTab}
-              aria-label={
-                hasDefense ? "攻击与防守" : completed ? "解答状态" : "提交 Flag"
-              }
-              className="space-y-3 rounded-lg bg-card p-4 sm:p-5"
+              aria-label={hasDefense ? "攻击与防守" : "提交 flag"}
+              className="gap-3 rounded-lg bg-card p-4 sm:p-5"
             >
               <div className="flex items-center justify-between gap-4">
                 {hasDefense ? (
@@ -294,13 +293,7 @@ export function ChallengeWorkspace({
                     <TabsTrigger value="defense">防守</TabsTrigger>
                   </TabsList>
                 ) : (
-                  <h2 className="font-medium">
-                    {c.total_parts > 1
-                      ? "小题"
-                      : completed
-                        ? "解答状态"
-                        : "提交 Flag"}
-                  </h2>
+                  <h2 className="font-medium">提交 flag</h2>
                 )}
                 <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                   {(c.hint_factor ?? 1) < 1 && (
@@ -324,53 +317,56 @@ export function ChallengeWorkspace({
               >
                 {c.parts?.filter((p) => !hasDefense || p.role !== "defense")
                   .length > 0 && (
-                  <ul
-                    className="grid gap-x-6 gap-y-1 sm:grid-cols-2"
-                    aria-label="小题进度"
-                  >
-                    {c.parts
-                      .filter((p) => !hasDefense || p.role !== "defense")
-                      .map((part) => (
-                        <li
-                          key={part.id}
-                          className="flex min-w-0 items-start gap-2 py-2"
-                        >
-                          {completed || part.solved ? (
-                            <CheckCircle2
-                              className="mt-0.5 size-4 shrink-0 text-success"
-                              aria-label="已通过"
-                            />
-                          ) : (
-                            <Circle
-                              className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                              aria-label="未通过"
-                            />
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-baseline gap-2">
-                              <span className="min-w-0 break-words text-sm font-medium">
-                                {part.title}
+                  <Table className="table-fixed" aria-label="小题进度">
+                    <colgroup>
+                      <col className="w-6" />
+                      <col />
+                      <col className="w-20" />
+                      <col className="w-24" />
+                    </colgroup>
+                    <TableBody>
+                      {c.parts
+                        .filter((p) => !hasDefense || p.role !== "defense")
+                        .map((part) => (
+                          <TableRow
+                            key={part.id}
+                            className="border-0 hover:bg-transparent"
+                          >
+                            <TableCell className="py-1.5 pl-0 pr-2">
+                              {completed || part.solved ? (
+                                <CheckCircle2
+                                  className="size-4 text-success"
+                                  aria-label="已通过"
+                                />
+                              ) : (
+                                <Circle
+                                  className="size-4 text-muted-foreground"
+                                  aria-label="未通过"
+                                />
+                              )}
+                            </TableCell>
+                            <TableCell className="whitespace-normal break-words py-1.5 pl-0 pr-3">
+                              <span className="font-medium">{part.title}</span>
+                              {part.description && (
+                                <p className="mt-0.5 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
+                                  {part.description}
+                                </p>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-1.5 text-right font-medium tabular-nums">
+                              {part.points}
+                              <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                分
                               </span>
-                              <span className="shrink-0 text-sm font-semibold tabular-nums">
-                                {part.points}
-                                <span className="ml-0.5 text-xs font-normal text-muted-foreground">
-                                  分
-                                </span>
-                              </span>
-                            </div>
-                            {part.description && (
-                              <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
-                                {part.description}
-                              </p>
-                            )}
-                            <span className="text-xs tabular-nums text-muted-foreground">
+                            </TableCell>
+                            <TableCell className="py-1.5 pr-0 text-right text-xs tabular-nums text-muted-foreground">
                               {part.solves} {scope === "practice" ? "人" : "队"}
                               解出
-                            </span>
-                          </div>
-                        </li>
-                      ))}
-                  </ul>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
                 )}
                 {attackCompleted ? (
                   <FlagFeedback
