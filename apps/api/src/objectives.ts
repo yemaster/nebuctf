@@ -150,7 +150,14 @@ export function objectiveRoutes(app: FastifyInstance, db: DB) {
       server_time: new Date().toISOString(),
       preview,
       practice,
-      can_submit: !!owner && phase.status === "active",
+      can_submit:
+        !!owner &&
+        phase.status === "active" &&
+        items.some(
+          (q) =>
+            q.permissions.submit &&
+            !answers.find((a) => a.challenge_id === q.id)?.finalized_at,
+        ),
     };
   });
   app.post(
@@ -263,18 +270,14 @@ async function saveObjectiveAnswer(
     "SELECT *,updated_at::text revision FROM objective_answers WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3 AND contest_practice=$4",
     [cid, input.scope, owner, !!challenge.contest_practice],
   );
-  if (
-    old?.finalized_at &&
-    input.scope !== "practice" &&
-    !challenge.contest_practice
-  )
+  if (old?.finalized_at)
     return {
       answer: old.answer,
       finalized_at: old.finalized_at,
       correct: old.correct,
       review: objectiveReview(challenge.objective, old.answer),
       revision: old.revision,
-      practice: false,
+      practice: input.scope === "practice" || !!challenge.contest_practice,
     };
   if (
     input.revision !== undefined &&

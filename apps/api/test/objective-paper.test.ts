@@ -271,9 +271,10 @@ test("objective paper shares team drafts, submits atomically and respects sectio
     answer: {},
     revision: null,
   }));
-  await ok(alice, { finalize: true, answers: practice });
+  const firstPractice = await ok(alice, { finalize: true, answers: practice });
   paper = await ok();
-  await ok(alice, {
+  assert.equal(paper.can_submit, false);
+  const repeatedPractice = await ok(alice, {
     finalize: true,
     answers: paper.items.map((q: any) => ({
       id: q.id,
@@ -281,6 +282,75 @@ test("objective paper shares team drafts, submits atomically and respects sectio
       revision: q.saved.revision,
     })),
   });
+  assert.deepEqual(
+    repeatedPractice.items,
+    firstPractice.items,
+    "post-contest retry cannot change a finalized answer",
+  );
+  const draftAfterFinal = await ok(mate, {
+    finalize: false,
+    answers: [{ id: single, answer: { choices: ["A"] }, revision: null }],
+  });
+  assert.deepEqual(
+    draftAfterFinal.items[0],
+    firstPractice.items.find((q: any) => q.id === single),
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int n FROM submissions WHERE scope=$1 AND contest_practice",
+        [scope],
+      )
+    )[0]!.n,
+    3,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int n FROM solves WHERE scope=$1 AND contest_practice",
+        [scope],
+      )
+    )[0]!.n,
+    0,
+  );
+  await db.query("UPDATE challenges SET practice=true WHERE id=$1", [single]);
+  const standalone = (answer: unknown, finalize: boolean) =>
+    app.inject({
+      url: `/api/challenges/${single}/answer`,
+      method: "POST",
+      headers: {
+        cookie: alice.cookie,
+        origin: config.APP_ORIGIN,
+        "x-csrf-protection": "1",
+      },
+      payload: { scope: "practice", answer, finalize },
+    });
+  const concurrent = await Promise.all([
+    standalone({ choices: ["A"] }, true),
+    standalone({ choices: ["B"] }, true),
+  ]);
+  concurrent.forEach((r) => assert.equal(r.statusCode, 200, r.body));
+  assert.deepEqual(
+    concurrent[0]!.json(),
+    concurrent[1]!.json(),
+    "concurrent practice submissions share the first result",
+  );
+  assert.equal(concurrent[0]!.json().practice, true);
+  const immutable = concurrent[0]!.json();
+  for (const finalize of [false, true]) {
+    const retry = await standalone({}, finalize);
+    assert.equal(retry.statusCode, 200);
+    assert.deepEqual(retry.json(), immutable);
+  }
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int n FROM submissions WHERE scope='practice' AND challenge_id=$1 AND user_id=$2",
+        [single, alice.id],
+      )
+    )[0]!.n,
+    1,
+  );
   assert.equal(
     (
       await db.query(
