@@ -858,6 +858,62 @@ test(
         },
       );
       await t.test(
+        "a finalized server answer replaces an older local draft result",
+        async () => {
+          answer = {
+            answer: {},
+            correct: null,
+            finalized_at: null,
+            practice: true,
+          };
+          await mount(
+            <ObjectiveAnswer
+              id={ctf.id}
+              scope="practice"
+              definition={{
+                type: "single",
+                options: [
+                  { id: "A", text: "First" },
+                  { id: "B", text: "Second" },
+                ],
+                blanks: [],
+                case_sensitive: true,
+                trim: true,
+              }}
+            />,
+          );
+          await settle(
+            () => !!button("保存答案") && !button("保存答案").disabled,
+          );
+          await click(host().querySelectorAll('[role="radio"]')[0]!);
+          await click(button("保存答案"));
+          await settle(
+            () =>
+              answer.answer.choices?.[0] === "A" &&
+              !button("保存答案").disabled,
+          );
+          answer = {
+            answer: { choices: ["B"] },
+            correct: true,
+            finalized_at: new Date().toISOString(),
+            review: { choices: ["B"] },
+            practice: true,
+          };
+          await act(async () => {
+            cache.setQueryData(
+              [`/challenges/${ctf.id}/answer?scope=practice`],
+              answer,
+            );
+          });
+          await settle(() => !button("提交答案"));
+          assert(!button("保存答案"));
+          const selected =
+            host().querySelectorAll<HTMLButtonElement>('[role="radio"]')[1]!;
+          assert(selected.disabled);
+          assert.equal(selected.getAttribute("aria-checked"), "true");
+        },
+      );
+      await t.test(
         "starting a flexible phase explicitly starts the whole team clock",
         async () => {
           await mount(

@@ -48,7 +48,9 @@ export function ObjectiveAnswer({
       }
     }
   }, [query.data]);
-  const saved = feedback ?? query.data,
+  const saved = query.data?.finalized_at
+      ? query.data
+      : (feedback ?? query.data),
     locked = readOnly || !!saved?.finalized_at;
   const submit = useAction(
     async (finalize: boolean) => {
