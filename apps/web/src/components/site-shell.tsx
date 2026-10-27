@@ -85,7 +85,11 @@ export function SiteHeader({
     contestId ? 15000 : undefined,
   );
   const base = `/contests/${contestId}`;
-  const access = useContestCapabilities(contest.data, user);
+  const access = useContestCapabilities(
+    contest.data,
+    user,
+    contest.dataUpdatedAt,
+  );
   const [arenaPaths, setArenaPaths] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!contestId || pathname !== `${base}/challenges`) return;

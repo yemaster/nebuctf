@@ -13,10 +13,8 @@ import {
 } from "./ui/dialog";
 import { ActionError } from "./action-error";
 import { QueryState } from "./shared";
-import { ContestClockSummary } from "./contest-clock";
-import type { ContestClock } from "@/lib/contest-clock";
 export function ContestTiming({ id }: { id: string }) {
-  const query = useAPI<{ phases: Phase[]; clock?: ContestClock }>(
+  const query = useAPI<{ phases: Phase[] }>(
     `/contests/${id}/timing`,
     true,
     15000,
@@ -28,13 +26,6 @@ export function ContestTiming({ id }: { id: string }) {
         error={query.error}
         retry={() => void query.refetch()}
       />
-      {query.data?.clock && (
-        <ContestClockSummary
-          compact
-          clock={query.data.clock}
-          receivedAt={query.dataUpdatedAt}
-        />
-      )}
       {query.data && <PhaseCards scope={id} phases={query.data.phases} />}
     </>
   );

@@ -8,16 +8,9 @@ import { Input } from "@/components/ui/input";
 import { useUser } from "@/App";
 import { api, useAction, useAPI } from "@/lib/api";
 import type { Contest, TeamSummary } from "@/lib/types";
-import { contestStatus, date } from "@/lib/utils";
+import { contestStatus } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardHeader,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
-import { ContestStatusBadge } from "@/components/contest-status-badge";
 import {
   ContestCalendar,
   contestDayFilter,
@@ -39,8 +32,7 @@ import { Announcements } from "./Announcements";
 import { Instances } from "./Instances";
 import { ContestCard } from "@/components/contest-card";
 import { useContestCapabilities } from "@/lib/contest-access";
-import { ContestPoster } from "@/components/contest-poster";
-import { Markdown } from "@/components/markdown";
+import { ContestOverview } from "@/components/contest-overview";
 export function Contests() {
   const [page, setPage] = useState(1),
     [day, setDay] = useState<Date>();
@@ -111,15 +103,6 @@ export function Contests() {
     </>
   );
 }
-const contestDate = new Intl.DateTimeFormat("zh-CN", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-
 export function ContestDetail() {
   const { id } = useParams(),
     user = useUser(),
@@ -129,7 +112,7 @@ export function ContestDetail() {
     [invite, setInvite] = useState("");
   const data = useAPI<Contest>(`/contests/${id}`),
     teams = useAPI<{ items: TeamSummary[] }>("/teams/mine", !!user);
-  const access = useContestCapabilities(data.data, user);
+  const access = useContestCapabilities(data.data, user, data.dataUpdatedAt);
   const register = useAction(
     () =>
       api(`/contests/${id}/register`, "POST", {
@@ -167,97 +150,13 @@ export function ContestDetail() {
       />
       {c && (
         <>
-          <div
-            data-card-detail={`/contests/${id}`}
-            className="mx-auto w-full max-w-[1600px] space-y-10"
-          >
-            <Card
-              aria-labelledby="contest-title"
-              className="gap-0 overflow-hidden border-0 py-0 dark:shadow-black/20"
-            >
-              <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
-                <div className="flex min-w-0 flex-col gap-6 py-6 sm:py-8">
-                  <CardHeader className="block px-6 sm:px-8 md:pr-72 lg:pr-8">
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                      <h1
-                        id="contest-title"
-                        className="min-w-0 break-words text-2xl font-semibold sm:text-3xl"
-                      >
-                        {c.title}
-                      </h1>
-                      <ContestStatusBadge contest={c} />
-                      {c.visibility === "private" && (
-                        <Badge variant="secondary">私密</Badge>
-                      )}
-                      {access.practice && (
-                        <Badge variant="secondary">练习开放</Badge>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="px-6 sm:px-8">
-                    <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 gap-y-3 text-sm sm:gap-x-6">
-                      <dt className="text-muted-foreground">比赛时间</dt>
-                      <dd className="flex flex-wrap items-center gap-x-3 gap-y-1 font-medium tabular-nums">
-                        <time
-                          dateTime={c.starts_at}
-                          className="whitespace-nowrap"
-                        >
-                          <span className="sr-only">开始时间 </span>
-                          {contestDate.format(new Date(c.starts_at))}
-                        </time>
-                        <span className="inline-flex items-center gap-3">
-                          <ArrowRight
-                            className="size-3.5 shrink-0 text-muted-foreground"
-                            aria-hidden="true"
-                          />
-                          <time
-                            dateTime={c.ends_at}
-                            className="whitespace-nowrap"
-                          >
-                            <span className="sr-only">结束时间 </span>
-                            {contestDate.format(new Date(c.ends_at))}
-                          </time>
-                        </span>
-                      </dd>
-                      {c.freeze_at && (
-                        <>
-                          <dt className="text-muted-foreground">封榜时间</dt>
-                          <dd className="tabular-nums">
-                            <time dateTime={c.freeze_at}>
-                              {contestDate.format(new Date(c.freeze_at))}
-                            </time>
-                          </dd>
-                        </>
-                      )}
-                      <dt className="text-muted-foreground">参赛规模</dt>
-                      <dd className="flex flex-wrap items-center gap-x-5 gap-y-1">
-                        <span>每队最多 {c.team_limit} 人</span>
-                        <span>
-                          <span className="font-medium tabular-nums">
-                            {c.teams}
-                          </span>{" "}
-                          支战队已报名
-                        </span>
-                      </dd>
-                      <dt className="text-muted-foreground">报名范围</dt>
-                      <dd>
-                        {
-                          {
-                            public: "公开报名",
-                            invite: "邀请码报名",
-                            teams: "指定战队",
-                          }[c.registration_mode ?? "public"]
-                        }
-                      </dd>
-                    </dl>
-                  </CardContent>
-                </div>
-                <div className="order-first h-40 overflow-hidden lg:order-none lg:h-full [&_img]:h-full">
-                  <ContestPoster contest={c} priority />
-                </div>
-              </div>
-              <CardFooter className="flex flex-col items-stretch gap-4 bg-muted/50 px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-                <div className="min-w-0 space-y-1.5">
+          <ContestOverview
+            contest={c}
+            receivedAt={data.dataUpdatedAt}
+            practice={access.practice}
+            participation={
+              (c.registered || c.registration || user?.role === "admin") && (
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
                   <p
                     className={`text-sm ${c.registered ? "text-success" : "text-muted-foreground"}`}
                   >
@@ -278,7 +177,7 @@ export function ContestDetail() {
                           ? "管理员预览"
                           : user?.role === "admin"
                             ? "管理人员"
-                            : "观战者"}
+                            : "未报名"}
                   </p>
                   {c.registration && (
                     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
@@ -296,165 +195,125 @@ export function ContestDetail() {
                     </p>
                   )}
                 </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">
-                  {access.spectate && (
-                    <Button variant="secondary" asChild>
-                      <Link to={`/contests/${id}/spectate`}>
-                        <MonitorPlay />
-                        观战
-                      </Link>
-                    </Button>
-                  )}
-                  {access.challenges && !c.registered && (
-                    <Button variant="secondary" asChild>
-                      <Link to={`/contests/${id}/challenges`}>
-                        预览赛题
-                        <ArrowRight />
-                      </Link>
-                    </Button>
-                  )}
-                  {access.challenges && c.registered ? (
-                    <Button asChild>
-                      <Link to={`/contests/${id}/challenges`}>
-                        {access.practice ? "进入练习" : "进入赛场"}
-                        <ArrowRight />
-                      </Link>
-                    </Button>
-                  ) : contestStatus(c) === "已结束" && !access.practice ? (
+              )
+            }
+            actions={
+              <>
+                {access.challenges && c.registered ? (
+                  <Button asChild>
+                    <Link to={`/contests/${id}/challenges`}>
+                      {access.practice ? "进入练习" : "进入赛场"}
+                      <ArrowRight />
+                    </Link>
+                  </Button>
+                ) : contestStatus(c) === "已结束" && !access.practice ? (
+                  <Button variant="secondary" disabled>
+                    比赛已结束
+                  </Button>
+                ) : c.registration?.status === "pending" ||
+                  c.registration?.status === "suspended" ? (
+                  <>
                     <Button variant="secondary" disabled>
-                      比赛已结束
+                      {c.registration.status === "pending"
+                        ? "等待审核"
+                        : "参赛已暂停"}
                     </Button>
-                  ) : c.registration?.status === "pending" ||
-                    c.registration?.status === "suspended" ? (
-                    <>
-                      <Button variant="secondary" disabled>
-                        {c.registration.status === "pending"
-                          ? "等待审核"
-                          : "参赛已暂停"}
-                      </Button>
-                      {c.registration.status === "pending" &&
-                        c.registration.is_captain !== false && (
-                          <Button
-                            variant="ghost"
-                            disabled={unregister.isPending}
-                            onClick={() => unregister.mutate()}
-                          >
-                            撤回报名
-                          </Button>
-                        )}
-                    </>
-                  ) : c.registered ? (
-                    <>
-                      <Button variant="secondary" disabled>
-                        等待开赛
-                      </Button>
-                      {c.registration?.is_captain !== false && (
+                    {c.registration.status === "pending" &&
+                      c.registration.is_captain !== false && (
                         <Button
                           variant="ghost"
                           disabled={unregister.isPending}
                           onClick={() => unregister.mutate()}
                         >
-                          取消报名
+                          撤回报名
                         </Button>
                       )}
-                    </>
-                  ) : !user ? (
-                    <Button asChild>
-                      <Link
-                        to={`/login?next=${encodeURIComponent(`/contests/${id}`)}`}
+                  </>
+                ) : c.registered ? (
+                  <>
+                    <Button variant="secondary" disabled>
+                      等待开赛
+                    </Button>
+                    {c.registration?.is_captain !== false && (
+                      <Button
+                        variant="ghost"
+                        disabled={unregister.isPending}
+                        onClick={() => unregister.mutate()}
                       >
-                        登录后报名
-                      </Link>
-                    </Button>
-                  ) : (
-                    <Button
-                      disabled={
-                        (c.groups.length > 0 &&
-                          c.groups.every((g) => g.joinable === false)) ||
-                        (c.registration_mode === "teams" && !captained.length)
-                      }
-                      onClick={() => {
-                        setTeam(captained[0]?.id ?? "");
-                        setGroup(
-                          c.groups.find((g) => g.joinable !== false)?.id ?? "",
-                        );
-                        setOpen(true);
-                      }}
-                    >
-                      {c.registration_mode === "teams" && !captained.length
-                        ? "仅限指定战队"
-                        : c.groups.length > 0 &&
-                            c.groups.every((g) => g.joinable === false)
-                          ? "组别报名已关闭"
-                          : c.registration?.status === "rejected"
-                            ? "重新报名"
-                            : access.practice
-                              ? "报名练习"
-                              : "战队报名"}
-                    </Button>
-                  )}
-                </div>
-              </CardFooter>
-            </Card>
-            {c.registered && !access.practice && <ContestTiming id={c.id} />}
-            {access.practice && (
-              <p className="text-sm text-muted-foreground">
-                赛后练习不计入正式排名，报名仍遵守本场组别与审核规则。
-              </p>
-            )}
-            {c.writeup_access && (
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-muted/40 px-5 py-4">
-                <div className="space-y-1">
-                  <h2 className="font-medium">
-                    WriteUp{" "}
-                    {c.writeup?.required && (
-                      <Badge variant="secondary">必交</Badge>
+                        取消报名
+                      </Button>
                     )}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    截止时间 {date(c.writeup?.deadline ?? null)}
-                  </p>
-                </div>
-                <Button variant="secondary" asChild>
-                  <Link to={`/contests/${c.id}/writeup`}>
-                    提交 WriteUp
-                    <ArrowRight />
-                  </Link>
-                </Button>
-              </div>
-            )}
-            <div
-              className={`grid items-start gap-10 ${c.groups.length ? "lg:grid-cols-[minmax(0,1fr)_320px]" : ""}`}
-            >
-              <section className="min-w-0 px-1 sm:px-2">
-                <h2 className="mb-6 text-xl font-semibold">比赛说明</h2>
-                <Markdown>{c.description || "暂无比赛说明"}</Markdown>
-              </section>
-              {c.groups.length > 0 && (
-                <aside className="space-y-6 px-1 sm:px-2">
-                  <h2 className="text-xl font-semibold">参赛组别</h2>
-                  {c.groups.map((g) => (
-                    <div key={g.id} className="space-y-2">
-                      <h3 className="font-medium">{g.name}</h3>
-                      {(g.joinable === false || g.rank_overall === false) && (
-                        <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                          {g.joinable === false && <span>报名已关闭</span>}
-                          {g.rank_overall === false && (
-                            <span>仅参与组内排名</span>
-                          )}
-                        </p>
-                      )}
-                      {g.description && (
-                        <p className="text-sm leading-7 text-muted-foreground">
-                          {g.description}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </aside>
-              )}
-            </div>
-          </div>
+                  </>
+                ) : access.registrationWindow !== "open" ? (
+                  <Button variant="secondary" disabled>
+                    {access.registrationWindow === "upcoming"
+                      ? "报名尚未开放"
+                      : "报名已截止"}
+                  </Button>
+                ) : !user ? (
+                  <Button asChild>
+                    <Link
+                      to={`/login?next=${encodeURIComponent(`/contests/${id}`)}`}
+                    >
+                      登录后报名
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button
+                    disabled={
+                      (c.groups.length > 0 &&
+                        c.groups.every((g) => g.joinable === false)) ||
+                      (c.registration_mode === "teams" && !captained.length)
+                    }
+                    onClick={() => {
+                      setTeam(captained[0]?.id ?? "");
+                      setGroup(
+                        c.groups.find((g) => g.joinable !== false)?.id ?? "",
+                      );
+                      setOpen(true);
+                    }}
+                  >
+                    {c.registration_mode === "teams" && !captained.length
+                      ? "仅限指定战队"
+                      : c.groups.length > 0 &&
+                          c.groups.every((g) => g.joinable === false)
+                        ? "组别报名已关闭"
+                        : c.registration?.status === "rejected"
+                          ? "重新报名"
+                          : access.practice
+                            ? "报名练习"
+                            : "战队报名"}
+                  </Button>
+                )}
+                {access.scoreboard && (
+                  <Button variant="secondary" asChild>
+                    <Link to={`/contests/${id}/scoreboard`}>排行榜</Link>
+                  </Button>
+                )}
+                {access.spectate && (
+                  <Button variant="ghost" asChild>
+                    <Link to={`/contests/${id}/spectate`}>
+                      <MonitorPlay />
+                      观战
+                    </Link>
+                  </Button>
+                )}
+                {access.challenges && !c.registered && (
+                  <Button variant="secondary" asChild>
+                    <Link to={`/contests/${id}/challenges`}>
+                      预览赛题
+                      <ArrowRight />
+                    </Link>
+                  </Button>
+                )}
+              </>
+            }
+            timing={
+              c.registered && !access.practice ? (
+                <ContestTiming id={c.id} />
+              ) : null
+            }
+          />
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogContent aria-describedby={undefined}>
               <DialogTitle>
@@ -574,7 +433,11 @@ function ContestAccess({
   const { id } = useParams(),
     user = useUser();
   const contest = useAPI<Contest>(`/contests/${id}`);
-  const access = useContestCapabilities(contest.data, user);
+  const access = useContestCapabilities(
+    contest.data,
+    user,
+    contest.dataUpdatedAt,
+  );
   if (contest.isLoading || contest.error)
     return (
       <QueryState

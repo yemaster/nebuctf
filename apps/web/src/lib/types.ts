@@ -127,6 +127,8 @@ export interface Contest {
   spectator_scoreboard?: boolean;
   viewer_role?: "spectator" | "participant" | "staff";
   registration_mode?: "public" | "invite" | "teams";
+  registration_opens_at?: string | null;
+  registration_closes_at?: string | null;
   registration_team_ids?: string[];
   registration_code_set?: boolean;
   eligible_team_ids?: string[] | null;

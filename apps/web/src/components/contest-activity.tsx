@@ -69,7 +69,11 @@ export function ContestActivity({
     location.pathname.endsWith("/challenges") &&
     params.get("challenge") === "objective";
   const contest = useAPI<Contest>(`/contests/${scope}`);
-  const access = useContestCapabilities(contest.data, user);
+  const access = useContestCapabilities(
+    contest.data,
+    user,
+    contest.dataUpdatedAt,
+  );
   if (!access.activity || !user) return null;
   return (
     <ActivityPanel

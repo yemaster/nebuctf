@@ -322,7 +322,7 @@ export function SiteFooter({
   // The header owns this query. The footer observes it without another fetch.
   const contest = useAPI<Contest>(`/contests/${contestId}`, false);
   const current = contest.error ? undefined : contest.data;
-  const access = useContestCapabilities(current, user);
+  const access = useContestCapabilities(current, user, contest.dataUpdatedAt);
   const announcements = contestId
     ? `/contests/${contestId}/announcements`
     : "/announcements";

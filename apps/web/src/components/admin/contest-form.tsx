@@ -30,6 +30,7 @@ import { GroupsEditor, readGroups } from "../groups-editor";
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 import { ConfigPanel, focusInvalidField } from "./config-tabs";
 import { inputDate } from "./shared";
+import { Alert, AlertTitle } from "../ui/alert";
 export function ContestForm({
   contest: c,
   pending,
@@ -75,6 +76,7 @@ export function ContestForm({
   const [questionIssue, setQuestionIssue] = useState<QuestionIssue | null>(
     null,
   );
+  const [scheduleIssue, setScheduleIssue] = useState("");
   const started = !!c && Date.parse(c.starts_at) <= Date.now();
   return (
     <form
@@ -130,6 +132,24 @@ export function ContestForm({
         }
         setHintIssue(null);
         if (focusInvalidField(e.currentTarget, setSection)) return;
+        const registrationOpen = f.get("registration_opens_at")
+          ? new Date(String(f.get("registration_opens_at"))).toISOString()
+          : null;
+        const registrationClose = f.get("registration_closes_at")
+          ? new Date(String(f.get("registration_closes_at"))).toISOString()
+          : null;
+        const end = new Date(String(f.get("ends_at"))).toISOString();
+        const windowIssue =
+          registrationOpen && registrationOpen >= (registrationClose ?? end)
+            ? "报名开放时间必须早于报名截止时间"
+            : registrationClose && registrationClose > end
+              ? "报名截止时间不能晚于比赛结束时间"
+              : "";
+        setScheduleIssue(windowIssue);
+        if (windowIssue) {
+          setSection("timing");
+          return;
+        }
         save({
           title: f.get("title"),
           description: f.get("description"),
@@ -157,6 +177,8 @@ export function ContestForm({
             ]),
           ),
           registration_mode: f.get("registration_mode"),
+          registration_opens_at: registrationOpen,
+          registration_closes_at: registrationClose,
           registration_code: f.get("registration_code") ?? "",
           registration_team_ids: allowedTeams,
           challenge_ids: selected,
@@ -266,23 +288,52 @@ export function ContestForm({
           </fieldset>
         </ConfigPanel>
         <ConfigPanel value="timing" active={section}>
-          <fieldset disabled={pending} className="grid gap-5 md:grid-cols-2">
-            <legend className="sr-only">时间规则</legend>
-            {[
-              { key: "starts_at", label: "开始时间" },
-              { key: "ends_at", label: "结束时间" },
-              { key: "freeze_at", label: "封榜时间（可选）" },
-            ].map(({ key, label }) => (
-              <Field key={key} label={label}>
-                <Input
-                  type="datetime-local"
-                  name={key}
-                  defaultValue={inputDate(c?.[key as "starts_at"])}
-                  required={key !== "freeze_at"}
-                  readOnly={started}
-                />
-              </Field>
-            ))}
+          {scheduleIssue && (
+            <Alert variant="destructive" className="mb-5">
+              <AlertTitle>{scheduleIssue}</AlertTitle>
+            </Alert>
+          )}
+          <fieldset disabled={pending} className="mb-6 space-y-4">
+            <h3 className="font-medium">报名阶段</h3>
+            <div className="grid gap-5 md:grid-cols-2">
+              {(
+                [
+                  ["registration_opens_at", "报名开放时间（可选）"],
+                  ["registration_closes_at", "报名截止时间（可选）"],
+                ] as const
+              ).map(([key, label]) => (
+                <Field key={key} label={label}>
+                  <Input
+                    type="datetime-local"
+                    name={key}
+                    defaultValue={inputDate(c?.[key])}
+                  />
+                </Field>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              留空时，发布后开放报名，比赛结束时截止。
+            </p>
+          </fieldset>
+          <fieldset disabled={pending} className="space-y-4">
+            <h3 className="font-medium">比赛阶段</h3>
+            <div className="grid gap-5 md:grid-cols-2">
+              {[
+                { key: "starts_at", label: "开始时间" },
+                { key: "ends_at", label: "结束时间" },
+                { key: "freeze_at", label: "封榜时间（可选）" },
+              ].map(({ key, label }) => (
+                <Field key={key} label={label}>
+                  <Input
+                    type="datetime-local"
+                    name={key}
+                    defaultValue={inputDate(c?.[key as "starts_at"])}
+                    required={key !== "freeze_at"}
+                    readOnly={started}
+                  />
+                </Field>
+              ))}
+            </div>
           </fieldset>
           <div className="mt-6 space-y-6">
             <PhaseEditor
@@ -325,7 +376,7 @@ export function ContestForm({
           </div>
           {started && (
             <p className="mt-5 text-sm text-muted-foreground">
-              开赛后，计分、时间与赛题集合已锁定。
+              开赛后，比赛起止时间、计分与赛题集合已锁定。
             </p>
           )}
         </ConfigPanel>
