@@ -171,6 +171,7 @@ export function prepareParts(
     if (p.role !== "defense") oldFlagIndex++;
     return {
       ...p,
+      flag_template: p.flag_template || null,
       flag_env:
         p.role === "defense"
           ? null
@@ -192,6 +193,12 @@ export function prepareParts(
           return {
             id: p.id ?? crypto.randomUUID(),
             role: p.role,
+            flag_template:
+              dynamic && p.role !== "defense"
+                ? p.flag_template === undefined
+                  ? (existing?.flag_template ?? null)
+                  : p.flag_template || null
+                : null,
             flag_env:
               p.role === "defense"
                 ? null
@@ -208,6 +215,7 @@ export function prepareParts(
         });
   const parts: Row[] = prepared.map((p) => ({
     ...p,
+    flag_template: dynamic && p.role !== "defense" ? p.flag_template : null,
     flag_hash: dynamic ? "" : p.flag_hash,
   }));
   const variables = parts
@@ -239,6 +247,7 @@ export function prepareParts(
             "minimum_points",
             "flag_hash",
             "flag_env",
+            "flag_template",
           ].some((k) => p[k] !== old[i]![k]),
       ))
   )
@@ -253,8 +262,8 @@ export async function saveParts(db: DB, challenge: string, parts: Row[]) {
   );
   for (const p of parts)
     await db.query(
-      `INSERT INTO challenge_parts(id,challenge_id,title,description,position,flag_hash,initial_points,minimum_points,role,flag_env)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(id) DO UPDATE SET title=$3,description=$4,position=$5,flag_hash=$6,initial_points=$7,minimum_points=$8,role=$9,flag_env=$10`,
+      `INSERT INTO challenge_parts(id,challenge_id,title,description,position,flag_hash,initial_points,minimum_points,role,flag_env,flag_template)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(id) DO UPDATE SET title=$3,description=$4,position=$5,flag_hash=$6,initial_points=$7,minimum_points=$8,role=$9,flag_env=$10,flag_template=$11`,
       [
         p.id,
         challenge,
@@ -266,6 +275,7 @@ export async function saveParts(db: DB, challenge: string, parts: Row[]) {
         p.minimum_points,
         p.role ?? "flag",
         p.flag_env ?? null,
+        p.flag_template ?? null,
       ],
     );
 }

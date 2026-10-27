@@ -13,6 +13,7 @@ import { makeTar } from "../src/patch-archive.js";
 import { patchStorage } from "../src/judge.js";
 import { dynamicFlag, flagHash } from "../src/security.js";
 import { contestScoringInput } from "../src/competition-rules.js";
+import { flagEnvironmentSpec } from "../src/flag-environment.js";
 import { saveContestGroups } from "../src/contest-groups.js";
 
 test(
@@ -107,6 +108,10 @@ test(
         ],
       );
     await db.query(
+      "UPDATE challenges SET flag_template='AD{[GUID]_[TEAM_HASH]}' WHERE id=ANY($1::uuid[])",
+      [[cid, aid]],
+    );
+    await db.query(
       "INSERT INTO challenge_parts(id,challenge_id,title,position,role,flag_hash,initial_points,minimum_points) VALUES($1,$3,'Attack',0,'attack','',100,10),($2,$3,'Defense',1,'defense','',100,10)",
       [attack, defense, cid],
     );
@@ -125,6 +130,10 @@ test(
           }),
         ),
       ],
+    );
+    await db.query(
+      "UPDATE challenge_parts SET flag_template='Attack{[TEAM_HASH]}' WHERE id=$1",
+      [attack],
     );
     async function patchJob(challenge: string, type: string, contents: string) {
       const id = crypto.randomUUID();
@@ -152,6 +161,14 @@ test(
             container: profile,
             patch,
             type,
+            flag_environment: await flagEnvironmentSpec(
+              db,
+              (
+                await db.query("SELECT * FROM challenges WHERE id=$1", [
+                  challenge,
+                ])
+              )[0]!,
+            ),
             contest_scoring: { mode: "inherit", parts: [] },
           }),
         ],
@@ -202,7 +219,16 @@ test(
       "SELECT * FROM contest_rounds WHERE challenge_id=$1 ORDER BY number DESC LIMIT 1",
       [aid],
     );
-    assert.equal(leaked, dynamicFlag(aid, contest, "t:" + team, round!.id));
+    assert.equal(
+      leaked,
+      dynamicFlag(
+        aid,
+        contest,
+        "t:" + team,
+        round!.id,
+        "AD{[GUID]_[TEAM_HASH]}",
+      ),
+    );
     const [flag] = await db.query(
       "SELECT * FROM awd_flags WHERE flag_hash=$1",
       [flagHash(leaked)],

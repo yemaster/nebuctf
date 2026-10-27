@@ -35,12 +35,16 @@ export const defaultPartEnvironment = (position: number) =>
 
 export async function flagEnvironmentSpec(db: DB, challenge: Row) {
   const parts = await db.query(
-    "SELECT id,flag_env FROM challenge_parts WHERE challenge_id=$1 AND role<>'defense' ORDER BY position,id",
+    "SELECT id,flag_env,flag_template FROM challenge_parts WHERE challenge_id=$1 AND role<>'defense' ORDER BY position,id",
     [challenge.id],
   );
   return {
     flag_mode: flagMode(challenge),
     flag_env: challenge.flag_env ?? "FLAG",
+    flag_template: challenge.flag_template ?? "",
+    part_templates: Object.fromEntries(
+      parts.map((p) => [p.id, p.flag_template ?? null]),
+    ),
     parts: parts.map((p) => p.id),
     part_env: Object.fromEntries(
       parts.map((p, index) => [
@@ -51,7 +55,18 @@ export async function flagEnvironmentSpec(db: DB, challenge: Row) {
   };
 }
 
-// Only variable names and part IDs are persisted in instance snapshots. Values are derived in the Worker.
+// Persist configuration, not generated values. The snapshot also fixes the template for queued work.
+export function flagForInstance(instance: Row, part?: string) {
+  return dynamicFlag(
+    instance.challenge_id,
+    instance.scope,
+    instance.owner_key,
+    part,
+    (part ? instance.spec.part_templates?.[part] : null) ??
+      instance.spec.flag_template,
+  );
+}
+
 export function flagEnvironment(instance: Row): string[] {
   const spec = instance.spec;
   if (
@@ -63,11 +78,7 @@ export function flagEnvironment(instance: Row): string[] {
   const parts: string[] = spec.parts ?? [];
   if (!parts.length) {
     const name = flagEnvironmentName.parse(spec.flag_env ?? "FLAG");
-    const flag = dynamicFlag(
-      instance.challenge_id,
-      instance.scope,
-      instance.owner_key,
-    );
+    const flag = flagForInstance(instance);
     return name === "FLAG"
       ? [`FLAG=${flag}`]
       : [`FLAG=${flag}`, `${name}=${flag}`];
@@ -79,9 +90,7 @@ export function flagEnvironment(instance: Row): string[] {
   );
   if (new Set(names).size !== names.length)
     throw Error("小题环境变量名不能重复");
-  const flags = parts.map((id) =>
-    dynamicFlag(instance.challenge_id, instance.scope, instance.owner_key, id),
-  );
+  const flags = parts.map((id) => flagForInstance(instance, id));
   return [
     `FLAG=${flags[0]}`,
     `FLAG_COUNT=${parts.length}`,

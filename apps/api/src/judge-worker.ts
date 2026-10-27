@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { DockerEngine } from "./docker.js";
 import type { DB, Row } from "./db.js";
 import { containerConfig } from "./worker.js";
-import { dynamicFlag } from "./security.js";
+import { flagForInstance } from "./flag-environment.js";
 import { validateImage } from "./resources.js";
 import { patchStorage } from "./judge.js";
 import { readPatch, patchContext } from "./patch-archive.js";
@@ -203,10 +203,13 @@ export class JudgeWorker {
         "SELECT id FROM challenge_parts WHERE challenge_id=$1 AND role='attack'",
         [job.challenge_id],
       );
-      const flag = dynamicFlag(
-        job.challenge_id,
-        job.scope,
-        job.owner_key,
+      const flag = flagForInstance(
+        {
+          challenge_id: job.challenge_id,
+          scope: job.scope,
+          owner_key: job.owner_key,
+          spec: job.spec.flag_environment ?? {},
+        },
         attack?.id,
       );
       const target = containerConfig({

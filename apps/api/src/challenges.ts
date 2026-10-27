@@ -149,7 +149,13 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
         const expected =
           flagMode(c) === "dynamic"
             ? flagHash(
-                dynamicFlag(cid, data.scope, owner, part.id ?? undefined),
+                dynamicFlag(
+                  cid,
+                  data.scope,
+                  owner,
+                  part.id ?? undefined,
+                  part.flag_template ?? c.flag_template,
+                ),
               )
             : part.flag_hash;
         if (equal(submitted, expected)) matched = part;

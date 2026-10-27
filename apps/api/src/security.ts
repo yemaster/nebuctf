@@ -6,6 +6,7 @@ import {
   argon2,
 } from "node:crypto";
 import { config } from "./config.js";
+import { renderFlagTemplate } from "./flag-template.js";
 import type { DB } from "./db.js";
 export class HttpError extends Error {
   constructor(
@@ -34,8 +35,25 @@ export const dynamicFlag = (
   scope: string,
   owner: string,
   part?: string,
-) =>
-  `flag{${createHmac("sha256", config.APP_SECRET)
+  template?: string | null,
+) => {
+  if (template)
+    return renderFlagTemplate(
+      template,
+      createHmac("sha256", config.APP_SECRET)
+        .update(
+          JSON.stringify([
+            "flag-template-v1",
+            id,
+            part ?? null,
+            scope,
+            owner,
+            template,
+          ]),
+        )
+        .digest(),
+    );
+  return `flag{${createHmac("sha256", config.APP_SECRET)
     .update(
       JSON.stringify(
         part
@@ -45,6 +63,7 @@ export const dynamicFlag = (
     )
     .digest("hex")
     .slice(0, 40)}}`;
+};
 export const equal = (a: string, b: string) =>
   a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 let passwordJobs = 0;

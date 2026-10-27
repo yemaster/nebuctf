@@ -17,7 +17,8 @@ import { z } from "zod";
 import { audit, lock, type DB } from "./db.js";
 import { requireAdmin } from "./auth.js";
 import { challengeInput, contestInput, id, page } from "./schemas.js";
-import { fail, flagHash } from "./security.js";
+import { dynamicFlag, fail, flagHash, rate } from "./security.js";
+import { flagTemplateInput, inspectFlagTemplate } from "./flag-template.js";
 import { activeStatuses, validateImage } from "./resources.js";
 import { config } from "./config.js";
 function validatePublication(input: {
@@ -31,6 +32,27 @@ function validatePublication(input: {
     fail(400, "定时上线须设置未来时间，且不能同时立即启用");
 }
 export function adminRoutes(app: FastifyInstance, db: DB) {
+  app.post("/api/admin/flag-template/preview", async (req) => {
+    const user = requireAdmin(req);
+    const { template } = z
+      .object({ template: flagTemplateInput })
+      .parse(req.body);
+    await rate(db, `flag-preview:${user.id}`, 120, 60);
+    const info = inspectFlagTemplate(template);
+    return {
+      samples: Array.from({ length: 3 }, () =>
+        dynamicFlag(
+          "preview",
+          "preview",
+          crypto.randomUUID(),
+          undefined,
+          template,
+        ),
+      ),
+      entropy: Math.round(info.entropy * 10) / 10,
+      length: info.length,
+    };
+  });
   const challengeSummary = `SELECT c.*,
     coalesce((SELECT json_agg(json_build_object('id',g.id,'title',g.title) ORDER BY g.starts_at DESC) FROM contest_challenges cc JOIN contests g ON g.id=cc.contest_id WHERE cc.challenge_id=c.id),'[]') contests,
     (SELECT count(*)::int FROM attachments a WHERE a.challenge_id=c.id) attachment_count FROM challenges c`;
@@ -75,7 +97,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
       [...args, p.page_size, (p.page - 1) * p.page_size],
     );
     const parts = await db.query(
-      "SELECT id,challenge_id,title,description,position,role,flag_env,initial_points,minimum_points FROM challenge_parts WHERE challenge_id=ANY($1::uuid[]) ORDER BY position",
+      "SELECT id,challenge_id,title,description,position,role,flag_env,flag_template,initial_points,minimum_points FROM challenge_parts WHERE challenge_id=ANY($1::uuid[]) ORDER BY position",
       [rows.map((c) => c.id)],
     );
     return {
@@ -101,7 +123,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
       ...challenge,
       hints: hintDefinitions(challenge as any),
       parts: await db.query(
-        "SELECT id,title,description,position,role,flag_env,initial_points,minimum_points FROM challenge_parts WHERE challenge_id=$1 ORDER BY position",
+        "SELECT id,title,description,position,role,flag_env,flag_template,initial_points,minimum_points FROM challenge_parts WHERE challenge_id=$1 ORDER BY position",
         [cid],
       ),
       attachments: await db.query(
@@ -209,6 +231,8 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
                 data.flag_mode !== flagMode(old) ||
                 (data.flag_env ?? old.flag_env ?? "FLAG") !==
                   (old.flag_env ?? "FLAG") ||
+                (data.flag_template ?? old.flag_template ?? "") !==
+                  (old.flag_template ?? "") ||
                 !isDeepStrictEqual(
                   resourceProfiles(data),
                   resourceProfiles(old),
@@ -269,6 +293,10 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
           const values = {
             ...fields,
             flag_env: fields.flag_env ?? old?.flag_env ?? "FLAG",
+            flag_template:
+              fields.flag_mode === "dynamic"
+                ? (fields.flag_template ?? old?.flag_template ?? "")
+                : "",
             hints: JSON.stringify(
               hintDefinitions({ id: cid, hints: fields.hints }),
             ),

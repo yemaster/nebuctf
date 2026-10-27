@@ -265,3 +265,7 @@ INSERT INTO schema_migrations(version) VALUES(24) ON CONFLICT DO NOTHING;
 ALTER TABLE contests ADD COLUMN IF NOT EXISTS registration_opens_at timestamptz;
 ALTER TABLE contests ADD COLUMN IF NOT EXISTS registration_closes_at timestamptz;
 INSERT INTO schema_migrations(version) VALUES(25) ON CONFLICT DO NOTHING;
+
+ALTER TABLE challenges ADD COLUMN IF NOT EXISTS flag_template text NOT NULL DEFAULT '';
+ALTER TABLE challenge_parts ADD COLUMN IF NOT EXISTS flag_template text;
+INSERT INTO schema_migrations(version) VALUES(26) ON CONFLICT DO NOTHING;

@@ -189,6 +189,7 @@ export class AwdWorker {
       link.contest_id,
       instance.owner_key,
       round.id,
+      link.challenge.flag_template,
     );
     await this.docker.writeFlag(`nebuctf-${instance.id}`, flag);
     const expires = new Date(

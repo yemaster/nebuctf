@@ -3,7 +3,8 @@ import type { FastifyInstance } from "fastify";
 import { audit, type DB, type Row } from "./db.js";
 import { requireAdmin } from "./auth.js";
 import { id, page } from "./schemas.js";
-import { dynamicFlag, flagHash, fail } from "./security.js";
+import { flagHash, fail } from "./security.js";
+import { flagForInstance } from "./flag-environment.js";
 import { notifyContest } from "./activity-events.js";
 
 // Store fingerprints, never Flag values. Only private, successfully issued CTF resources qualify.
@@ -32,14 +33,7 @@ export async function recordIssuedFlags(db: DB, instance: Row) {
         instance.challenge_id,
         part ?? "",
         instance.owner_key,
-        flagHash(
-          dynamicFlag(
-            instance.challenge_id,
-            instance.scope,
-            instance.owner_key,
-            part ?? undefined,
-          ),
-        ),
+        flagHash(flagForInstance(instance, part ?? undefined)),
       ],
     );
 }

@@ -13,6 +13,7 @@ import {
   flagEnvironmentName,
   partEnvironmentName,
 } from "./flag-environment.js";
+import { flagTemplateInput } from "./flag-template.js";
 import {
   resourcesInput,
   objectiveInput,
@@ -71,6 +72,7 @@ export const partInput = z
     id: id.optional(),
     role: z.enum(["flag", "attack", "defense"]).default("flag"),
     flag_env: partEnvironmentName.nullable().optional(),
+    flag_template: flagTemplateInput.nullable().optional(),
     title: z.string().trim().min(1).max(80),
     description: z.string().max(1000).default(""),
     flag: z.string().min(1).max(256).optional(),
@@ -90,6 +92,7 @@ export const challengeInput = z
     challenge_type: z.enum(["ctf", "objective", "awdp", "awd"]).default("ctf"),
     flag_mode: z.enum(["static", "dynamic"]).nullable().default(null),
     flag_env: flagEnvironmentName.optional(),
+    flag_template: flagTemplateInput.optional(),
     resources: resourcesInput.nullable().default(null),
     objective: objectiveInput.nullable().default(null),
     patch_config: patchConfigInput.nullable().default(null),
@@ -168,6 +171,13 @@ export const challengeInput = z
     } else if (v.objective) error("只有客观题可以配置选项与填空答案");
     if (v.resources?.container?.mode === "public" && v.flag_mode === "dynamic")
       error("公共靶机需要使用静态 Flag");
+    if (
+      (v.flag_mode !== "dynamic" || v.challenge_type === "objective") &&
+      (v.flag_template || v.parts?.some((p) => p.flag_template))
+    )
+      error("Flag 模板仅用于动态 Flag");
+    if (v.parts?.some((p) => p.role === "defense" && p.flag_template))
+      error("防守计分单元不配置 Flag 模板");
     if (v.challenge_type === "awdp" || v.challenge_type === "awd") {
       if (
         !v.resources?.container ||

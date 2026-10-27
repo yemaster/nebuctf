@@ -7,6 +7,10 @@ import { openDB } from "../src/db.js";
 import { JudgeWorker } from "../src/judge-worker.js";
 import { config } from "../src/config.js";
 import { makeTar } from "../src/patch-archive.js";
+import {
+  flagEnvironmentSpec,
+  flagForInstance,
+} from "../src/flag-environment.js";
 import { patchStorage } from "../src/judge.js";
 
 test("patch worker reports functional, exploit, success and infrastructure outcomes without awarding failed defense", async (t) => {
@@ -62,6 +66,28 @@ test("patch worker reports functional, exploit, success and infrastructure outco
         "INSERT INTO challenge_parts(id,challenge_id,title,position,role,flag_hash,initial_points,minimum_points) VALUES($1,$2,'Defense',1,'defense','',100,100),($3,$2,'Attack',0,'attack','',100,100)",
         [def, cid, crypto.randomUUID()],
       );
+      await db.query(
+        "UPDATE challenges SET flag_template='Judge{[GUID]}' WHERE id=$1",
+        [cid],
+      );
+      await db.query(
+        "UPDATE challenge_parts SET flag_template='Attack{[TEAM_HASH]}' WHERE challenge_id=$1 AND role='attack'",
+        [cid],
+      );
+      const [challenge] = await db.query(
+        "SELECT * FROM challenges WHERE id=$1",
+        [cid],
+      );
+      const environment = await flagEnvironmentSpec(db, challenge!);
+      const expectedFlag = flagForInstance(
+        {
+          challenge_id: cid,
+          scope: "practice",
+          owner_key: "u:" + user,
+          spec: environment,
+        },
+        environment.parts[0],
+      );
       await mkdir(patchStorage(), { recursive: true });
       await writeFile(
         join(patchStorage(), jid),
@@ -80,7 +106,12 @@ test("patch worker reports functional, exploit, success and infrastructure outco
           cid,
           "u:" + user,
           user,
-          JSON.stringify({ container: profile, patch, type: "awdp" }),
+          JSON.stringify({
+            container: profile,
+            patch,
+            type: "awdp",
+            flag_environment: environment,
+          }),
         ],
       );
       const containers = new Map<string, any>(),
@@ -103,6 +134,15 @@ test("patch worker reports functional, exploit, success and infrastructure outco
           networks.delete(name);
         },
         createContainer: async (c: any) => {
+          const prefix = c.name.endsWith("-target")
+            ? "FLAG="
+            : "EXPECTED_FLAG=";
+          const flag = c.Env.find((v: string) => v.startsWith(prefix));
+          assert.equal(
+            flag,
+            prefix + expectedFlag,
+            "target and both checker stages receive the exact attack template flag",
+          );
           const v = {
             Config: c,
             NetworkSettings: {
