@@ -79,6 +79,16 @@ export function ObjectivePaper({
     [confirm, setConfirm] = useState(false);
   const now = useContestNow(data, query.dataUpdatedAt);
   useEffect(() => {
+    if (
+      confirm &&
+      data?.items.length &&
+      data.items
+        .filter((q) => q.permissions.submit)
+        .every((q) => q.saved.finalized_at)
+    )
+      setConfirm(false);
+  }, [confirm, data]);
+  useEffect(() => {
     if (!active || !focus || !data) return;
     document
       .getElementById(`paper-question-${focus}`)
@@ -94,7 +104,7 @@ export function ObjectivePaper({
       />
     );
   const editable = data.items.filter((q) => q.permissions.submit),
-    pending = editable.filter((q) => !q.saved.finalized_at || data.practice);
+    pending = editable.filter((q) => !q.saved.finalized_at);
   const completed = data.items.filter((q) =>
     answerComplete(q.objective, model.response(q)),
   ).length;
@@ -136,9 +146,7 @@ export function ObjectivePaper({
           <div className="divide-y">
             {data.items.map((q, index) => {
               const locked =
-                !withinTime ||
-                !q.permissions.submit ||
-                (!data.practice && !!q.saved.finalized_at);
+                !withinTime || !q.permissions.submit || !!q.saved.finalized_at;
               return (
                 <section
                   key={q.id}
@@ -249,9 +257,7 @@ export function ObjectivePaper({
               {remaining > 0
                 ? `还有 ${remaining} 题未完成。`
                 : "全部题目已填写。"}
-              {data.practice
-                ? "提交后查看判题结果。"
-                : "全队共享本次提交，提交后不能修改。"}
+              全队共享本次提交，提交后不能修改。
             </DialogDescription>
           </DialogHeader>
           {submit.error && <ActionError error={submit.error} />}

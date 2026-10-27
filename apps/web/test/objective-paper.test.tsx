@@ -346,6 +346,25 @@ test("whole objective paper keeps navigation, drafts and team submission togethe
       ) as HTMLButtonElement
     ).disabled,
   );
+  await act(async () =>
+    cache.setQueryData([path], { ...paper, practice: true }),
+  );
+  assert(
+    !button("提交答卷") && !button("保存草稿"),
+    "practice final answers have no write actions",
+  );
+  assert(
+    [
+      ...document.querySelectorAll<HTMLButtonElement>(
+        '[aria-label="客观题答卷"] [role="radio"], [aria-label="客观题答卷"] [role="checkbox"]',
+      ),
+    ].every((e) => e.disabled),
+  );
+  assert(
+    (
+      document.querySelector("#paper-question-q3 input") as HTMLInputElement
+    ).matches(":disabled"),
+  );
   // Hover/focus details do not navigate away from the paper.
   const blood = document.querySelector(
     'button[aria-label="Cookie Shop 一血：ALPHA"]',

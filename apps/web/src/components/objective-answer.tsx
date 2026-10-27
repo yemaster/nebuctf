@@ -39,15 +39,17 @@ export function ObjectiveAnswer({
     [edited, setEdited] = useState(false),
     loaded = useRef(false);
   useEffect(() => {
-    if (query.data && !loaded.current) {
+    if (query.data && (!loaded.current || query.data.finalized_at)) {
       setAnswer(query.data.answer);
       loaded.current = true;
+      if (query.data.finalized_at) {
+        setEdited(false);
+        setConfirm(false);
+      }
     }
   }, [query.data]);
   const saved = feedback ?? query.data,
-    locked =
-      readOnly ||
-      (!!saved?.finalized_at && scope !== "practice" && !saved.practice);
+    locked = readOnly || !!saved?.finalized_at;
   const submit = useAction(
     async (finalize: boolean) => {
       const result = await api<Saved>(`/challenges/${id}/answer`, "POST", {
@@ -56,6 +58,7 @@ export function ObjectiveAnswer({
         finalize,
       });
       setFeedback(result);
+      setAnswer(result.answer);
       setConfirm(false);
       setEdited(false);
     },
@@ -104,11 +107,7 @@ export function ObjectiveAnswer({
           </Button>
           <Button
             disabled={!complete || submit.isPending || query.isLoading}
-            onClick={() =>
-              scope === "practice" || saved?.practice
-                ? submit.mutate(true)
-                : setConfirm(true)
-            }
+            onClick={() => setConfirm(true)}
           >
             {submit.isPending ? "提交中" : "提交答案"}
           </Button>
@@ -125,7 +124,9 @@ export function ObjectiveAnswer({
           <DialogHeader>
             <DialogTitle>提交本题答案</DialogTitle>
             <DialogDescription>
-              全队共享本次答案，提交后不能修改。
+              {scope === "practice"
+                ? "提交后不能修改答案。"
+                : "全队共享本次答案，提交后不能修改。"}
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-3">
@@ -133,7 +134,7 @@ export function ObjectiveAnswer({
               继续检查
             </Button>
             <Button
-              disabled={submit.isPending || readOnly}
+              disabled={submit.isPending || locked}
               onClick={() => submit.mutate(true)}
             >
               确认提交

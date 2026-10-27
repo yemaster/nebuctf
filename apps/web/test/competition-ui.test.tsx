@@ -171,6 +171,7 @@ test(
       if (path.includes("/answer")) {
         if (body)
           answer = {
+            practice: answer.practice,
             answer: body.answer,
             correct: body.finalize ? true : null,
             review: body.finalize ? { choices: ["B"] } : null,
@@ -790,6 +791,70 @@ test(
               .disabled,
             true,
           );
+        },
+      );
+      await t.test(
+        "practice submissions confirm once and stay locked after reload",
+        async () => {
+          for (const scope of ["practice", "contest"]) {
+            answer = {
+              answer: {},
+              correct: null,
+              finalized_at: null,
+              practice: scope !== "practice",
+            };
+            const view = (
+              <ObjectiveAnswer
+                id={ctf.id}
+                scope={scope}
+                definition={{
+                  type: "single",
+                  options: [
+                    { id: "A", text: "First" },
+                    { id: "B", text: "Second" },
+                  ],
+                  blanks: [],
+                  case_sensitive: true,
+                  trim: true,
+                }}
+              />
+            );
+            await mount(view);
+            await settle(
+              () => !!button("保存答案") && !button("保存答案").disabled,
+            );
+            await click(host().querySelectorAll('[role="radio"]')[1]!);
+            const count = requests.length;
+            await click(button("提交答案"));
+            assert(
+              document
+                .querySelector('[role="dialog"]')
+                ?.textContent?.includes("不能修改"),
+            );
+            assert.equal(
+              requests.length,
+              count,
+              "opening confirmation does not submit",
+            );
+            await click(button("确认提交"));
+            await settle(() => !!answer.finalized_at && !button("提交答案"));
+            assert(!button("保存答案"));
+            assert(
+              [
+                ...host().querySelectorAll<HTMLButtonElement>('[role="radio"]'),
+              ].every((e) => e.disabled),
+            );
+            await mount(view);
+            await settle(
+              () => !!host().querySelector('[data-result="correct"]'),
+            );
+            assert(!button("提交答案") && !button("保存答案"));
+            assert(
+              [
+                ...host().querySelectorAll<HTMLButtonElement>('[role="radio"]'),
+              ].every((e) => e.disabled),
+            );
+          }
         },
       );
       await t.test(

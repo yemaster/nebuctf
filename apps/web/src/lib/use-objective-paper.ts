@@ -30,7 +30,7 @@ export function useObjectivePaper(
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
   useEffect(() => {
-    if (!query.data || query.data.practice) return;
+    if (!query.data) return;
     setDrafts((old) => {
       const locked = new Set(
         query.data!.items.filter((q) => q.saved.finalized_at).map((q) => q.id),
@@ -46,7 +46,8 @@ export function useObjectivePaper(
     drafts[question.id]?.answer ?? question.saved.answer;
   const state = (question: PaperQuestion) =>
     answerState(question, response(question), !!drafts[question.id]);
-  const change = (question: PaperQuestion, answer: ObjectiveResponse) =>
+  const change = (question: PaperQuestion, answer: ObjectiveResponse) => {
+    if (question.saved.finalized_at) return;
     setDrafts((old) => ({
       ...old,
       [question.id]: {
@@ -56,6 +57,7 @@ export function useObjectivePaper(
           : question.saved.revision,
       },
     }));
+  };
   const submit = useMutation({
     onMutate: () => cache.cancelQueries({ queryKey: [path] }),
     mutationFn: async (finalize: boolean) => {
