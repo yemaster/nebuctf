@@ -289,7 +289,7 @@ export function ChallengeWorkspace({
             >
               <div className="flex items-center justify-between gap-4">
                 {hasDefense ? (
-                  <TabsList aria-label="作答方式">
+                  <TabsList variant="line" aria-label="作答方式">
                     <TabsTrigger value="attack">攻击</TabsTrigger>
                     <TabsTrigger value="defense">防守</TabsTrigger>
                   </TabsList>
