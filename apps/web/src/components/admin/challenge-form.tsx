@@ -193,7 +193,7 @@ export function ChallengeForm({
         className="min-w-0 gap-6"
       >
         <div className="min-w-0 overflow-x-auto pb-1">
-          <TabsList aria-label="题目配置">
+          <TabsList variant="line" aria-label="题目配置">
             <TabsTrigger value="content">题目内容</TabsTrigger>
             <TabsTrigger value="scoring">
               {type === "objective" ? "答案与计分" : "Flag 与计分"}

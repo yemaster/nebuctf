@@ -489,9 +489,11 @@ PDF 通过现有管理员文件接口鉴权读取，预览携带版本号；文�
 
 ### 紧凑提交区与攻防反馈
 
-多 Flag 使用 shadcn Table 呈现紧凑的小题列表，每题一行。分数和解出数紧跟题名，间隔 12px，长内容自然换行，不再分散到卡片右侧；说明保留在题名下方，解出数使用较小的次级文字。普通提交区标题统一为「提交 flag」，共用等宽字体输入框。目录保留整行点击、折叠和三血悬停。参考 [Hackergame hub](https://github.com/ustclug/hackergame/blob/master/app/templates/hub.html) 的父题/小题层级和 [GeekGame 前端](https://github.com/PKU-GeekGame/gs-frontend) 的共享 Flag 提交方式。
+多 Flag 使用 shadcn Item / ItemGroup 呈现横向自动换行的小题列表。每项集中显示通过状态、题名、分数和解出数：题名在上，分数与解出数紧邻在下，说明完整显示。同一行等高，单项宽度随内容调整并限制最大宽度，长标题自然换行；使用现有 muted 底色，无阴影、无额外装饰，不做成可点击的选择器。普通提交区标题统一为「提交 flag」，共用等宽字体输入框。目录保留整行点击、折叠和三血悬停。参考 [Hackergame hub](https://github.com/ustclug/hackergame/blob/master/frontend/templates/hub.html) 的小题状态标记、[GeekGame Game 页面](https://github.com/PKU-GeekGame/gs-frontend/blob/master/src/page/Game.jsx) 的分值/通过人数层级与共享 Flag 输入，以及 [shadcn Item](https://ui.shadcn.com/docs/components/radix/item) 的标题、描述分组方式。
 
 防守题复用同一提交区的 shadcn Tabs，不在外部再放防守卡片。切换保留 Flag 草稿和补丁选择；Check、服务异常、EXP 利用成功、防御成功使用统一图标与紧凑状态行，失败时保留上传入口。额度和冷却紧邻操作显示。靶机启动、专属附件生成采用主题色，销毁/删除采用 destructive 按钮。
+
+后台题目配置、比赛配置统一使用 shadcn Tabs 的 line 变体，透明背景，选中项以下划线标记。新建、编辑和比赛内管理入口复用同一表单；保留键盘导航、表单草稿和校验后定位到对应标签页的行为。
 
 提示复用 Accordion 和 Dialog：锁定时仅返回价格，付费确认后加载正文，错误保留在当前操作处。后台「提示规则」「提交限制」采用统一全宽面板、Switch 与输入框，逐题覆盖每页 10 条。管理题库的范围列限制宽度并允许换行，长比赛名不会撑破表格。
 

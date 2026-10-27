@@ -186,7 +186,7 @@ export function ContestForm({
         className="min-w-0 gap-6"
       >
         <div className="min-w-0 overflow-x-auto pb-1">
-          <TabsList aria-label="比赛配置">
+          <TabsList variant="line" aria-label="比赛配置">
             <TabsTrigger value="content">基本信息</TabsTrigger>
             <TabsTrigger value="writeup">WriteUp 提交</TabsTrigger>
             <TabsTrigger value="challenges">赛题设置</TabsTrigger>

@@ -21,7 +21,14 @@ import { ActionError } from "./action-error";
 import { FlagFeedback } from "./flag-feedback";
 import { Markdown } from "./markdown";
 import { ScrollArea } from "./ui/scroll-area";
-import { Table, TableBody, TableRow, TableCell } from "./ui/table";
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "./ui/item";
 import {
   InputGroup,
   InputGroupInput,
@@ -317,58 +324,58 @@ export function ChallengeWorkspace({
               >
                 {c.parts?.filter((p) => !hasDefense || p.role !== "defense")
                   .length > 0 && (
-                  <Table className="table-fixed" aria-label="小题进度">
-                    <colgroup>
-                      <col className="w-6" />
-                      <col />
-                    </colgroup>
-                    <TableBody>
-                      {c.parts
-                        .filter((p) => !hasDefense || p.role !== "defense")
-                        .map((part) => (
-                          <TableRow
-                            key={part.id}
-                            className="border-0 hover:bg-transparent"
-                          >
-                            <TableCell className="py-1.5 pl-0 pr-2">
-                              {completed || part.solved ? (
-                                <CheckCircle2
-                                  className="size-4 text-success"
-                                  aria-label="已通过"
-                                />
-                              ) : (
-                                <Circle
-                                  className="size-4 text-muted-foreground"
-                                  aria-label="未通过"
-                                />
-                              )}
-                            </TableCell>
-                            <TableCell className="whitespace-normal break-words py-1.5 pl-0 pr-0">
-                              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                                <span className="max-w-full break-words font-medium">
-                                  {part.title}
+                  <ItemGroup
+                    aria-label="小题进度"
+                    className="flex-row flex-wrap items-stretch gap-2"
+                  >
+                    {c.parts
+                      .filter((p) => !hasDefense || p.role !== "defense")
+                      .map((part) => (
+                        <Item
+                          key={part.id}
+                          role="listitem"
+                          variant="muted"
+                          size="sm"
+                          className="min-w-44 max-w-full flex-nowrap items-start gap-2 px-3 py-2.5 sm:max-w-80"
+                        >
+                          <ItemMedia className="mt-0.5 translate-y-0">
+                            {completed || part.solved ? (
+                              <CheckCircle2
+                                className="size-4 text-success"
+                                aria-label="已通过"
+                              />
+                            ) : (
+                              <Circle
+                                className="size-4 text-muted-foreground"
+                                aria-label="未通过"
+                              />
+                            )}
+                          </ItemMedia>
+                          <ItemContent className="min-w-0 gap-1">
+                            <ItemTitle className="block max-w-full break-words">
+                              {part.title}
+                            </ItemTitle>
+                            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs tabular-nums">
+                              <span className="font-medium">
+                                {part.points}
+                                <span className="ml-1 font-normal text-muted-foreground">
+                                  分
                                 </span>
-                                <span className="shrink-0 font-medium tabular-nums">
-                                  {part.points}
-                                  <span className="ml-1 text-xs font-normal text-muted-foreground">
-                                    分
-                                  </span>
-                                </span>
-                                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                                  {part.solves}{" "}
-                                  {scope === "practice" ? "人" : "队"}解出
-                                </span>
-                              </div>
-                              {part.description && (
-                                <p className="mt-0.5 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
-                                  {part.description}
-                                </p>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                  </Table>
+                              </span>
+                              <span className="text-muted-foreground">
+                                {part.solves}{" "}
+                                {scope === "practice" ? "人" : "队"}解出
+                              </span>
+                            </div>
+                            {part.description && (
+                              <ItemDescription className="line-clamp-none whitespace-pre-wrap break-words text-xs leading-5 text-pretty">
+                                {part.description}
+                              </ItemDescription>
+                            )}
+                          </ItemContent>
+                        </Item>
+                      ))}
+                  </ItemGroup>
                 )}
                 {attackCompleted ? (
                   <FlagFeedback
