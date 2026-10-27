@@ -1,6 +1,12 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type Ref,
+} from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { randomUUID } from "@/lib/random-uuid";
 import type { Challenge, ContestGroup } from "@/lib/types";
@@ -14,6 +20,8 @@ import {
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Switch } from "./ui/switch";
+import { Badge } from "./ui/badge";
+import { Card, CardContent } from "./ui/card";
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -30,23 +38,44 @@ import {
 import { Field, Pagination, QueryState, Empty } from "./shared";
 
 type DraftGroup = ContestGroup & { key: string };
+type GroupIssue = {
+  key: string;
+  field: "name" | "description";
+  message: string;
+};
+export type GroupsEditorHandle = { validate: () => boolean };
+
 export function GroupsEditor({
   initial = [],
   challengeIds = [],
   started = false,
   registered = false,
+  ref,
 }: {
   initial?: ContestGroup[];
   challengeIds?: string[];
   started?: boolean;
   registered?: boolean;
+  ref?: Ref<GroupsEditorHandle>;
 }) {
   const [groups, setGroups] = useState<DraftGroup[]>(
     initial.map((g) => ({ ...g, key: g.id })),
   );
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [issue, setIssue] = useState<GroupIssue | null>(null);
   const [requested, setRequested] = useState(false);
-  // The editor stays open after save. Adopt server IDs for newly saved groups
-  // without discarding a draft or remounting its inputs.
+  const nameRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const previousKey = useRef<string | null>(null);
+  const active = groups.find((g) => g.key === activeKey);
+  const currentPage = Math.min(
+    page,
+    Math.max(1, Math.ceil(groups.length / 10)),
+  );
+
+  // Adopt server IDs after saving without discarding edits or changing card keys.
   useEffect(() => {
     setGroups((old) => {
       const next = old.map((g) =>
@@ -61,6 +90,50 @@ export function GroupsEditor({
       return next.some((g, i) => g.id !== old[i]!.id) ? next : old;
     });
   }, [initial]);
+  useEffect(() => {
+    if (activeKey) nameRef.current?.focus();
+    else if (previousKey.current) {
+      const button = Array.from(
+        listRef.current?.querySelectorAll<HTMLButtonElement>(
+          "[data-edit-group]",
+        ) ?? [],
+      ).find((el) => el.dataset.editGroup === previousKey.current);
+      button?.focus();
+    }
+    previousKey.current = activeKey;
+  }, [activeKey]);
+  useEffect(() => {
+    if (issue)
+      (issue.field === "name" ? nameRef : descriptionRef).current?.focus();
+  }, [issue]);
+  useImperativeHandle(ref, () => ({
+    validate() {
+      const names = new Set<string>();
+      for (const g of groups) {
+        const name = g.name.trim();
+        const message = !name
+          ? "请输入组别名称"
+          : name.length > 60
+            ? "组别名称最多 60 字"
+            : names.has(name)
+              ? "组别名称不能重复"
+              : "";
+        names.add(name);
+        if (message || g.description.length > 500) {
+          setIssue({
+            key: g.key,
+            field: message ? "name" : "description",
+            message: message || "参赛要求最多 500 字",
+          });
+          setPage(Math.floor(groups.indexOf(g) / 10) + 1);
+          setActiveKey(g.key);
+          return false;
+        }
+      }
+      setIssue(null);
+      return true;
+    },
+  }));
   const data = useQuery({
     queryKey: ["group-permission-challenges", challengeIds.join(",")],
     queryFn: async () => {
@@ -84,172 +157,320 @@ export function GroupsEditor({
     },
     enabled: requested && challengeIds.length > 0 && groups.length > 0,
   });
-  const update = (g: DraftGroup) =>
+  const update = (g: DraftGroup) => {
     setGroups((old) => old.map((item) => (item.key === g.key ? g : item)));
+    if (issue?.key === g.key) setIssue(null);
+  };
+  const remove = (g: DraftGroup) => {
+    if (registered) return;
+    setGroups((old) => old.filter((item) => item.key !== g.key));
+    if (activeKey === g.key) setActiveKey(null);
+    if (issue?.key === g.key) setIssue(null);
+  };
+  const overridesCount = (g: DraftGroup) =>
+    Object.keys(g.challenge_permissions ?? {}).filter((id) =>
+      challengeIds.includes(id),
+    ).length;
+  const permissions = active
+    ? { ...defaultGroupPermissions, ...active.permissions }
+    : defaultGroupPermissions;
   return (
-    <section className="min-w-0 space-y-4" aria-label="比赛组别权限">
+    <section className="min-w-0 space-y-5" aria-label="比赛组别权限">
+      {/* Serialize every draft, including cards on other pages and closed details. */}
+      {groups.map((g) => (
+        <div key={g.key} hidden>
+          <input type="hidden" name="group_id" value={g.id} />
+          <input type="hidden" name="group_name" value={g.name} />
+          <input type="hidden" name="group_description" value={g.description} />
+          <input
+            type="hidden"
+            name="group_permissions"
+            value={JSON.stringify({
+              ...defaultGroupPermissions,
+              ...g.permissions,
+            })}
+          />
+          <input
+            type="hidden"
+            name="group_challenge_permissions"
+            value={JSON.stringify(g.challenge_permissions ?? {})}
+          />
+        </div>
+      ))}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="font-medium">比赛组别</h3>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={registered || groups.length >= 20}
-          onClick={() =>
-            setGroups((old) => [
-              ...old,
-              {
+        {active ? (
+          <div className="flex min-w-0 items-center gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveKey(null)}
+            >
+              <ArrowLeft />
+              返回组别
+            </Button>
+            <h3 className="min-w-0 truncate font-medium" title={active.name}>
+              {active.name || "新建组别"}
+            </h3>
+          </div>
+        ) : (
+          <h3 className="font-medium">
+            比赛组别{" "}
+            <span className="ml-2 text-sm font-normal tabular-nums text-muted-foreground">
+              {groups.length}
+            </span>
+          </h3>
+        )}
+        {active ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-destructive hover:text-destructive"
+            aria-label={`删除组别 ${active.name || "未命名组别"}`}
+            title="删除组别"
+            disabled={registered}
+            onClick={() => remove(active)}
+          >
+            <Trash2 />
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={registered || groups.length >= 20}
+            onClick={() => {
+              const g = {
                 id: "",
                 key: randomUUID(),
                 name: "",
                 description: "",
                 permissions: { ...defaultGroupPermissions },
                 challenge_permissions: {},
-              },
-            ])
-          }
-        >
-          <Plus />
-          添加组别
-        </Button>
+              };
+              setGroups((old) => [...old, g]);
+              setPage(Math.ceil((groups.length + 1) / 10));
+              setActiveKey(g.key);
+            }}
+          >
+            <Plus />
+            添加组别
+          </Button>
+        )}
       </div>
       {registered && (
         <p className="text-sm text-muted-foreground">
           已有战队报名，组别不能增删。
         </p>
       )}
-      {started && (
-        <p className="text-sm text-muted-foreground">
-          计分、排名、三血和动态分值权限在开赛后锁定。
-        </p>
-      )}
-      {!groups.length && <Empty>未设置组别，所有战队使用相同权限</Empty>}
-      <div className="divide-y">
-        {groups.map((g, index) => {
-          const permissions = { ...defaultGroupPermissions, ...g.permissions };
-          return (
-            <section
-              key={g.key}
-              aria-label={`组别 ${g.name || index + 1}`}
-              className="min-w-0 space-y-6 py-6 first:pt-0"
+      {active ? (
+        <div
+          key={active.key}
+          className="min-w-0 space-y-6"
+          aria-label={`组别 ${active.name || "未命名组别"}`}
+        >
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <Field label="组别名称">
+              <Input
+                ref={nameRef}
+                required
+                maxLength={60}
+                value={active.name}
+                aria-invalid={
+                  issue?.key === active.key && issue.field === "name"
+                }
+                aria-describedby={
+                  issue?.key === active.key && issue.field === "name"
+                    ? "group-field-issue"
+                    : undefined
+                }
+                onChange={(e) => update({ ...active, name: e.target.value })}
+              />
+            </Field>
+            <Field label="参赛要求（可选）">
+              <Input
+                ref={descriptionRef}
+                maxLength={500}
+                value={active.description}
+                aria-invalid={
+                  issue?.key === active.key && issue.field === "description"
+                }
+                aria-describedby={
+                  issue?.key === active.key && issue.field === "description"
+                    ? "group-field-issue"
+                    : undefined
+                }
+                onChange={(e) =>
+                  update({ ...active, description: e.target.value })
+                }
+              />
+            </Field>
+          </div>
+          {issue?.key === active.key && (
+            <p
+              id="group-field-issue"
+              role="alert"
+              className="text-sm text-destructive"
             >
-              <input type="hidden" name="group_id" value={g.id} />
-              <input
-                type="hidden"
-                name="group_permissions"
-                value={JSON.stringify(permissions)}
-              />
-              <input
-                type="hidden"
-                name="group_challenge_permissions"
-                value={JSON.stringify(g.challenge_permissions ?? {})}
-              />
-              <div className="flex items-end gap-3">
-                <Field label="组别名称" className="min-w-0 flex-1">
-                  <Input
-                    name="group_name"
-                    required
-                    maxLength={60}
-                    value={g.name}
-                    onChange={(e) => update({ ...g, name: e.target.value })}
+              {issue.message}
+            </p>
+          )}
+          <fieldset className="min-w-0 space-y-4">
+            <legend className="mb-4 text-sm font-medium">默认权限</legend>
+            {started && (
+              <p className="text-sm text-muted-foreground">
+                计分、排名、三血和动态分值权限在开赛后锁定。
+              </p>
+            )}
+            <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+              {(
+                Object.keys(permissionLabels) as (keyof GroupPermissions)[]
+              ).map((key) => (
+                <label key={key} className="flex items-center gap-2 text-sm">
+                  <Switch
+                    checked={permissions[key]}
+                    disabled={started && scoringPermissions.has(key)}
+                    onCheckedChange={(yes) =>
+                      update({
+                        ...active,
+                        permissions: { ...permissions, [key]: !!yes },
+                      })
+                    }
                   />
-                </Field>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`删除组别 ${g.name || index + 1}`}
-                  disabled={registered}
-                  onClick={() =>
-                    setGroups((old) => old.filter((v) => v.key !== g.key))
-                  }
-                >
-                  <X />
-                </Button>
-              </div>
-              <Field label="参赛要求（可选）">
-                <Input
-                  name="group_description"
-                  maxLength={500}
-                  value={g.description}
-                  onChange={(e) =>
-                    update({ ...g, description: e.target.value })
-                  }
-                />
-              </Field>
-              <fieldset className="min-w-0">
-                <legend className="mb-4 text-sm font-medium">默认权限</legend>
-                <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
-                  {(
-                    Object.keys(permissionLabels) as (keyof GroupPermissions)[]
-                  ).map((key) => (
-                    <label
-                      key={key}
-                      className="flex items-center gap-2 text-sm"
-                    >
-                      <Switch
-                        checked={permissions[key]}
-                        disabled={started && scoringPermissions.has(key)}
-                        onCheckedChange={(yes) =>
-                          update({
-                            ...g,
-                            permissions: { ...permissions, [key]: !!yes },
-                          })
-                        }
-                      />
-                      {permissionLabels[key]}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-              <Collapsible
-                className="space-y-3"
-                onOpenChange={(open) => {
-                  if (open) setRequested(true);
-                }}
+                  {permissionLabels[key]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <Collapsible
+            className="space-y-3"
+            onOpenChange={(open) => {
+              if (open) setRequested(true);
+            }}
+          >
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className="group h-auto w-full justify-between gap-3 px-0 py-3 text-left hover:bg-transparent dark:hover:bg-transparent"
               >
-                <CollapsibleTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="group h-auto w-full justify-between gap-3 px-0 py-3 text-left hover:bg-transparent dark:hover:bg-transparent"
-                  >
-                    <span>
-                      单题权限
-                      {Object.keys(g.challenge_permissions ?? {}).filter((id) =>
-                        challengeIds.includes(id),
-                      ).length
-                        ? `（${Object.keys(g.challenge_permissions ?? {}).filter((id) => challengeIds.includes(id)).length} 项覆盖）`
-                        : ""}
-                    </span>
-                    <ChevronDown className="text-muted-foreground motion-safe:transition-transform group-data-[state=open]:rotate-180" />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="min-w-0 space-y-3">
-                  <QueryState
-                    loading={data.isLoading}
-                    error={data.error}
-                    retry={() => void data.refetch()}
-                  />
-                  {!challengeIds.length && (
-                    <Empty>先在赛题设置中选用题目</Empty>
-                  )}
-                  {!!data.data?.length && (
+                <span>
+                  单题权限
+                  {overridesCount(active)
+                    ? `（${overridesCount(active)} 项覆盖）`
+                    : ""}
+                </span>
+                <ChevronDown className="text-muted-foreground motion-safe:transition-transform group-data-[state=open]:rotate-180" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="min-w-0 space-y-3">
+              <QueryState
+                loading={data.isLoading}
+                error={data.error}
+                retry={() => void data.refetch()}
+              />
+              {!data.error &&
+                !data.isLoading &&
+                (!challengeIds.length ? (
+                  <Empty>先在赛题设置中选用题目</Empty>
+                ) : (
+                  !!data.data?.length && (
                     <ChallengePermissionTable
                       items={data.data}
                       defaults={permissions}
-                      overrides={g.challenge_permissions ?? {}}
+                      overrides={active.challenge_permissions ?? {}}
                       started={started}
                       onChange={(challenge_permissions) =>
-                        update({ ...g, challenge_permissions })
+                        update({ ...active, challenge_permissions })
                       }
                     />
-                  )}
-                </CollapsibleContent>
-              </Collapsible>
-            </section>
-          );
-        })}
-      </div>
+                  )
+                ))}
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+      ) : (
+        <div ref={listRef} className="space-y-4">
+          {!groups.length && <Empty>未设置组别，所有战队使用相同权限</Empty>}
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),1fr))] gap-4">
+            {groups.slice((currentPage - 1) * 10, currentPage * 10).map((g) => {
+              const p = { ...defaultGroupPermissions, ...g.permissions };
+              return (
+                <Card
+                  key={g.key}
+                  className="relative min-w-0 gap-3 py-4 shadow-none transition-shadow hover:shadow-sm motion-reduce:transition-none"
+                >
+                  <button
+                    type="button"
+                    data-edit-group={g.key}
+                    aria-label={`配置组别 ${g.name || "未命名组别"}`}
+                    title={g.name || "未命名组别"}
+                    className="absolute inset-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => setActiveKey(g.key)}
+                  />
+                  <CardContent className="pointer-events-none space-y-3 px-4">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <h4
+                        className="min-w-0 flex-1 truncate font-medium"
+                        title={g.name}
+                      >
+                        {g.name || "未命名组别"}
+                      </h4>
+                      <Pencil
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="pointer-events-auto relative z-10 size-7 text-destructive hover:text-destructive"
+                        aria-label={`删除组别 ${g.name || "未命名组别"}`}
+                        title="删除组别"
+                        disabled={registered}
+                        onClick={() => remove(g)}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </div>
+                    {g.description && (
+                      <p className="line-clamp-2 break-words text-sm text-muted-foreground">
+                        {g.description}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge
+                        className={
+                          p.join ? "bg-success/10 text-success" : undefined
+                        }
+                      >
+                        {p.join ? "开放报名" : "报名关闭"}
+                      </Badge>
+                      <Badge>{p.require_review ? "需审核" : "免审核"}</Badge>
+                      <Badge>{p.rank_overall ? "全局排名" : "组内排名"}</Badge>
+                      {!p.score && <Badge>不计分</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {overridesCount(g)
+                        ? `${overridesCount(g)} 道题单独配置权限`
+                        : "赛题沿用默认权限"}
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+          {groups.length > 10 && (
+            <Pagination
+              page={currentPage}
+              setPage={setPage}
+              pageSize={10}
+              total={groups.length}
+              hasMore={currentPage * 10 < groups.length}
+            />
+          )}
+        </div>
+      )}
     </section>
   );
 }

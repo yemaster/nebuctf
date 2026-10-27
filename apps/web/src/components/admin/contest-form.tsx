@@ -20,13 +20,17 @@ import { ContestQuestions, type QuestionIssue } from "./contest-questions";
 import { PhaseEditor } from "./phase-editor";
 import { validateContestQuestions } from "@/lib/contest-editor";
 import type { ContestQuestion } from "@/lib/competition";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Contest } from "@/lib/types";
 import { Button } from "../ui/button";
 import { Input, Textarea } from "../ui/input";
 import { Switch } from "../ui/switch";
 import { Field } from "../shared";
-import { GroupsEditor, readGroups } from "../groups-editor";
+import {
+  GroupsEditor,
+  readGroups,
+  type GroupsEditorHandle,
+} from "../groups-editor";
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 import { ConfigPanel, focusInvalidField } from "./config-tabs";
 import { inputDate } from "./shared";
@@ -77,6 +81,7 @@ export function ContestForm({
     null,
   );
   const [scheduleIssue, setScheduleIssue] = useState("");
+  const groupsEditor = useRef<GroupsEditorHandle>(null);
   const started = !!c && Date.parse(c.starts_at) <= Date.now();
   return (
     <form
@@ -131,6 +136,10 @@ export function ContestForm({
           return;
         }
         setHintIssue(null);
+        if (groupsEditor.current && !groupsEditor.current.validate()) {
+          setSection("registration");
+          return;
+        }
         if (focusInvalidField(e.currentTarget, setSection)) return;
         const registrationOpen = f.get("registration_opens_at")
           ? new Date(String(f.get("registration_opens_at"))).toISOString()
@@ -397,6 +406,7 @@ export function ContestForm({
               </Field>
             </div>
             <GroupsEditor
+              ref={groupsEditor}
               initial={c?.groups}
               challengeIds={selected}
               started={started}

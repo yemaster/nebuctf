@@ -520,4 +520,6 @@ Markdown 代码使用 [Refractor](https://github.com/wooorm/refractor) 的按需
 
 比赛左上角的返回入口平时仅显示箭头，悬停或键盘聚焦时以 200 ms 展开并显示「返回大厅」，移开后收起。按钮始终保留可访问名称；展开期间导航栏高度与右侧账户位置保持不变。减少动态效果偏好下直接切换。
 
+报名分组参考 [GZCTF DivisionCard](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/components/admin/DivisionCard.tsx) 和 [分组管理页](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/ClientApp/src/pages/admin/games/%5Bid%5D/Divisions.tsx) 的摘要卡片与集中编辑结构，实际查看了项目分组管理截图。列表每页 10 组，卡片展示名称、参赛要求、报名/审核/排名状态、不计分标记和单题覆盖数。整块卡片进入当前组的独立配置视图，返回列表恢复焦点；使用本项目 shadcn Card、Badge、Switch，沿用统一保存比赛的方式。所有组别草稿始终参与序列化，切换卡片、分页或比赛设置标签不丢失修改。保存时会打开空白或重名的组别并聚焦字段；已有报名的增删限制和开赛后的计分锁定保持生效。
+
 后台「时间规则」将报名和比赛分段排列，报名开放/截止均可选，保存时对窗口顺序和比赛结束边界校验。错误原位显示并切换到该标签；标签切换保留草稿，现有 WriteUp、分组、审核、指定战队与邀请码设置仍各自生效。

@@ -260,7 +260,7 @@ test(
       );
     try {
       await t.test(
-        "group permissions remain visible, inherit per question and persist across pagination",
+        "group cards open details and preserve question overrides across navigation",
         async () => {
           const selected = questionBank.map((c) => c.id);
           await mount(
@@ -287,6 +287,8 @@ test(
             [...host().querySelectorAll("label")]
               .find((l) => l.textContent?.trim() === label)!
               .querySelector("button")!;
+          assert.equal(host().querySelectorAll('[role="switch"]').length, 0);
+          await click(host().querySelector('[aria-label="配置组别 体验组"]')!);
           assert.equal(host().querySelectorAll('[role="switch"]').length, 9);
           assert.equal(values().permissions.score, false);
           await click(toggle("查看赛题"));
@@ -316,6 +318,14 @@ test(
           );
           await click(cb("CTF service沿用组别权限"));
           assert.equal(values().challenge_permissions[ctf.id], undefined);
+          await click(button("返回组别"));
+          assert.equal(host().querySelectorAll('[role="switch"]').length, 0);
+          assert.equal(values().permissions.view, false);
+          await click(host().querySelector('[aria-label="配置组别 体验组"]')!);
+          assert.equal(
+            toggle("查看赛题").getAttribute("data-state"),
+            "unchecked",
+          );
         },
       );
       await t.test(
@@ -342,7 +352,7 @@ test(
           await mount(<Harness />);
           await click(button("添加组别"));
           await change(
-            host().querySelector('[name="group_name"]')!,
+            host().querySelector('input[maxlength="60"]')!,
             " 新组别 ",
           );
           const toggle = [...host().querySelectorAll("label")]
@@ -365,6 +375,7 @@ test(
             />,
           );
           assert(button("添加组别").disabled);
+          await click(host().querySelector('[aria-label="配置组别 正式组"]')!);
           for (const label of [
             "获得积分",
             "参与三血",
@@ -382,6 +393,68 @@ test(
               .find((l) => l.textContent === "查看赛题")!
               .querySelector("button")!.disabled,
           );
+        },
+      );
+      await t.test(
+        "group cards paginate without dropping drafts and reveal hidden invalid names",
+        async () => {
+          const ref =
+            React.createRef<
+              import("../src/components/groups-editor").GroupsEditorHandle
+            >();
+          await mount(
+            <form>
+              <GroupsEditor
+                ref={ref}
+                initial={Array.from({ length: 12 }, (_, i) => ({
+                  id: `group-${i}`,
+                  name: `组别 ${i + 1}`,
+                  description: "",
+                  permissions: { score: i !== 11 },
+                }))}
+              />
+            </form>,
+          );
+          const read = () =>
+            readGroups(new dom.window.FormData(host().querySelector("form")!));
+          assert.equal(host().querySelectorAll("[data-edit-group]").length, 10);
+          assert.equal(read().length, 12);
+          await click(host().querySelector('[aria-label="下一页"]')!);
+          assert.equal(host().querySelectorAll("[data-edit-group]").length, 2);
+          await click(host().querySelector('[aria-label="配置组别 组别 12"]')!);
+          await change(
+            host().querySelector('input[maxlength="60"]')!,
+            "组别 1",
+          );
+          await click(button("返回组别"));
+          await act(async () => assert.equal(ref.current!.validate(), false));
+          assert.equal(
+            host().querySelector('[role="alert"]')!.textContent,
+            "组别名称不能重复",
+          );
+          assert.equal(
+            document.activeElement,
+            host().querySelector('input[maxlength="60"]'),
+          );
+          assert.equal(read()[11].permissions.score, false);
+          await change(host().querySelector('input[maxlength="60"]')!, "   ");
+          await click(button("返回组别"));
+          await act(async () => assert.equal(ref.current!.validate(), false));
+          assert.equal(
+            host().querySelector('[role="alert"]')!.textContent,
+            "请输入组别名称",
+          );
+          await change(
+            host().querySelector('input[maxlength="60"]')!,
+            "更新后的组别",
+          );
+          await act(async () => assert.equal(ref.current!.validate(), true));
+          await click(button("返回组别"));
+          await click(
+            host().querySelector('[aria-label="删除组别 更新后的组别"]')!,
+          );
+          assert.equal(read().length, 11);
+          assert.equal(read()[10].id, "group-10");
         },
       );
       await t.test(
