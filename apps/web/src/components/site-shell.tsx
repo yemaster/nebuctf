@@ -147,12 +147,16 @@ export function SiteHeader({
           <Button
             variant="ghost"
             asChild
-            className="h-full w-11 shrink-0 rounded-none p-0 transition-colors duration-200 motion-reduce:transition-none hover:bg-transparent dark:hover:bg-transparent 2xl:w-auto 2xl:px-4"
+            className="group/return h-full w-11 shrink-0 justify-start gap-0 overflow-hidden rounded-none px-3.5 has-[>svg]:px-3.5 transition-[width,color] duration-200 ease-out motion-reduce:transition-none hover:w-28 hover:bg-transparent focus-visible:w-28 dark:hover:bg-transparent"
           >
-            <Link to="/contests">
+            <Link to="/contests" aria-label="返回大厅">
               <ArrowLeft />
-              <span className="hidden 2xl:inline">返回大厅</span>
-              <span className="sr-only 2xl:hidden">返回大厅</span>
+              <span
+                aria-hidden="true"
+                className="ml-2 -translate-x-1 opacity-0 transition-[opacity,transform] duration-150 group-hover/return:translate-x-0 group-hover/return:opacity-100 group-focus-visible/return:translate-x-0 group-focus-visible/return:opacity-100 motion-reduce:transition-none"
+              >
+                返回大厅
+              </span>
             </Link>
           </Button>
         )}
@@ -216,7 +220,7 @@ export function SiteHeader({
           className={cn(
             "min-w-0 truncate rounded-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring",
             contestId
-              ? "flex-1 text-base xl:flex-none xl:max-w-40 2xl:max-w-64"
+              ? "flex-1 text-base xl:flex-initial xl:max-w-40 2xl:max-w-64"
               : "text-lg sm:text-xl lg:mr-2 xl:mr-6",
           )}
         >

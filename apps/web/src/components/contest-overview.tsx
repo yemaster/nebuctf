@@ -124,11 +124,6 @@ export function ContestOverview({
         <Card className="min-w-0 border-0">
           <CardContent className="space-y-6">
             <ContestSchedule contest={c} receivedAt={receivedAt} />
-            {c.freeze_at && (
-              <p className="text-xs text-muted-foreground">
-                封榜 {date(c.freeze_at)}
-              </p>
-            )}
             {practice && (
               <p className="text-xs text-muted-foreground">
                 练习成绩不计入正式排名。

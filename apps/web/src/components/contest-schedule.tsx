@@ -1,7 +1,10 @@
 import type { Contest } from "@/lib/types";
-import { contestProgress, contestStages } from "@/lib/contest-schedule";
+import { contestProgress, contestTimeline } from "@/lib/contest-schedule";
 import { useContestNow } from "./contest-clock";
 import { Badge } from "./ui/badge";
+import { Separator } from "./ui/separator";
+import { CheckCircle2, Circle, CircleDot } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Progress } from "./ui/progress";
 
 const dateFormat = new Intl.DateTimeFormat("zh-CN", {
@@ -63,88 +66,96 @@ export function ContestSchedule({
   receivedAt: number;
 }) {
   const now = useContestNow(contest.clock, receivedAt);
-  const stages = contestStages(contest, now);
+  const nodes = contestTimeline(contest, now);
   return (
     <section aria-labelledby="contest-schedule-title" className="space-y-4">
       <h2 id="contest-schedule-title" className="text-base font-semibold">
         赛程
       </h2>
-      <ol className="space-y-5">
-        {stages.map((stage) => (
-          <li key={stage.id} className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-medium">{stage.title}</h3>
-              <Badge
-                variant="secondary"
-                className={
-                  stage.state === "active"
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground"
-                }
-              >
-                {stage.label}
-              </Badge>
-            </div>
-            <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs tabular-nums text-muted-foreground">
-              {stage.start ? (
-                <time
-                  dateTime={stage.start}
-                  title={dateFormat.format(new Date(stage.start))}
-                >
-                  {shortDate.format(new Date(stage.start))}
-                </time>
-              ) : (
-                <span>发布后</span>
+      <ol aria-label="比赛时间轴">
+        {nodes.map((node, index) => {
+          const current = node.state === "current";
+          const past = node.state === "past";
+          const Icon = current ? CircleDot : past ? CheckCircle2 : Circle;
+          return (
+            <li
+              key={node.id}
+              aria-current={current ? "time" : undefined}
+              data-timeline-state={node.state}
+              className="relative grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3 pb-5 last:pb-0"
+            >
+              {index < nodes.length - 1 && (
+                <Separator
+                  orientation="vertical"
+                  className={cn(
+                    "absolute left-[7.5px] top-5 -bottom-1 data-[orientation=vertical]:h-auto",
+                    past ? "bg-primary/30" : "bg-border",
+                  )}
+                />
               )}
-              <span>至</span>
-              {stage.end ? (
-                <time
-                  dateTime={stage.end}
-                  title={dateFormat.format(new Date(stage.end))}
-                >
-                  {shortDate.format(new Date(stage.end))}
-                </time>
-              ) : (
-                <span>持续开放</span>
-              )}
-            </p>
-            {stage.id === "contest" && (
-              <ul className="space-y-2">
-                {(
-                  [
-                    ["objective", "客观题"],
-                    ["practical", "实操题"],
-                  ] as const
-                ).map(([key, label]) => {
-                  const phase = contest.timing?.[key];
-                  return phase &&
-                    phase.mode !== "inherit" &&
-                    phase.opens_at &&
-                    phase.closes_at ? (
-                    <li
-                      key={key}
-                      className="space-y-1 text-xs text-muted-foreground"
+              <Icon
+                aria-hidden="true"
+                className={cn(
+                  "relative z-10 mt-0.5 size-4 bg-card",
+                  current ? "text-primary" : "text-muted-foreground",
+                )}
+              />
+              <div className="min-w-0 space-y-1.5">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs">
+                  {current && (
+                    <span className="font-medium text-primary">现在</span>
+                  )}
+                  {node.at ? (
+                    <time
+                      dateTime={node.at}
+                      title={dateFormat.format(new Date(node.at))}
+                      className="tabular-nums text-muted-foreground"
                     >
-                      <span className="font-medium text-foreground">
-                        {label}
-                      </span>
-                      <p className="tabular-nums">
-                        {shortDate.format(new Date(phase.opens_at))} —{" "}
-                        {shortDate.format(new Date(phase.closes_at))}
-                      </p>
-                      {phase.mode === "flexible" && (
-                        <p>
-                          自由开始，限时 {(phase.duration_seconds ?? 0) / 60}{" "}
-                          分钟
+                      {shortDate.format(new Date(node.at))}
+                    </time>
+                  ) : (
+                    <span className="text-muted-foreground">发布后</span>
+                  )}
+                </div>
+                {current ? (
+                  node.events.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {node.events.map((event) => (
+                        <Badge
+                          key={event.id}
+                          variant="secondary"
+                          className="bg-primary/10 text-primary"
+                        >
+                          {event.title}
+                        </Badge>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  <div className="space-y-1">
+                    {node.events.map((event) => (
+                      <div key={event.id}>
+                        <p
+                          className={cn(
+                            "break-words text-sm",
+                            past ? "text-muted-foreground" : "font-medium",
+                          )}
+                        >
+                          {event.title}
                         </p>
-                      )}
-                    </li>
-                  ) : null;
-                })}
-              </ul>
-            )}
-          </li>
-        ))}
+                        {event.detail && (
+                          <p className="text-xs leading-5 text-muted-foreground">
+                            {event.detail}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ol>
     </section>
   );
