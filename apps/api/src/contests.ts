@@ -4,6 +4,7 @@ import { readContestClock } from "./contest-clock.js";
 import {
   publicContest,
   checkRegistrationScope,
+  checkRegistrationWindow,
   contestVisibilitySQL,
 } from "./contest-entry.js";
 import { registrationRoutes } from "./registrations.js";
@@ -155,6 +156,7 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
       const c = await contestAccess(tx, cid, u, false);
       if (new Date(c!.ends_at).getTime() <= Date.now() && !isContestPractice(c))
         fail(403, "比赛已经结束");
+      checkRegistrationWindow(c!);
       const selection = z
         .object({
           team_id: id.optional(),

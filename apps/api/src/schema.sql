@@ -261,3 +261,7 @@ CREATE INDEX IF NOT EXISTS submissions_attempt_count ON submissions(scope,challe
 CREATE INDEX IF NOT EXISTS judge_jobs_team_revision ON judge_jobs(scope,owner_key,updated_at DESC);
 INSERT INTO submissions(id,user_id,challenge_id,scope,owner_key,correct,created_at) SELECT a.id,a.user_id,r.challenge_id,r.contest_id::text,a.attacker_key,true,a.created_at FROM awd_attacks a JOIN awd_flags f ON f.flag_hash=a.flag_hash JOIN contest_rounds r ON r.id=f.round_id WHERE NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=24) ON CONFLICT(id) DO NOTHING;
 INSERT INTO schema_migrations(version) VALUES(24) ON CONFLICT DO NOTHING;
+
+ALTER TABLE contests ADD COLUMN IF NOT EXISTS registration_opens_at timestamptz;
+ALTER TABLE contests ADD COLUMN IF NOT EXISTS registration_closes_at timestamptz;
+INSERT INTO schema_migrations(version) VALUES(25) ON CONFLICT DO NOTHING;

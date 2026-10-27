@@ -1,5 +1,9 @@
 import { hintDefinitions } from "./hint-rules.js";
-import { publicContest, registrationCodeHash } from "./contest-entry.js";
+import {
+  publicContest,
+  registrationCodeHash,
+  validateRegistrationWindow,
+} from "./contest-entry.js";
 import { validateWriteup, writeupInput } from "./writeup-config.js";
 import { recordContestNotice } from "./activity-events.js";
 import { isDeepStrictEqual } from "node:util";
@@ -394,6 +398,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
             [cid],
           );
           if (method === "PUT" && !old) fail(404, "比赛不存在");
+          validateRegistrationWindow({ ...old, ...data });
           const ids = [...new Set(data.challenge_ids)];
           const previous = await tx.query(
             "SELECT * FROM contest_challenges WHERE contest_id=$1",

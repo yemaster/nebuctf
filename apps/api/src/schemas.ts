@@ -211,6 +211,8 @@ export const contestInput = z
     visibility: z.enum(["public", "private"]).optional(),
     resource_limits: contestResourceLimitsInput.optional(),
     registration_mode: z.enum(["public", "invite", "teams"]).optional(),
+    registration_opens_at: z.iso.datetime().nullable().optional(),
+    registration_closes_at: z.iso.datetime().nullable().optional(),
     registration_code: z
       .string()
       .trim()

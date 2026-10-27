@@ -3,6 +3,34 @@ import type { DB, Row } from "./db.js";
 import type { User } from "./context.js";
 import { config } from "./config.js";
 import { equal, fail } from "./security.js";
+import { isContestPractice } from "./contest-practice.js";
+
+export function validateRegistrationWindow(contest: Row) {
+  const start = contest.registration_opens_at
+    ? new Date(contest.registration_opens_at).getTime()
+    : null;
+  const end = new Date(
+    contest.registration_closes_at ?? contest.ends_at,
+  ).getTime();
+  if (start !== null && start >= end)
+    fail(400, "报名开放时间必须早于报名截止时间");
+  if (end > new Date(contest.ends_at).getTime())
+    fail(400, "报名截止时间不能晚于比赛结束时间");
+}
+
+export function checkRegistrationWindow(contest: Row, now = Date.now()) {
+  if (isContestPractice(contest, now)) return;
+  const action = { label: "查看赛程", href: `/contests/${contest.id}` };
+  if (
+    contest.registration_opens_at &&
+    now < new Date(contest.registration_opens_at).getTime()
+  )
+    fail(403, "报名尚未开放", action);
+  if (
+    now >= new Date(contest.registration_closes_at ?? contest.ends_at).getTime()
+  )
+    fail(403, "报名已截止", action);
+}
 
 export const registrationCodeHash = (value: string) =>
   createHmac("sha256", config.APP_SECRET)
