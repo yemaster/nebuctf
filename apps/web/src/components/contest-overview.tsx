@@ -74,10 +74,10 @@ export function ContestOverview({
             <ContestProgress contest={c} receivedAt={receivedAt} />
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-3 xl:flex-nowrap">
-                {participation}
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                   {actions}
                 </div>
+                {participation}
               </div>
               {c.registration?.review_note && (
                 <p className="break-words text-sm text-muted-foreground">
