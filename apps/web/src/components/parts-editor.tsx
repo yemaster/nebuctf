@@ -5,6 +5,7 @@ import { randomUUID } from "@/lib/random-uuid";
 import { Button } from "./ui/button";
 import { Input, Textarea } from "./ui/input";
 import { Field } from "./shared";
+import { FlagTemplate } from "./admin/flag-template";
 const ScoreCurve = lazy(() => import("./admin/score-curve"));
 
 export type PartDraft = Partial<ChallengePart> & { key: string };
@@ -19,6 +20,7 @@ export function PartsEditor({
   parts,
   setParts,
   dynamic,
+  flagTemplate = "",
   dynamicScore = true,
   locked = false,
   decay = 20,
@@ -27,6 +29,7 @@ export function PartsEditor({
   parts: PartDraft[];
   setParts: (v: PartDraft[]) => void;
   dynamic: boolean;
+  flagTemplate?: string;
   dynamicScore?: boolean;
   locked?: boolean;
   decay?: number;
@@ -168,6 +171,21 @@ export function PartsEditor({
                     />
                   </Field>
                 </fieldset>
+                {dynamic && p.role !== "defense" && (
+                  <FlagTemplate
+                    value={p.flag_template ?? ""}
+                    inherited={flagTemplate}
+                    onChange={(value) =>
+                      setParts(
+                        parts.map((part) =>
+                          part.key === p.key
+                            ? { ...part, flag_template: value || null }
+                            : part,
+                        ),
+                      )
+                    }
+                  />
+                )}
               </div>
             </div>
             {dynamicScore && showCurves && (
@@ -214,6 +232,7 @@ export function readParts(f: FormData, parts: PartDraft[]) {
     id: p.id,
     role: p.role ?? "flag",
     flag_env: p.role === "defense" ? null : p.flag_env,
+    flag_template: p.role === "defense" ? null : (p.flag_template ?? null),
     title: f.get(`part-${p.key}-title`),
     description: f.get(`part-${p.key}-description`),
     initial_points: Number(f.get(`part-${p.key}-initial_points`)),

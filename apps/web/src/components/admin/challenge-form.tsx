@@ -1,5 +1,6 @@
 import { randomUUID as hintUUID } from "@/lib/random-uuid";
 import { FlagInjection } from "./flag-injection";
+import { FlagTemplate } from "./flag-template";
 import { CheckerImageTools } from "./image-tools";
 import { lazy, Suspense, useRef, useState } from "react";
 import type { Challenge } from "@/lib/types";
@@ -85,6 +86,9 @@ export function ChallengeForm({
     decay: String(c?.decay ?? 20),
   });
   const [flagEnv, setFlagEnv] = useState(c?.flag_env ?? "FLAG");
+  const [flagTemplate, setFlagTemplate] = useState(
+    c?.flag_template ?? (c ? "" : "flag{[GUID]}"),
+  );
   const [dynamicScore, setDynamicScore] = useState(c?.dynamic_score ?? true);
   const [multi, setMulti] = useState(!!c?.parts?.length);
   const [parts, setParts] = useState<PartDraft[]>(
@@ -155,13 +159,20 @@ export function ChallengeForm({
           challenge_type: type,
           flag_mode: practical ? flagMode : "static",
           flag_env: flagEnv,
+          flag_template: practical && dynamic ? flagTemplate : "",
           resources: practical
             ? resources
             : { container: null, attachment: null },
           objective: type === "objective" ? objective : null,
           patch_config: attackDefense ? patch : null,
           awd_config: type === "awd" ? awd : null,
-          parts: practical && multi ? readParts(f, parts) : [],
+          parts:
+            practical && multi
+              ? readParts(f, parts).map((p) => ({
+                  ...p,
+                  flag_template: dynamic ? p.flag_template : null,
+                }))
+              : [],
           hints: hints.filter((hint) => hint.content.trim().length > 0),
           published: publication === "enabled",
           publish_at: null,
@@ -284,6 +295,13 @@ export function ChallengeForm({
             {type === "objective" && (
               <ObjectiveEditor value={objective} onChange={setObjective} />
             )}
+            {type === "awd" && (
+              <FlagTemplate
+                value={flagTemplate}
+                onChange={setFlagTemplate}
+                disabled={pending}
+              />
+            )}
             {type === "awd" ? (
               <p className="text-sm text-muted-foreground">
                 攻击分、守住 Flag 得分和服务可用分在比赛选题中设置。
@@ -365,6 +383,13 @@ export function ChallengeForm({
                     </Field>
                   )}
                 </div>
+                {practical && dynamic && (
+                  <FlagTemplate
+                    value={flagTemplate}
+                    onChange={setFlagTemplate}
+                    disabled={pending}
+                  />
+                )}
                 {practical && !multi && !dynamic && (
                   <Field label={retainsFlag ? "Flag（留空保留原值）" : "Flag"}>
                     <Input
@@ -448,6 +473,7 @@ export function ChallengeForm({
                     parts={parts}
                     setParts={setParts}
                     dynamic={dynamic}
+                    flagTemplate={flagTemplate}
                     dynamicScore={dynamicScore}
                     locked={attackDefense}
                     decay={Number(scoreValues.decay)}

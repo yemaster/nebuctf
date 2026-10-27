@@ -116,6 +116,21 @@ test(
       const path = String(input).replace(/^\/api/, ""),
         method = init?.method ?? "GET";
       calls.push({ path, method, body: init?.body });
+      if (path === "/admin/flag-template/preview") {
+        const { template } = JSON.parse(init!.body as string);
+        if (template === "flag{short}")
+          return Response.json({ error: "模板变化空间不足" }, { status: 400 });
+        await new Promise((r) => setTimeout(r, 30));
+        return Response.json({
+          samples: [
+            template
+              .replace("[GUID]", "sample-uuid")
+              .replace("[TEAM_HASH]", "012345abcdef"),
+          ],
+          length: 42,
+          entropy: 122,
+        });
+      }
       if (method === "DELETE") return Response.json({ ok: true });
       if (method === "POST" && path.endsWith("/attachments"))
         return Response.json({ id: "uploaded" });
@@ -554,6 +569,7 @@ test(
           assert.equal(saved.resources.attachment.image, "nebuctf/generator:1");
           assert.equal(saved.resources.attachment.memory, 128);
           assert.equal(saved.flag_mode, "dynamic");
+          assert.equal(saved.flag_template, "");
           assert.equal(saved.flag, undefined);
           await tab("靶机配置");
           assert.equal(field("container-image").value, "nebuctf/edited:local");
@@ -619,6 +635,7 @@ test(
           await mount({
             ...base,
             flag_mode: "dynamic",
+            flag_template: "NebuCTF{[GUID]}",
             resources: {
               container: {
                 image: "nebuctf/edited:local",
@@ -639,6 +656,7 @@ test(
                 initial_points: 300,
                 minimum_points: 100,
                 flag_env: "ENTRY_FLAG",
+                flag_template: "Entry{[TEAM_HASH]}",
                 role: "flag",
               },
               {
@@ -679,6 +697,48 @@ test(
             fieldset("Entry").querySelector("figcaption")!.textContent!,
             /初始 450 分/,
           );
+          const templateInput = (scope: Element) =>
+            scope.querySelector<HTMLInputElement>(
+              'section[aria-label="Flag 模板配置"] input',
+            )!;
+          assert.equal(templateInput(host).value, "NebuCTF{[GUID]}");
+          assert.equal(
+            templateInput(fieldset("Entry")).value,
+            "Entry{[TEAM_HASH]}",
+          );
+          const rootTemplate = fieldset("Root").querySelector(
+            'section[aria-label="Flag 模板配置"]',
+          )!;
+          await click(rootTemplate.querySelector("button")!);
+          await settle(() =>
+            rootTemplate.textContent!.includes("NebuCTF{sample-uuid}"),
+          );
+          await change(templateInput(host), "Event{[GUID]}");
+          assert(
+            !rootTemplate.textContent!.includes("NebuCTF{sample-uuid}"),
+            "inherited preview clears when parent changes",
+          );
+          await click(rootTemplate.querySelector("button")!);
+          await change(templateInput(fieldset("Root")), "Root{[TEAM_HASH]}");
+          await act(async () => {
+            await new Promise((r) => setTimeout(r, 50));
+          });
+          assert(
+            !rootTemplate.textContent!.includes("Event{sample-uuid}"),
+            "old in-flight preview cannot overwrite edited template",
+          );
+          await change(templateInput(fieldset("Entry")), "flag{short}");
+          const entryTemplate = fieldset("Entry").querySelector(
+            'section[aria-label="Flag 模板配置"]',
+          )!;
+          await click(entryTemplate.querySelector("button")!);
+          await settle(() => !!entryTemplate.querySelector('[role="alert"]'));
+          assert.equal(
+            templateInput(fieldset("Entry")).getAttribute("aria-invalid"),
+            "true",
+          );
+          await change(templateInput(fieldset("Entry")), "Entry{[TEAM_HASH]}");
+          assert(!entryTemplate.querySelector('[role="alert"]'));
           await click(button("下移小题"));
           await tab("靶机配置");
           const variable = host.querySelector<HTMLInputElement>(
@@ -695,6 +755,9 @@ test(
           assert.equal(saved.parts[0].title, "Root");
           assert.equal(saved.parts[0].flag_env, "ROOT_FLAG");
           assert.equal(saved.parts[1].flag_env, "WEB_FLAG");
+          assert.equal(saved.flag_template, "Event{[GUID]}");
+          assert.equal(saved.parts[0].flag_template, "Root{[TEAM_HASH]}");
+          assert.equal(saved.parts[1].flag_template, "Entry{[TEAM_HASH]}");
         },
       );
       await t.test(
@@ -717,6 +780,7 @@ test(
           assert.equal(saved.dynamic_score, false);
           assert.deepEqual(saved.objective.correct_options, ["A"]);
           assert.equal(saved.patch_config, null);
+          assert.equal(saved.flag_template, "");
           assert.equal(saved.resources.container, null);
           await change(select("题目类型"), "awdp");
           await tab("靶机配置");
@@ -733,6 +797,11 @@ test(
             ["attack", "defense"],
           );
           assert.equal(saved.flag_mode, "dynamic");
+          assert.equal(saved.flag_template, "flag{[GUID]}");
+          assert.equal(
+            saved.parts.find((p: any) => p.role === "defense").flag_template,
+            null,
+          );
           assert.equal(saved.resources.container.mode, "private");
           assert.equal(saved.objective, null);
         },

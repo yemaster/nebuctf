@@ -23,6 +23,7 @@ export type ChallengeBlood = {
 export interface ChallengePart {
   bloods?: ChallengeBlood[];
   flag_env?: string | null;
+  flag_template?: string | null;
   role?: "flag" | "attack" | "defense";
   id: string;
   title: string;
@@ -46,6 +47,7 @@ export interface Challenge {
   challenge_type?: QuestionType;
   flag_mode?: "static" | "dynamic";
   flag_env?: string;
+  flag_template?: string;
   resources?: {
     container:
       (Partial<ResourceProfile> & { mode?: "private" | "public" }) | null;
