@@ -1,11 +1,33 @@
 import type { Contest } from "@/lib/types";
 import { contestProgress, contestTimeline } from "@/lib/contest-schedule";
+import { timeWindowTone } from "@/lib/contest-clock";
 import { useContestNow } from "./contest-clock";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
 import { CheckCircle2, Circle, CircleDot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "./ui/progress";
+
+const tones = {
+  scheduled: { color: "text-primary", label: "比赛未开始" },
+  running: { color: "text-success", label: "比赛进行中" },
+  warning: { color: "text-warning", label: "比赛临近结束" },
+  urgent: { color: "text-destructive", label: "比赛即将结束" },
+  muted: { color: "text-muted-foreground", label: "比赛已结束" },
+};
+const colorTransition =
+  "transition-colors duration-300 motion-reduce:transition-none";
+
+function scheduleTone(contest: Contest, now: number) {
+  // The overview follows the whole contest, even when a round is ending.
+  return tones[
+    timeWindowTone(
+      Date.parse(contest.starts_at),
+      Date.parse(contest.ends_at),
+      now,
+    )
+  ];
+}
 
 const dateFormat = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -32,6 +54,7 @@ export function ContestProgress({
 }) {
   const now = useContestNow(contest.clock, receivedAt);
   const progress = contestProgress(contest, now);
+  const tone = scheduleTone(contest, now);
   return (
     <section aria-label="比赛进度" className="space-y-3">
       <div className="flex flex-wrap justify-between gap-x-6 gap-y-3 text-sm tabular-nums">
@@ -51,8 +74,13 @@ export function ContestProgress({
       </div>
       <Progress
         aria-label="比赛已进行"
-        aria-valuetext={`${progress.toFixed(1)}%`}
+        aria-valuetext={`${tone.label}，${progress.toFixed(1)}%`}
         value={progress}
+        className={cn(
+          "bg-current/15 [&_[data-slot=progress-indicator]]:bg-current [&_[data-slot=progress-indicator]]:duration-300 [&_[data-slot=progress-indicator]]:motion-reduce:transition-none",
+          colorTransition,
+          tone.color,
+        )}
       />
     </section>
   );
@@ -67,6 +95,7 @@ export function ContestSchedule({
 }) {
   const now = useContestNow(contest.clock, receivedAt);
   const nodes = contestTimeline(contest, now);
+  const tone = scheduleTone(contest, now);
   return (
     <section aria-labelledby="contest-schedule-title" className="space-y-4">
       <h2 id="contest-schedule-title" className="text-base font-semibold">
@@ -89,7 +118,8 @@ export function ContestSchedule({
                   orientation="vertical"
                   className={cn(
                     "absolute left-[7.5px] top-5 -bottom-1 data-[orientation=vertical]:h-auto",
-                    past ? "bg-primary/30" : "bg-border",
+                    colorTransition,
+                    past ? "bg-success/30" : "bg-border",
                   )}
                 />
               )}
@@ -97,13 +127,22 @@ export function ContestSchedule({
                 aria-hidden="true"
                 className={cn(
                   "relative z-10 mt-0.5 size-4 bg-card",
-                  current ? "text-primary" : "text-muted-foreground",
+                  colorTransition,
+                  current
+                    ? tone.color
+                    : past
+                      ? "text-success"
+                      : "text-muted-foreground",
                 )}
               />
               <div className="min-w-0 space-y-1.5">
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs">
                   {current && (
-                    <span className="font-medium text-primary">现在</span>
+                    <span
+                      className={cn("font-medium", colorTransition, tone.color)}
+                    >
+                      现在
+                    </span>
                   )}
                   {node.at ? (
                     <time
@@ -124,7 +163,11 @@ export function ContestSchedule({
                         <Badge
                           key={event.id}
                           variant="secondary"
-                          className="bg-primary/10 text-primary"
+                          className={cn(
+                            "bg-current/10",
+                            colorTransition,
+                            tone.color,
+                          )}
                         >
                           {event.title}
                         </Badge>

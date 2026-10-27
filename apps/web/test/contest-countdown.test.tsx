@@ -2,7 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import React, { act } from "react";
 import { JSDOM } from "jsdom";
-import { contestCountdown, type ContestClock } from "../src/lib/contest-clock";
+import {
+  contestCountdown,
+  countdownTone,
+  timeWindowTone,
+  type ContestClock,
+} from "../src/lib/contest-clock";
 
 const epoch = Date.parse("2026-10-26T10:00:00Z");
 const at = (seconds: number) => new Date(epoch + seconds * 1000).toISOString();
@@ -20,6 +25,36 @@ const clock: ContestClock = {
     active_from: null,
   },
 };
+
+test("time colors follow start, warning, urgent and end boundaries", () => {
+  const tone = (seconds: number) => timeWindowTone(0, 3600000, seconds * 1000);
+  assert.equal(tone(-1), "scheduled");
+  assert.equal(tone(0), "running");
+  assert.equal(tone(2999), "running");
+  assert.equal(tone(3000), "warning");
+  assert.equal(tone(3539), "warning");
+  assert.equal(tone(3540), "urgent");
+  assert.equal(tone(3599), "urgent");
+  assert.equal(tone(3600), "muted");
+  assert.equal(tone(3601), "muted");
+  assert.equal(timeWindowTone(0, 0, 0), "muted");
+  assert.equal(timeWindowTone(NaN, 3600000, 0), "muted");
+});
+
+test("short windows scale alerts while overview color remains independent of rounds", () => {
+  assert.equal(timeWindowTone(0, 20000, 0), "running");
+  assert.equal(timeWindowTone(0, 20000, 15999), "running");
+  assert.equal(timeWindowTone(0, 20000, 16000), "warning");
+  assert.equal(timeWindowTone(0, 20000, 18000), "urgent");
+  const now = epoch + 299000;
+  assert.equal(countdownTone(clock, now), "urgent");
+  assert.equal(
+    timeWindowTone(Date.parse(clock.starts_at), Date.parse(clock.ends_at), now),
+    "running",
+  );
+  assert.equal(countdownTone(clock, epoch + 300000), "running");
+  assert.equal(countdownTone({ ...clock, practice: true }, now), "muted");
+});
 
 test("countdown follows the shared round boundary including a shorter final round", () => {
   const countdown = (seconds: number) =>
