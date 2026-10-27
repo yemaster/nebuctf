@@ -457,7 +457,7 @@ test(
     );
 
     await t.test(
-      "objective practice answers preserve formal answers and permit corrections; resource TTL extends past the ended contest",
+      "objective practice answers preserve formal answers and lock after submission; resource TTL extends past the ended contest",
       async () => {
         const scope = await contest(true),
           question = await challenge(scope, "Objective"),
@@ -511,7 +511,7 @@ test(
               answer: { choices: ["B"] },
             })
           ).correct,
-          true,
+          false,
         );
         const answers = await db.query(
           "SELECT correct,contest_practice FROM objective_answers WHERE challenge_id=$1 ORDER BY contest_practice",
@@ -519,7 +519,7 @@ test(
         );
         assert.deepEqual(answers, [
           { correct: false, contest_practice: false },
-          { correct: true, contest_practice: true },
+          { correct: false, contest_practice: true },
         ]);
         await db.query(
           "UPDATE challenges SET kind='dynamic_container',image='nebuctf/practice:test' WHERE id=$1",

@@ -101,6 +101,7 @@ test("contest capabilities distinguish visitors, approved teams and staff withou
     };
   assert.deepEqual(contestCapabilities(contest, null, now), {
     role: "spectator",
+    registrationWindow: "open",
     practice: false,
     scoreboard: false,
     spectate: true,
