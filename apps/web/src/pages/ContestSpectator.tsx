@@ -86,10 +86,10 @@ function Spectator({ scope }: { scope: string }) {
   return (
     <div
       ref={screen}
-      className="flex h-full min-h-0 flex-col bg-background"
+      className="spectator-screen dark flex h-full min-h-0 flex-col bg-background text-foreground"
       data-spectator-screen
     >
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-5 py-3">
         <div className="flex min-w-0 items-center gap-3">
           {fullscreen && (
             <Button asChild variant="ghost" size="icon" aria-label="返回比赛">
@@ -99,61 +99,69 @@ function Spectator({ scope }: { scope: string }) {
             </Button>
           )}
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold">
+            <h1 className="truncate text-base font-medium">
               {data.contest.title}
             </h1>
             {data.clock && <ContestClockLine clock={data.clock} />}
           </div>
-          <Badge variant="secondary">
+          <Badge
+            variant="ghost"
+            className="rounded-none px-0 text-xs font-normal text-muted-foreground"
+          >
             {!data.started
               ? "等待开赛"
               : data.frozen
                 ? "已封榜"
                 : ended
-                  ? "比赛结束"
-                  : "比赛进行中"}
+                  ? "已结束"
+                  : "进行中"}
           </Badge>
         </div>
         <div className="flex items-center gap-2">
           <span
-            className="mr-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+            className="mr-1 inline-flex items-center text-muted-foreground"
             role="status"
+            title={feed.status === "live" ? "实时连接" : "重新连接中"}
           >
             {data.frozen ? (
               <LockKeyhole className="size-3.5" />
             ) : feed.status === "live" ? (
-              <Radio className="size-3.5 text-success" />
+              <Radio className="size-3.5 text-primary" />
             ) : (
               <WifiOff className="size-3.5" />
             )}
-            {feed.status === "live"
-              ? "实时连接"
-              : feed.status === "connecting"
-                ? "连接中"
-                : "重连中"}
+            <span className="sr-only">
+              {feed.status === "live"
+                ? "实时连接"
+                : feed.status === "connecting"
+                  ? "连接中"
+                  : "重连中"}
+            </span>
           </span>
           <Button
             variant="ghost"
-            size="sm"
+            size="icon-sm"
+            aria-label={paused ? "继续动效" : "暂停动效"}
+            title={paused ? "继续动效" : "暂停动效"}
             aria-pressed={paused}
             onClick={() => setPaused(!paused)}
           >
             {paused ? <Play /> : <Pause />}
-            {paused ? "继续动效" : "暂停动效"}
           </Button>
           <Button
             variant="ghost"
-            size="icon"
+            size="icon-sm"
             aria-label={fullscreen ? "退出全屏" : "全屏观战"}
+            title={fullscreen ? "退出全屏" : "全屏观战"}
             onClick={() => void expand()}
           >
             {fullscreen ? <Minimize /> : <Maximize />}
           </Button>
         </div>
       </div>
-      <div className="grid min-h-0 flex-1 overflow-y-auto border-t lg:grid-cols-[320px_minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 overflow-y-auto border-t border-primary/10 lg:grid-cols-[320px_minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside
-          className="order-2 flex min-h-0 flex-col bg-card lg:order-first lg:overflow-y-auto lg:border-r"
+          className="order-2 flex min-h-0 flex-col bg-linear-to-r from-card to-background lg:order-first lg:overflow-hidden"
           aria-label="观战数据"
         >
           <Leaderboard scope={scope} groups={data.groups} reduced={reduced} />
@@ -220,7 +228,7 @@ function Leaderboard({
   }, [cycling, hovered, pages, ranking.isLoading, ranking.error]);
   return (
     <section
-      className="shrink-0 px-4 pb-3 pt-4"
+      className="flex min-h-0 shrink-0 flex-col px-5 pb-3 pt-4 lg:h-[58%]"
       aria-label="轮播排行榜"
       aria-busy={ranking.isFetching}
       onMouseEnter={() => setHovered(true)}
@@ -230,38 +238,41 @@ function Leaderboard({
         if (!e.currentTarget.contains(e.relatedTarget)) setHovered(false);
       }}
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="font-semibold">排行榜</h2>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-7"
-          aria-label={cycling ? "暂停排行轮播" : "开启排行轮播"}
-          aria-pressed={cycling}
-          onClick={() => setCycling(!cycling)}
-        >
-          {cycling ? <Pause /> : <Play />}
-        </Button>
+      <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+        <h2 className="shrink-0 text-sm font-medium text-primary">排行榜</h2>
+        <div className="flex min-w-0 items-center gap-2">
+          {!!groups.length && (
+            <NativeSelect
+              className="h-7 max-w-36 rounded-sm border-0 bg-transparent py-0 pl-2 text-xs shadow-none dark:bg-transparent"
+              aria-label="观战排名组别"
+              value={group}
+              onChange={(e) => {
+                setGroup(e.target.value);
+                setPage(1);
+              }}
+            >
+              {[{ id: "", name: "全局排名" }, ...groups].map((g) => (
+                <NativeSelectOption key={g.id} value={g.id}>
+                  {g.name}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          )}
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-7"
+            aria-label={cycling ? "暂停排行轮播" : "开启排行轮播"}
+            title={cycling ? "暂停排行轮播" : "开启排行轮播"}
+            aria-pressed={cycling}
+            onClick={() => setCycling(!cycling)}
+          >
+            {cycling ? <Pause /> : <Play />}
+          </Button>
+        </div>
       </div>
-      {!!groups.length && (
-        <NativeSelect
-          className="mb-2 h-8 w-full"
-          aria-label="观战排名组别"
-          value={group}
-          onChange={(e) => {
-            setGroup(e.target.value);
-            setPage(1);
-          }}
-        >
-          {[{ id: "", name: "全局排名" }, ...groups].map((g) => (
-            <NativeSelectOption key={g.id} value={g.id}>
-              {g.name}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      )}
       {ranking.error || ranking.isLoading ? (
-        <div className="flex min-h-64 items-center justify-center">
+        <div className="flex min-h-0 flex-1 items-center justify-center">
           <QueryState
             loading={ranking.isLoading}
             error={ranking.error}
@@ -276,20 +287,22 @@ function Leaderboard({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduced ? 0 : 0.18 }}
-            className="min-h-64 space-y-0.5"
+            className="min-h-0 flex-1 overflow-y-auto"
           >
             {ranking.data?.items.map((team) => (
               <li key={team.id}>
-                <div className="flex h-8 items-center gap-3 rounded-md px-2 text-sm">
+                <div
+                  className={`flex h-9 items-center gap-3 px-2 text-sm ${team.rank <= 3 ? "bg-primary/5" : ""}`}
+                >
                   <span
-                    className={`w-5 shrink-0 text-right tabular-nums ${team.rank <= 3 ? "text-primary font-semibold" : "text-muted-foreground"}`}
+                    className={`w-6 shrink-0 text-right font-mono text-xs tabular-nums ${team.rank <= 3 ? "text-primary" : "text-muted-foreground"}`}
                   >
-                    {team.rank}
+                    {String(team.rank).padStart(2, "0")}
                   </span>
                   <span className="truncate" title={team.name}>
                     {team.name}
                   </span>
-                  <span className="ml-auto tabular-nums">
+                  <span className="ml-auto shrink-0 font-mono font-medium tabular-nums text-primary">
                     {number.format(team.score)}
                   </span>
                 </div>
@@ -303,7 +316,7 @@ function Leaderboard({
           </m.ol>
         </AnimatePresence>
       )}
-      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+      <div className="mt-2 flex shrink-0 items-center justify-between text-xs text-muted-foreground">
         <span>{ranking.data?.total ?? 0} 支战队</span>
         <div className="flex items-center gap-2">
           <Button
@@ -316,7 +329,7 @@ function Leaderboard({
           >
             <ChevronLeft />
           </Button>
-          <span className="tabular-nums">
+          <span className="font-mono tabular-nums">
             {page} / {pages}
           </span>
           <Button
@@ -347,15 +360,15 @@ function EventFeed({
 }) {
   return (
     <section
-      className="flex min-h-56 flex-1 flex-col border-t lg:min-h-40"
+      className="mx-5 flex min-h-56 flex-1 flex-col border-t border-primary/15 lg:min-h-40"
       aria-label="解题与攻防动态"
     >
-      <div className="flex items-center justify-between px-4 py-3">
-        <h2 className="font-semibold">比赛动态</h2>
+      <div className="flex shrink-0 items-center justify-between py-4">
+        <h2 className="text-sm font-medium text-primary">比赛动态</h2>
         {frozen && <LockKeyhole className="size-4 text-muted-foreground" />}
       </div>
       <ol
-        className="min-h-0 space-y-1 overflow-y-auto px-4 pb-4"
+        className="min-h-0 divide-y divide-primary/10 overflow-y-auto pb-4"
         aria-live="off"
       >
         {events.map((event) => {
@@ -371,37 +384,49 @@ function EventFeed({
               layout={!reduced}
               initial={false}
               transition={{ duration: reduced ? 0 : 0.24 }}
-              className="flex items-start gap-3 py-2.5"
+              className="flex items-start gap-2.5 py-3 first:pt-0"
             >
               {event.blood_rank ? (
-                <BloodMark rank={event.blood_rank} className="mt-1 size-4" />
+                <BloodMark rank={event.blood_rank} className="mt-0.5 size-4" />
               ) : (
                 <Icon
-                  className={`mt-1 size-4 shrink-0 ${event.type === "attack" ? "text-destructive" : "text-primary"}`}
+                  className={`mt-0.5 size-4 shrink-0 ${event.type === "attack" ? "text-destructive" : "text-primary"}`}
                 />
               )}
               <div className="min-w-0 flex-1">
-                <div className="flex justify-between gap-2">
-                  <span className="text-xs font-medium">
-                    {eventLabel(event)}
-                  </span>
+                <div className="flex items-baseline justify-between gap-2">
+                  <p
+                    className="truncate text-sm"
+                    title={event.team_name ?? event.challenge_title}
+                  >
+                    {event.team_name ?? event.challenge_title}
+                  </p>
                   <time
                     dateTime={event.created_at}
-                    className="text-xs tabular-nums text-muted-foreground"
+                    className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
                   >
                     {clock.format(new Date(event.created_at))}
                   </time>
                 </div>
-                <p className="mt-1 truncate text-sm font-medium">
-                  {event.team_name ?? event.challenge_title}
-                  {event.target_team_name ? ` → ${event.target_team_name}` : ""}
+                <p className="mt-1 flex items-baseline gap-2 text-xs leading-5">
+                  <span
+                    className={`shrink-0 ${event.type === "attack" ? "text-destructive" : event.blood_rank ? "text-warning" : "text-primary"}`}
+                  >
+                    {eventLabel(event)}
+                  </span>
+                  {event.team_name && (
+                    <span
+                      className="truncate text-muted-foreground"
+                      title={`${event.challenge_title}${event.part_title ? ` / ${event.part_title}` : ""}${event.target_team_name ? ` → ${event.target_team_name}` : ""}`}
+                    >
+                      {event.challenge_title}
+                      {event.part_title ? ` / ${event.part_title}` : ""}
+                      {event.target_team_name
+                        ? ` → ${event.target_team_name}`
+                        : ""}
+                    </span>
+                  )}
                 </p>
-                {event.team_name && (
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {event.challenge_title}
-                    {event.part_title ? ` / ${event.part_title}` : ""}
-                  </p>
-                )}
               </div>
             </m.li>
           );

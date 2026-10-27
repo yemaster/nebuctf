@@ -102,6 +102,24 @@
   --primary-foreground: #ffffff;
   --accent: #eaefe0;
 }
+/* Match the fixed night-city scene without changing the site's chosen theme. */
+.spectator-screen {
+  color-scheme: dark;
+  --background: #040c23;
+  --card: #07142c;
+  --foreground: var(--color-slate-100);
+  --primary: #8fcfff;
+  --primary-foreground: #040c23;
+  --secondary: #0e2040;
+  --secondary-foreground: var(--color-slate-200);
+  --muted: #0e2040;
+  --muted-foreground: var(--color-slate-400);
+  --accent: #102b48;
+  --border: rgb(143 207 255 / 14%);
+  --success: var(--color-emerald-300);
+  --warning: var(--color-amber-300);
+  --destructive: var(--color-rose-300);
+}
 :root.dark[data-theme-color="lime"] {
   --primary: #9fef00;
   --primary-foreground: #141414;
