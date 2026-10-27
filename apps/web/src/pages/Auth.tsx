@@ -22,30 +22,17 @@ import {
   InputGroupButton,
 } from "@/components/ui/input-group";
 import { Alert, AlertTitle } from "@/components/ui/alert";
-import { TableRow, TableCell } from "@/components/ui/table";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useUser } from "@/App";
-import { api, useAction, useAPI, client } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
-import type { Submission } from "@/lib/types";
-import { date, safeLocalPath } from "@/lib/utils";
+import { api, client } from "@/lib/api";
+import { safeLocalPath } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Field,
-  PageTitle,
-  LoginPrompt,
-  Table,
-  Empty,
-  QueryState,
-  Pagination,
-} from "@/components/shared";
+import { QueryState } from "@/components/shared";
+
 import { useState } from "react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { Captcha } from "@/components/captcha";
 import { useCaptcha } from "@/lib/use-captcha";
-import { toast } from "sonner";
-import { AccountProfile, type Profile } from "@/components/account-profile";
 export function Auth({ register = false }: { register?: boolean }) {
   const reduced = useReducedMotion();
   const site = useSiteSettings().data ?? defaultSite;
@@ -295,122 +282,5 @@ function AuthForm({ register }: { register: boolean }) {
         </FieldGroup>
       </form>
     </div>
-  );
-}
-export function Account() {
-  const user = useUser(),
-    navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const profile = useAPI<Profile>("/account/profile", !!user);
-  const submissions = useAPI<{ items: Submission[] }>(
-    `/submissions?page=${page}`,
-    !!user,
-  );
-  const change = useAction(
-    (d: Record<string, FormDataEntryValue>) => api("/auth/password", "POST", d),
-    () => {
-      void client.resetQueries();
-      toast.success("密码已修改，请重新登录");
-      navigate("/login");
-    },
-  );
-  if (!user) return <LoginPrompt />;
-  if (
-    submissions.error ||
-    submissions.isLoading ||
-    profile.error ||
-    profile.isLoading
-  )
-    return (
-      <QueryState
-        loading={submissions.isLoading || profile.isLoading}
-        error={submissions.error || profile.error}
-        retry={() => {
-          void submissions.refetch();
-          void profile.refetch();
-        }}
-        fullPage
-      />
-    );
-  return (
-    <>
-      <PageTitle>我的账户</PageTitle>
-      {profile.data && <AccountProfile key={user.id} profile={profile.data} />}
-      <div className="grid gap-7 xl:grid-cols-[1fr_1.6fr]">
-        <section className="rounded-lg bg-card h-fit p-6">
-          <h2 className="text-sm font-medium mb-1">{user.username}</h2>
-          <p className="text-sm text-muted-foreground mb-7">{user.email}</p>
-          <form
-            className="grid gap-5"
-            onSubmit={(e) => {
-              e.preventDefault();
-              change.mutate(Object.fromEntries(new FormData(e.currentTarget)));
-            }}
-          >
-            <Field label="当前密码">
-              <Input
-                type="password"
-                name="current"
-                required
-                autoComplete="current-password"
-              />
-            </Field>
-            <Field label="新密码">
-              <Input
-                type="password"
-                name="password"
-                required
-                minLength={8}
-                maxLength={128}
-                autoComplete="new-password"
-              />
-            </Field>
-            <Button disabled={change.isPending}>更新密码</Button>
-          </form>
-        </section>
-        <section>
-          <h2 className="text-sm font-medium mb-4">提交记录</h2>
-          <QueryState
-            loading={submissions.isLoading}
-            error={submissions.error}
-          />
-          <Table headers={["题目", "结果", "时间"]}>
-            {submissions.data?.items.map((s) => (
-              <TableRow key={s.id}>
-                <TableCell>
-                  {s.title}
-                  {s.contest_practice && (
-                    <Badge variant="secondary" className="ml-2">
-                      赛后练习
-                    </Badge>
-                  )}
-                  {s.part_title && (
-                    <span className="ml-3 text-muted-foreground">
-                      {s.part_title}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell
-                  className={s.correct ? "text-success" : "text-destructive"}
-                >
-                  {s.correct ? "正确" : "错误"}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {date(s.created_at)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </Table>
-          {submissions.data?.items.length === 0 && (
-            <Empty>还没有提交记录</Empty>
-          )}
-          <Pagination
-            page={page}
-            setPage={setPage}
-            hasMore={(submissions.data?.items.length ?? 0) === 30}
-          />
-        </section>
-      </div>
-    </>
   );
 }

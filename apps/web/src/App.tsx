@@ -61,7 +61,8 @@ const ContestResources = lazy(() =>
 const Scoreboard = lazy(() =>
   loadContestPages().then((m) => ({ default: m.Scoreboard })),
 );
-import { Auth, Account } from "./pages/Auth";
+import { Auth } from "./pages/Auth";
+import { Account } from "./pages/Account";
 import { TeamPage, TeamJoin } from "./pages/Team";
 import { Instances } from "./pages/Instances";
 const ProblemSets = lazy(() =>
