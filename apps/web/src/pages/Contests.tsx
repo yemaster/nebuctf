@@ -155,7 +155,7 @@ export function ContestDetail() {
             receivedAt={data.dataUpdatedAt}
             practice={access.practice}
             participation={
-              (c.registered || c.registration || user?.role === "admin") && (
+              (c.registered || c.registration) && (
                 <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
                   <p
                     className={`text-sm ${c.registered ? "text-success" : "text-muted-foreground"}`}
@@ -173,11 +173,7 @@ export function ContestDetail() {
                               suspended: "参赛资格已暂停",
                             } as const
                           )[c.registration.status]
-                        : access.challenges
-                          ? "管理员预览"
-                          : user?.role === "admin"
-                            ? "管理人员"
-                            : "未报名"}
+                        : "未报名"}
                   </p>
                   {c.registration && (
                     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
