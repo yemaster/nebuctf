@@ -92,6 +92,7 @@ export function DownloadButton({
     <ItemActions className="shrink-0">
       <Button
         variant="secondary"
+        size="sm"
         disabled={busy}
         onClick={() => void download()}
       >
@@ -131,11 +132,11 @@ export function DownloadButton({
           variant="muted"
           className={
             row
-              ? "gap-4 rounded-none border-0 bg-transparent p-5 sm:px-6 sm:py-4"
-              : "gap-4 rounded-xl border-0 bg-card p-5 shadow-sm ring-1 ring-border/60"
+              ? "gap-3 rounded-none border-0 bg-transparent px-4 py-3 sm:px-5"
+              : "gap-3 rounded-xl border-0 bg-card p-4 shadow-sm ring-1 ring-border/60 sm:p-5"
           }
         >
-          <ItemMedia className="size-10 rounded-lg bg-muted text-muted-foreground">
+          <ItemMedia className="text-muted-foreground">
             <FileArchive className="size-5" />
           </ItemMedia>
           <ItemContent className="min-w-0">

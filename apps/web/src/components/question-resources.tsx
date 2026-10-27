@@ -206,24 +206,24 @@ function ResourceLaunch({
             !instances.isLoading &&
             !instances.error &&
             (shared && user.role !== "admin" ? (
-              <div className="flex items-center justify-between gap-4 p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-3 p-4 sm:p-5">
                 <h2 className="font-medium">靶机</h2>
                 <span className="text-sm text-muted-foreground">尚未启动</span>
               </div>
             ) : (
               <Item
-                className="w-full items-center gap-4 rounded-none border-0 p-5 sm:p-6"
+                className="w-full items-center gap-3 rounded-none border-0 p-4 sm:p-5"
                 aria-label={title}
               >
-                <ItemMedia className="size-10 rounded-lg bg-muted text-muted-foreground">
+                <ItemMedia className="text-muted-foreground">
                   {attachment ? (
                     <FileArchive className="size-5" />
                   ) : (
                     <Server className="size-5" />
                   )}
                 </ItemMedia>
-                <ItemContent>
-                  <ItemTitle className="flex-wrap gap-3 text-base">
+                <ItemContent className="min-w-0">
+                  <ItemTitle className="flex-wrap gap-2 text-base">
                     {title}
                     {error && !start.isPending && (
                       <Badge variant="secondary" className="text-destructive">
@@ -241,6 +241,7 @@ function ResourceLaunch({
                 <ItemActions className="ml-auto max-sm:w-full max-sm:justify-end">
                   <Button
                     variant="default"
+                    size="sm"
                     disabled={
                       start.isPending ||
                       cooldown > 0 ||
@@ -281,7 +282,7 @@ function ResourceLaunch({
                     !start.isPending &&
                     !policy.data?.quota?.blocked && (
                       <ResourceError error={error} />
-                    )}{" "}
+                    )}
                   {policy.data?.quota?.blocked && !canReplace && (
                     <ResourceError
                       error={

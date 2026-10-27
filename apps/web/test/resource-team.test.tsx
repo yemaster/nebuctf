@@ -373,6 +373,64 @@ test(
         },
       );
       await t.test(
+        "container and attachment lifetime waits for creation completion to leave",
+        async () => {
+          for (const attachment of [false, true]) {
+            const row = {
+              ...instance,
+              kind: attachment ? "dynamic_attachment" : "dynamic_container",
+              status: "starting",
+              endpoint: null,
+            };
+            const path = "/instances?scope=practice&owned=true";
+            await mount("/instances", { [path]: { items: [row] } });
+            try {
+              const lifetime = () =>
+                container.querySelector(
+                  `[role="progressbar"][aria-label="${attachment ? "附件" : "靶机"}剩余时间"]`,
+                );
+              assert.equal(lifetime(), null);
+              responses[path] = {
+                items: [{ ...row, status: attachment ? "ready" : "running" }],
+              };
+              await act(async () =>
+                cache.setQueryData([path], responses[path]),
+              );
+              assert.equal(
+                lifetime(),
+                null,
+                "ready does not bypass completion feedback",
+              );
+              await settle(
+                () =>
+                  !!container.querySelector(
+                    `[role="progressbar"][aria-label="${attachment ? "专属附件已生成" : "靶机已就绪"}"]`,
+                  ),
+              );
+              assert.equal(
+                lifetime(),
+                null,
+                "success hold still owns the progress area",
+              );
+              assert.equal(
+                container.querySelectorAll('[role="progressbar"]').length,
+                1,
+              );
+              await act(async () => {
+                await new Promise((r) => setTimeout(r, 900));
+              });
+              assert(lifetime());
+              assert.equal(
+                container.querySelectorAll('[role="progressbar"]').length,
+                1,
+              );
+            } finally {
+              await cleanup();
+            }
+          }
+        },
+      );
+      await t.test(
         "failed resources retain error guidance and cooldown blocks destructive operations",
         async () => {
           await mount("/instances", {

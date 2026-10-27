@@ -16,13 +16,14 @@ test("operation activity advances, completes only after success, dismisses, and 
   const { createRoot } = await import("react-dom/client");
   const { OperationProgress } =
     await import("../src/components/operation-progress");
+  const { Progress } = await import("../src/components/ui/progress");
   const container = document.getElementById("root")!;
   const root = createRoot(container);
   t.mock.timers.enable({
     apis: ["setTimeout", "setInterval", "Date"],
     now: 100000,
   });
-  const render = async (busy: boolean, failed = false) =>
+  const render = async (busy: boolean, failed = false, showLifetime = false) =>
     act(async () => {
       root.render(
         <OperationProgress
@@ -30,6 +31,11 @@ test("operation activity advances, completes only after success, dismisses, and 
           failed={failed}
           label="正在续期"
           completeLabel="续期完成"
+          idle={
+            showLifetime ? (
+              <Progress aria-label="靶机剩余时间" value={70} />
+            ) : null
+          }
         />,
       );
     });
@@ -72,6 +78,50 @@ test("operation activity advances, completes only after success, dismisses, and 
     assert.ok(!container.textContent!.includes("续期完成"));
     await advance(300);
     assert.equal(container.querySelector('[role="progressbar"]'), null);
+
+    // A ready resource renders its lifetime immediately, but never alongside an operation.
+    const lifetime = () =>
+      container.querySelector('[aria-label="靶机剩余时间"]');
+    const onlyOperation = () => {
+      assert.equal(
+        container.querySelectorAll('[role="progressbar"]').length,
+        1,
+      );
+      assert.equal(lifetime(), null);
+    };
+    await render(false, false, true);
+    assert(lifetime());
+    await render(true, false, true);
+    onlyOperation();
+    await advance(100);
+    await render(false, false, true);
+    await advance(400);
+    onlyOperation();
+    assert(container.textContent!.includes("续期完成"));
+    await advance(849);
+    onlyOperation();
+    await advance(1);
+    assert(lifetime());
+
+    // Starting another operation during the exit animation resets its progress.
+    await render(true, false, true);
+    await advance(600);
+    await render(false, false, true);
+    await advance(601);
+    onlyOperation();
+    await render(true, false, true);
+    assert.equal(position(), initial);
+    onlyOperation();
+    await advance(600);
+    await render(false, false, true);
+    await advance(1);
+    await render(false, true, true);
+    await advance(1);
+    await advance(250);
+    assert(
+      lifetime(),
+      "a changed result cannot leave the completion animation stuck",
+    );
   } finally {
     await act(async () => root.unmount());
     t.mock.timers.reset();

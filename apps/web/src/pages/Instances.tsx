@@ -161,17 +161,17 @@ export function InstanceRow({
   const url = i.endpoint ? endpointURL(i.endpoint) : undefined;
   return (
     <Item
-      className={`grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-4 border-0 p-5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:p-6 [&_[data-slot=item-footer]]:col-span-full ${compact ? "rounded-none bg-transparent" : "rounded-xl bg-card shadow-sm ring-1 ring-border/60"}`}
+      className={`grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border-0 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:p-5 [&_[data-slot=item-footer]]:col-span-full ${compact ? "rounded-none bg-transparent" : "rounded-xl bg-card shadow-sm ring-1 ring-border/60"}`}
     >
-      <ItemMedia className="size-10 rounded-lg bg-muted text-muted-foreground">
+      <ItemMedia className="text-muted-foreground">
         {attachment ? (
           <FileArchive className="size-5" />
         ) : (
           <Server className="size-5" />
         )}
       </ItemMedia>
-      <ItemContent className="min-w-0 gap-2">
-        <ItemTitle className="w-full flex-wrap gap-3 text-base leading-6">
+      <ItemContent className="min-w-0 gap-1">
+        <ItemTitle className="w-full flex-wrap gap-2 text-base leading-6">
           <span className="break-words">
             {compact ? (attachment ? "专属附件" : "靶机") : i.title}
           </span>
@@ -259,8 +259,9 @@ export function InstanceRow({
       )}
       {i.endpoint && i.status === "running" && !stopping && (
         <ItemFooter className="flex-wrap gap-3">
-          <InputGroup className="h-11 min-w-0 flex-1 border-0 bg-muted/60 shadow-none">
+          <InputGroup className="h-10 min-w-0 flex-1 border-0 bg-muted/60 shadow-none">
             <InputGroupInput
+              className="font-mono text-sm"
               value={i.endpoint}
               readOnly
               aria-label="靶机连接地址"
@@ -295,30 +296,34 @@ export function InstanceRow({
           </InputGroup>
         </ItemFooter>
       )}
-      {counting && !stopping && (
-        <ItemFooter className="flex-col items-stretch gap-2">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>剩余时间</span>
-            <span className="tabular-nums">{duration}</span>
-          </div>
-          <Progress
-            aria-label={attachment ? "附件剩余时间" : "靶机剩余时间"}
-            aria-valuetext={`剩余 ${duration}`}
-            value={Math.min(100, (remaining / lifetime) * 100)}
-            className={
-              remaining < 300
-                ? "h-1.5 bg-warning/15 [&_[data-slot=progress-indicator]]:bg-warning"
-                : "h-1.5"
-            }
-          />
-        </ItemFooter>
-      )}
       <div className="col-span-full w-full empty:hidden">
         <OperationProgress
           busy={busy}
           failed={!!error || i.status === "failed"}
           label={label}
           completeLabel={success}
+          idle={
+            counting && !stopping ? (
+              <div className="flex items-center gap-3 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150">
+                <Progress
+                  aria-label={attachment ? "附件剩余时间" : "靶机剩余时间"}
+                  aria-valuetext={`剩余 ${duration}`}
+                  value={Math.min(100, (remaining / lifetime) * 100)}
+                  className={
+                    remaining < 300
+                      ? "h-1.5 flex-1 bg-warning/15 [&_[data-slot=progress-indicator]]:bg-warning"
+                      : "h-1.5 flex-1"
+                  }
+                />
+                <span
+                  className={`shrink-0 font-mono text-xs tabular-nums ${remaining < 300 ? "text-warning" : "text-muted-foreground"}`}
+                >
+                  <span className="sr-only">剩余时间 </span>
+                  {duration}
+                </span>
+              </div>
+            ) : null
+          }
         />
       </div>
       {error && (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Progress } from "./ui/progress";
 
@@ -8,13 +8,17 @@ export function OperationProgress({
   failed = false,
   label,
   completeLabel = "已完成",
+  idle,
 }: {
   busy: boolean;
   failed?: boolean;
   label: string;
   completeLabel?: string;
+  /** Replaces the activity only after its completion animation has left. */
+  idle?: ReactNode;
 }) {
   const started = useRef<number | null>(busy ? Date.now() : null);
+  const wasBusy = useRef(busy);
   const [view, setView] = useState({
     visible: busy,
     value: 6,
@@ -25,9 +29,11 @@ export function OperationProgress({
     let finish: ReturnType<typeof setTimeout> | undefined;
     let fade: ReturnType<typeof setTimeout> | undefined;
     let hide: ReturnType<typeof setTimeout> | undefined;
+    const restarting = busy && !wasBusy.current;
+    wasBusy.current = busy;
     if (busy) {
-      const fresh = started.current === null;
-      started.current ??= Date.now();
+      const fresh = restarting || started.current === null;
+      if (fresh) started.current = Date.now();
       setView((v) => ({
         ...v,
         value: fresh ? 6 : v.value,
@@ -49,7 +55,6 @@ export function OperationProgress({
       finish = setTimeout(
         () => {
           clearInterval(timer);
-          started.current = null;
           setView((v) => ({
             ...v,
             value: failed ? v.value : 100,
@@ -61,13 +66,15 @@ export function OperationProgress({
             failed ? 0 : 600,
           );
           hide = setTimeout(
-            () =>
+            () => {
+              started.current = null;
               setView({
                 visible: false,
                 value: 6,
                 done: false,
                 leaving: false,
-              }),
+              });
+            },
             failed ? 250 : 850,
           );
         },
@@ -81,7 +88,7 @@ export function OperationProgress({
       clearTimeout(hide);
     };
   }, [busy, failed]);
-  if (!view.visible) return null;
+  if (!view.visible) return busy ? null : (idle ?? null);
   return (
     <div
       className={`w-full space-y-3 motion-safe:duration-250 ${view.leaving ? "motion-safe:animate-out motion-safe:fade-out motion-safe:slide-out-to-top-1" : "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1"}`}
