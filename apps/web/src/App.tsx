@@ -108,6 +108,7 @@ import { TransitionSurface } from "./components/transition-surface";
 import {
   LoadingBoundary,
   LoadingFallback,
+  PageLoadingBoundary,
 } from "./components/loading-transition";
 import { PageBoundary, StatusPage } from "./components/status-page";
 const UserContext = createContext<User | null>(null);
@@ -227,92 +228,110 @@ function AppShell() {
                   }
                 >
                   <PageBoundary>
-                    <Suspense fallback={<Loading fullPage routeShell />}>
-                      <Routes location={location}>
-                        <Route
-                          path="/contests/:id/spectate"
-                          element={<ContestSpectator />}
-                        />
-                        <Route path="/" element={<Home />} />
-                        <Route path="/challenges" element={<Challenges />} />
-                        <Route path="/problemsets" element={<ProblemSets />} />
-                        <Route
-                          path="/problemsets/:id"
-                          element={<ProblemSetDetail />}
-                        />
-                        <Route
-                          path="/announcements"
-                          element={<Announcements />}
-                        />
-                        <Route path="/contests" element={<Contests />} />
-                        <Route
-                          path="/contests/:id/challenges"
-                          element={<ContestArena />}
-                        />
-                        <Route
-                          path="/contests/:id/scoreboard"
-                          element={<ContestBoard />}
-                        />
-                        <Route
-                          path="/contests/:id/announcements"
-                          element={<ContestAnnouncements />}
-                        />
-                        <Route
-                          path="/contests/:id/instances"
-                          element={<ContestResources />}
-                        />
-                        <Route
-                          path="/contests/:id"
-                          element={<ContestDetail />}
-                        />
-                        <Route path="/scoreboard" element={<Scoreboard />} />
-                        <Route path="/library" element={<Library />} />
-                        <Route
-                          path="/library/:slug"
-                          element={<ArticlePage />}
-                        />
-                        <Route path="/learning" element={<Learning />} />
-                        <Route
-                          path="/learning/:id"
-                          element={<LearningDetail />}
-                        />
-                        <Route path="/team" element={<TeamPage />} />
-                        <Route path="/team/new" element={<TeamJoin />} />
-                        <Route path="/instances" element={<Instances />} />
-                        <Route
-                          path="/terminal"
-                          element={
-                            <LoadingBoundary>
-                              <Suspense fallback={<LoadingFallback />}>
-                                <TerminalPage />
-                              </Suspense>
-                            </LoadingBoundary>
-                          }
-                        />
-                        <Route
-                          path="/contests/:id/manage/*"
-                          element={<ContestManagement />}
-                        />
-                        <Route
-                          path="/contests/:id/writeup"
-                          element={<WriteupPage />}
-                        />
-                        <Route path="/admin/*" element={<Admin />} />
-                        <Route path="/login" element={<Auth />} />
-                        <Route path="/register" element={<Auth register />} />
-                        <Route
-                          path="/account"
-                          element={
-                            <LoadingBoundary>
-                              <Suspense fallback={<LoadingFallback />}>
-                                <Account />
-                              </Suspense>
-                            </LoadingBoundary>
-                          }
-                        />
-                        <Route path="*" element={<StatusPage status={404} />} />
-                      </Routes>
-                    </Suspense>
+                    <PageLoadingBoundary
+                      enabled={
+                        !workbench &&
+                        !authPage &&
+                        !adminPage &&
+                        !spectating &&
+                        !contestManaging &&
+                        location.pathname !== "/account" &&
+                        location.pathname !== "/terminal"
+                      }
+                    >
+                      <Suspense fallback={<Loading fullPage routeShell />}>
+                        <Routes location={location}>
+                          <Route
+                            path="/contests/:id/spectate"
+                            element={<ContestSpectator />}
+                          />
+                          <Route path="/" element={<Home />} />
+                          <Route path="/challenges" element={<Challenges />} />
+                          <Route
+                            path="/problemsets"
+                            element={<ProblemSets />}
+                          />
+                          <Route
+                            path="/problemsets/:id"
+                            element={<ProblemSetDetail />}
+                          />
+                          <Route
+                            path="/announcements"
+                            element={<Announcements />}
+                          />
+                          <Route path="/contests" element={<Contests />} />
+                          <Route
+                            path="/contests/:id/challenges"
+                            element={<ContestArena />}
+                          />
+                          <Route
+                            path="/contests/:id/scoreboard"
+                            element={<ContestBoard />}
+                          />
+                          <Route
+                            path="/contests/:id/announcements"
+                            element={<ContestAnnouncements />}
+                          />
+                          <Route
+                            path="/contests/:id/instances"
+                            element={<ContestResources />}
+                          />
+                          <Route
+                            path="/contests/:id"
+                            element={<ContestDetail />}
+                          />
+                          <Route path="/scoreboard" element={<Scoreboard />} />
+                          <Route path="/library" element={<Library />} />
+                          <Route
+                            path="/library/:slug"
+                            element={<ArticlePage />}
+                          />
+                          <Route path="/learning" element={<Learning />} />
+                          <Route
+                            path="/learning/:id"
+                            element={<LearningDetail />}
+                          />
+                          <Route path="/team" element={<TeamPage />} />
+                          <Route path="/team/new" element={<TeamJoin />} />
+                          <Route path="/instances" element={<Instances />} />
+                          <Route
+                            path="/terminal"
+                            element={
+                              <LoadingBoundary>
+                                <Suspense fallback={<LoadingFallback />}>
+                                  <TerminalPage />
+                                </Suspense>
+                              </LoadingBoundary>
+                            }
+                          />
+                          <Route
+                            path="/contests/:id/manage/*"
+                            element={<ContestManagement />}
+                          />
+                          <Route
+                            path="/contests/:id/writeup"
+                            element={<WriteupPage />}
+                          />
+                          <Route path="/admin/*" element={<Admin />} />
+                          <Route path="/login" element={<Auth />} />
+                          <Route path="/register" element={<Auth register />} />
+                          <Route
+                            path="/account"
+                            element={
+                              <LoadingBoundary>
+                                <Suspense fallback={<LoadingFallback />}>
+                                  <Account />
+                                </Suspense>
+                              </LoadingBoundary>
+                            }
+                          />
+                          <Route
+                            path="*"
+                            element={<StatusPage status={404} />}
+                          />
+                        </Routes>
+                      </Suspense>
+                    </PageLoadingBoundary>
                   </PageBoundary>
                 </m.div>
               </m.div>

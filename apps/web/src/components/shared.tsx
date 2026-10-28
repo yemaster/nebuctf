@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
-import { useRef, type ReactNode } from "react";
+import { useContext, useLayoutEffect, useRef, type ReactNode } from "react";
+import { PageLoadingContext } from "@/lib/page-loading";
 import { useInRouterContext, useLocation } from "react-router-dom";
 import {
   ContentSkeleton,
@@ -56,9 +57,16 @@ type LoadingProps = {
   variant?: SkeletonKind;
   routeShell?: boolean;
   className?: string;
+  immediate?: boolean;
 };
 export function Loading(props: LoadingProps) {
   const routed = useInRouterContext();
+  const register = useContext(PageLoadingContext);
+  const managed = props.fullPage && !props.immediate && register;
+  useLayoutEffect(() => {
+    if (managed) return managed();
+  }, [managed]);
+  if (managed) return null;
   return routed ? (
     <RouteLoading {...props} />
   ) : (
@@ -66,6 +74,7 @@ export function Loading(props: LoadingProps) {
       kind={props.variant}
       fullPage={props.fullPage}
       className={props.className}
+      immediate={props.immediate}
     />
   );
 }
@@ -74,6 +83,7 @@ function RouteLoading({
   variant,
   routeShell = false,
   className,
+  immediate,
 }: LoadingProps) {
   const { pathname, search } = useLocation();
   const shell = routeShell
@@ -89,6 +99,7 @@ function RouteLoading({
       fullPage={fullPage}
       shell={shell}
       className={className}
+      immediate={immediate}
     />
   );
 }

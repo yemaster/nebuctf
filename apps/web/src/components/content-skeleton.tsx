@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Skeleton } from "./ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -851,21 +851,35 @@ export function ContentSkeleton({
   fullPage = false,
   shell,
   className,
+  immediate = false,
 }: {
   kind?: SkeletonKind;
   fullPage?: boolean;
   shell?: "admin" | "management";
   className?: string;
+  immediate?: boolean;
 }) {
+  const [ready, setReady] = useState(immediate);
+  useEffect(() => {
+    if (immediate) return;
+    const timer = setTimeout(() => setReady(true), 120);
+    return () => clearTimeout(timer);
+  }, [immediate]);
+  const visible = immediate || ready;
   const body = <Body kind={kind} />;
   return (
     <div
       role="status"
       aria-label="加载中"
       aria-busy="true"
+      aria-hidden={!visible || undefined}
       data-skeleton={kind}
+      style={{ visibility: visible ? undefined : "hidden" }}
       className={cn(
         "w-full min-w-0",
+        visible &&
+          !immediate &&
+          "motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150",
         fullPage && "min-h-[55dvh]",
         shell && "h-full",
         className,

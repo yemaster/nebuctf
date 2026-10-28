@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -9,6 +10,40 @@ import {
 } from "react";
 import { AnimatePresence } from "motion/react";
 import { TransitionSurface } from "./transition-surface";
+import { PageLoadingContext } from "@/lib/page-loading";
+
+export function PageLoadingBoundary({
+  children,
+  enabled = true,
+}: {
+  children: ReactNode;
+  enabled?: boolean;
+}) {
+  return enabled ? (
+    <RegisteredLoadingBoundary>{children}</RegisteredLoadingBoundary>
+  ) : (
+    children
+  );
+}
+
+function RegisteredLoadingBoundary({ children }: { children: ReactNode }) {
+  const placeholders = useRef(new Set<symbol>());
+  const [pending, setPending] = useState(false);
+  const register = useCallback(() => {
+    const id = Symbol();
+    placeholders.current.add(id);
+    setPending(true);
+    return () => {
+      placeholders.current.delete(id);
+      setPending(placeholders.current.size > 0);
+    };
+  }, []);
+  return (
+    <PageLoadingContext.Provider value={register}>
+      <LoadingTransition pending={pending}>{children}</LoadingTransition>
+    </PageLoadingContext.Provider>
+  );
+}
 
 const LoadingContext = createContext<(pending: boolean) => void>(() => {});
 

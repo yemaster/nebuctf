@@ -44,7 +44,7 @@ export function TransitionSurface({
           transition={{ duration: reduced ? 0 : 0.12, ease: "easeOut" }}
           className={cn("h-full", loadingClassName)}
         >
-          <Loading fullPage variant={variant} />
+          <Loading fullPage variant={variant} immediate />
         </m.div>
       )}
     </m.div>

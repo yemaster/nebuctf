@@ -31,6 +31,7 @@ import { useUser } from "@/App";
 import { cn } from "@/lib/utils";
 import { StatusPage } from "@/components/status-page";
 import { Loading, PageTitle } from "@/components/shared";
+import { PageLoadingBoundary } from "@/components/loading-transition";
 import {
   SidebarProvider,
   Sidebar,
@@ -290,91 +291,96 @@ function AdminLayout() {
             key={location.pathname}
             className="mx-auto w-full max-w-[1600px] motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150"
           >
-            <Suspense fallback={<Loading fullPage />}>
-              <Routes>
-                <Route index element={<Navigate to="overview" replace />} />
-                <Route path="overview" element={<AdminOverview />} />
-                <Route
-                  path="settings"
-                  element={<SystemSettings section="site" />}
-                />
-                <Route
-                  path="containers"
-                  element={<SystemSettings section="containers" />}
-                />
-                <Route
-                  path="mail"
-                  element={<SystemSettings section="mail" />}
-                />
-                <Route path="ai" element={<AIRoutesAdmin />} />
-                <Route path="ai/new" element={<AIRouteEditor />} />
-                <Route path="ai/:id/edit" element={<AIRouteEditor />} />
-                <Route path="challenges" element={<ChallengeAdmin />} />
-                <Route path="images" element={<ImagesAdmin />} />
-                <Route
-                  path="challenges/import"
-                  element={<ContentImport kind="challenge" />}
-                />
-                <Route path="challenges/new" element={<ChallengeEditor />} />
-                <Route
-                  path="challenges/:id/edit"
-                  element={<ChallengeEditor />}
-                />
-                <Route path="contests" element={<ContestAdmin />} />
-                <Route
-                  path="contests/:id/manage/*"
-                  element={<ContestManagement />}
-                />
-                <Route
-                  path="contests/import"
-                  element={<ContentImport kind="contest" />}
-                />
-                <Route path="contests/new" element={<ContestEditor />} />
-                <Route path="contests/:id/edit" element={<ContestEditor />} />
-                <Route path="problemsets" element={<ProblemSetAdmin />} />
-                <Route path="problemsets/new" element={<ProblemSetEditor />} />
-                <Route
-                  path="problemsets/:id/edit"
-                  element={<ProblemSetEditor />}
-                />
-                <Route path="articles" element={<ArticleAdmin />} />
-                <Route path="articles/new" element={<ArticleEditor />} />
-                <Route path="articles/:id/edit" element={<ArticleEditor />} />
-                <Route path="learning" element={<TreeAdmin />} />
-                <Route path="learning/new" element={<TreeEditor />} />
-                <Route path="learning/:id/edit" element={<TreeEditor />} />
-                <Route path="announcements" element={<AnnouncementAdmin />} />
-                <Route
-                  path="announcements/new"
-                  element={<AnnouncementEditor />}
-                />
-                <Route
-                  path="announcements/:id/edit"
-                  element={<AnnouncementEditor />}
-                />
-                <Route
-                  path="resources"
-                  element={
-                    <>
-                      <PageTitle>资源</PageTitle>
-                      <ResourceAdmin />
-                    </>
-                  }
-                />
-                <Route
-                  path="users"
-                  element={
-                    <>
-                      <PageTitle>用户</PageTitle>
-                      <UserAdmin />
-                    </>
-                  }
-                />
-                <Route path="submissions" element={<LogAdmin />} />
-                <Route path="audit" element={<LogAdmin audit />} />
-                <Route path="*" element={<StatusPage status={404} />} />
-              </Routes>
-            </Suspense>
+            <PageLoadingBoundary>
+              <Suspense fallback={<Loading fullPage />}>
+                <Routes>
+                  <Route index element={<Navigate to="overview" replace />} />
+                  <Route path="overview" element={<AdminOverview />} />
+                  <Route
+                    path="settings"
+                    element={<SystemSettings section="site" />}
+                  />
+                  <Route
+                    path="containers"
+                    element={<SystemSettings section="containers" />}
+                  />
+                  <Route
+                    path="mail"
+                    element={<SystemSettings section="mail" />}
+                  />
+                  <Route path="ai" element={<AIRoutesAdmin />} />
+                  <Route path="ai/new" element={<AIRouteEditor />} />
+                  <Route path="ai/:id/edit" element={<AIRouteEditor />} />
+                  <Route path="challenges" element={<ChallengeAdmin />} />
+                  <Route path="images" element={<ImagesAdmin />} />
+                  <Route
+                    path="challenges/import"
+                    element={<ContentImport kind="challenge" />}
+                  />
+                  <Route path="challenges/new" element={<ChallengeEditor />} />
+                  <Route
+                    path="challenges/:id/edit"
+                    element={<ChallengeEditor />}
+                  />
+                  <Route path="contests" element={<ContestAdmin />} />
+                  <Route
+                    path="contests/:id/manage/*"
+                    element={<ContestManagement />}
+                  />
+                  <Route
+                    path="contests/import"
+                    element={<ContentImport kind="contest" />}
+                  />
+                  <Route path="contests/new" element={<ContestEditor />} />
+                  <Route path="contests/:id/edit" element={<ContestEditor />} />
+                  <Route path="problemsets" element={<ProblemSetAdmin />} />
+                  <Route
+                    path="problemsets/new"
+                    element={<ProblemSetEditor />}
+                  />
+                  <Route
+                    path="problemsets/:id/edit"
+                    element={<ProblemSetEditor />}
+                  />
+                  <Route path="articles" element={<ArticleAdmin />} />
+                  <Route path="articles/new" element={<ArticleEditor />} />
+                  <Route path="articles/:id/edit" element={<ArticleEditor />} />
+                  <Route path="learning" element={<TreeAdmin />} />
+                  <Route path="learning/new" element={<TreeEditor />} />
+                  <Route path="learning/:id/edit" element={<TreeEditor />} />
+                  <Route path="announcements" element={<AnnouncementAdmin />} />
+                  <Route
+                    path="announcements/new"
+                    element={<AnnouncementEditor />}
+                  />
+                  <Route
+                    path="announcements/:id/edit"
+                    element={<AnnouncementEditor />}
+                  />
+                  <Route
+                    path="resources"
+                    element={
+                      <>
+                        <PageTitle>资源</PageTitle>
+                        <ResourceAdmin />
+                      </>
+                    }
+                  />
+                  <Route
+                    path="users"
+                    element={
+                      <>
+                        <PageTitle>用户</PageTitle>
+                        <UserAdmin />
+                      </>
+                    }
+                  />
+                  <Route path="submissions" element={<LogAdmin />} />
+                  <Route path="audit" element={<LogAdmin audit />} />
+                  <Route path="*" element={<StatusPage status={404} />} />
+                </Routes>
+              </Suspense>
+            </PageLoadingBoundary>
           </div>
         </div>
       </div>

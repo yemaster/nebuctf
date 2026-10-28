@@ -34,8 +34,13 @@ test("account loading preserves one surface through chunk and data readiness", a
   }
   const { createRoot } = await import("react-dom/client");
   const { LazyMotion, domAnimation } = await import("motion/react");
-  const { LoadingBoundary, LoadingFallback, useLoadingState } =
-    await import("../src/components/loading-transition");
+  const {
+    LoadingBoundary,
+    LoadingFallback,
+    useLoadingState,
+    PageLoadingBoundary,
+  } = await import("../src/components/loading-transition");
+  const { Loading } = await import("../src/components/shared");
   const host = document.getElementById("root")!;
   let root: ReturnType<typeof createRoot>;
   t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1000 });
@@ -43,13 +48,17 @@ test("account loading preserves one surface through chunk and data readiness", a
     useLoadingState(pending);
     return <input aria-label="草稿" defaultValue="未提交" />;
   }
-  const render = async (content: React.ReactNode) => {
+  const render = async (content: React.ReactNode, registered = false) => {
     if (!root) root = createRoot(host);
     await act(async () =>
       root.render(
         <MemoryRouter initialEntries={["/account?section=submissions"]}>
           <LazyMotion features={domAnimation}>
-            <LoadingBoundary>{content}</LoadingBoundary>
+            {registered ? (
+              <PageLoadingBoundary>{content}</PageLoadingBoundary>
+            ) : (
+              <LoadingBoundary>{content}</LoadingBoundary>
+            )}
           </LazyMotion>
         </MemoryRouter>,
       ),
@@ -130,6 +139,90 @@ test("account loading preserves one surface through chunk and data readiness", a
       await tick(0);
       assert.equal(busy(), "false");
     });
+    await t.test(
+      "shared full-page placeholders skip fast reads and keep ready content mounted",
+      async () => {
+        await render(<Loading fullPage />, true);
+        await tick(80);
+        await render(<input defaultValue="草稿" />, true);
+        const input = host.querySelector("input")!;
+        input.value = "保留内容";
+        await tick(400);
+        assert.equal(host.querySelector('[role="status"]'), null);
+        assert.equal(busy(), "false");
+        assert.equal(host.querySelector("input"), input);
+        assert.equal(input.value, "保留内容");
+      },
+    );
+    await t.test(
+      "registered chunk and data placeholders hand over one skeleton and share its minimum duration",
+      async () => {
+        let resolve!: (module: { default: typeof DataPage }) => void;
+        function DataPage({ pending }: { pending: boolean }) {
+          return pending ? (
+            <Loading fullPage />
+          ) : (
+            <input defaultValue="已加载" />
+          );
+        }
+        const Chunk = lazy(
+          () =>
+            new Promise<{ default: typeof DataPage }>((done) => {
+              resolve = done;
+            }),
+        );
+        const content = (pending: boolean) => (
+          <Suspense fallback={<Loading fullPage />}>
+            <Chunk pending={pending} />
+          </Suspense>
+        );
+        await render(content(true), true);
+        await tick(119);
+        assert.equal(host.querySelector('[role="status"]'), null);
+        await tick(1);
+        const skeleton = host.querySelector('[role="status"]');
+        assert.ok(skeleton);
+        await tick(20);
+        await act(async () => resolve({ default: DataPage }));
+        assert.equal(host.querySelector('[role="status"]'), skeleton);
+        await render(content(false), true);
+        assert.ok(host.querySelector("input")!.closest("[inert]"));
+        await tick(219);
+        assert.equal(busy(), "true");
+        await tick(1);
+        assert.equal(busy(), "false");
+        assert.equal(host.querySelector("input")!.closest("[inert]"), null);
+      },
+    );
+    await t.test(
+      "multiple pending reads do not reveal early and leaving cancels the delayed skeleton",
+      async () => {
+        await render(
+          <>
+            <Loading key="first" fullPage />
+            <Loading key="second" fullPage />
+          </>,
+          true,
+        );
+        await tick(120);
+        await render(<Loading key="second" fullPage />, true);
+        await tick(400);
+        assert.equal(busy(), "true");
+        await render(<div role="alert">读取失败</div>, true);
+        await tick(0);
+        assert.equal(busy(), "false");
+        assert.equal(
+          host.querySelector('[role="alert"]')!.closest("[inert]"),
+          null,
+        );
+        await render(<Loading fullPage />, true);
+        await tick(30);
+        await act(async () => root.render(<div>下一页</div>));
+        await tick(1000);
+        assert.equal(host.textContent, "下一页");
+        assert.equal(host.querySelector("[data-skeleton]"), null);
+      },
+    );
   } finally {
     await act(async () => root?.unmount());
     t.mock.timers.reset();

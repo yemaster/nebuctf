@@ -37,6 +37,7 @@ import {
 } from "./admin/ContestRegistrations";
 import { MonitorList, IntegrityDetail } from "./admin/ContestMonitor";
 import { Loading } from "@/components/shared";
+import { PageLoadingBoundary } from "@/components/loading-transition";
 const ContestEditor = lazy(() =>
   import("./admin/Contests").then((module) => ({
     default: module.ContestEditor,
@@ -134,32 +135,37 @@ function ManagementLayout() {
         <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="mx-auto w-full max-w-[1440px] space-y-6">
             <PageBoundary>
-              <Suspense fallback={<Loading fullPage />}>
-                <Routes>
-                  <Route index element={<Navigate replace to="teams" />} />
-                  <Route path="writeups" element={<WriteupsAdmin />} />
-                  <Route
-                    path="writeups/:team"
-                    element={<WriteupAdminDetail />}
-                  />
-                  <Route path="teams" element={<Registrations />} />
-                  <Route path="teams/:team" element={<RegistrationDetail />} />
-                  <Route
-                    path="activity"
-                    element={<MonitorList live={live} />}
-                  />
-                  <Route
-                    path="integrity"
-                    element={<MonitorList integrity live={live} />}
-                  />
-                  <Route
-                    path="integrity/:event"
-                    element={<IntegrityDetail />}
-                  />
-                  <Route path="settings" element={<ContestEditor />} />
-                  <Route path="*" element={<StatusPage status={404} />} />
-                </Routes>
-              </Suspense>
+              <PageLoadingBoundary key={location.pathname}>
+                <Suspense fallback={<Loading fullPage />}>
+                  <Routes>
+                    <Route index element={<Navigate replace to="teams" />} />
+                    <Route path="writeups" element={<WriteupsAdmin />} />
+                    <Route
+                      path="writeups/:team"
+                      element={<WriteupAdminDetail />}
+                    />
+                    <Route path="teams" element={<Registrations />} />
+                    <Route
+                      path="teams/:team"
+                      element={<RegistrationDetail />}
+                    />
+                    <Route
+                      path="activity"
+                      element={<MonitorList live={live} />}
+                    />
+                    <Route
+                      path="integrity"
+                      element={<MonitorList integrity live={live} />}
+                    />
+                    <Route
+                      path="integrity/:event"
+                      element={<IntegrityDetail />}
+                    />
+                    <Route path="settings" element={<ContestEditor />} />
+                    <Route path="*" element={<StatusPage status={404} />} />
+                  </Routes>
+                </Suspense>
+              </PageLoadingBoundary>
             </PageBoundary>
           </div>
         </div>
