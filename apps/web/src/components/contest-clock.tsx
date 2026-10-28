@@ -7,6 +7,7 @@ import { Badge } from "./ui/badge";
 export function useContestNow(
   clock: Pick<ContestClock, "server_time"> | null | undefined,
   receivedAt?: number,
+  refreshInterval = 1000,
 ) {
   const offset = useMemo(
     () =>
@@ -15,9 +16,9 @@ export function useContestNow(
   );
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setNow(Date.now()), refreshInterval);
     return () => clearInterval(timer);
-  }, []);
+  }, [refreshInterval]);
   return now + offset;
 }
 

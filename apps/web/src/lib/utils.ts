@@ -44,10 +44,13 @@ export const statusNames: Record<string, string> = {
   stopped: "已停止",
   failed: "创建失败",
 };
-export const contestStatus = (c: { starts_at: string; ends_at: string }) =>
-  Date.now() < Date.parse(c.starts_at)
+export const contestStatus = (
+  c: { starts_at: string; ends_at: string },
+  now = Date.now(),
+) =>
+  now < Date.parse(c.starts_at)
     ? "即将开始"
-    : Date.now() >= Date.parse(c.ends_at)
+    : now >= Date.parse(c.ends_at)
       ? "已结束"
       : "进行中";
 
