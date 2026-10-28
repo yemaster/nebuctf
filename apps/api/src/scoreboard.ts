@@ -46,7 +46,7 @@ export async function readScoreboard(
   // are mutually exclusive, so finishing a multi-part challenge never doubles its score.
   const [result] = await db.query(
     `WITH eligible AS (
-      SELECT c.*,coalesce(cc.scoring,'{"mode":"inherit"}'::jsonb) scoring
+      SELECT c.id,c.title,c.category,c.created_at,c.initial_points,c.minimum_points,c.decay,c.dynamic_score,coalesce(cc.scoring,'{"mode":"inherit"}'::jsonb) scoring
       FROM challenges c LEFT JOIN contest_challenges cc ON cc.challenge_id=c.id AND cc.contest_id::text=$1
       WHERE c.published AND $7::boolean
       AND (($1='practice' AND c.practice) OR (cc.contest_id IS NOT NULL AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=$2)))
@@ -100,8 +100,10 @@ export async function readScoreboard(
     ), score_ledger AS (
       SELECT owner_key,unit_id,created_at,points FROM scored
       UNION ALL SELECT owner_key,NULL::uuid,created_at,points FROM fixed_costs
+    ), positive_totals AS (
+      SELECT owner_key,count(DISTINCT unit_id)::int flags,max(created_at) last_solve FROM base_scored WHERE points>0 GROUP BY owner_key
     ), totals AS (
-      SELECT owner_key,sum(points)::int score,(SELECT count(DISTINCT b.unit_id)::int FROM base_scored b WHERE b.owner_key=score_ledger.owner_key AND b.points>0) flags,(SELECT max(b.created_at) FROM base_scored b WHERE b.owner_key=score_ledger.owner_key AND b.points>0) last_solve FROM score_ledger GROUP BY owner_key
+      SELECT l.owner_key,sum(l.points)::int score,coalesce(b.flags,0) flags,b.last_solve FROM score_ledger l LEFT JOIN positive_totals b ON b.owner_key=l.owner_key GROUP BY l.owner_key,b.flags,b.last_solve
     ), completed AS (
       SELECT s.owner_key,count(*)::int solves FROM solves s JOIN eligible c ON c.id=s.challenge_id WHERE s.scope=$1 AND s.created_at<=$2 AND NOT s.contest_practice GROUP BY s.owner_key
     ), participants AS (
@@ -128,7 +130,7 @@ export async function readScoreboard(
         CASE WHEN $9::boolean THEN jsonb_agg(s.round_details)->0 ELSE NULL END round_details
       FROM scored s JOIN paged p ON p.owner_key=s.owner_key JOIN units u ON u.unit_id=s.unit_id WHERE ($10::uuid[] IS NULL OR u.challenge_id=ANY($10::uuid[]))
       GROUP BY s.owner_key,s.unit_id,CASE WHEN $9::boolean THEN s.id ELSE NULL END,CASE WHEN $9::boolean THEN s.user_id ELSE NULL END
-    ), page_solves AS (
+    ), page_solves AS MATERIALIZED (
       SELECT s.owner_key,jsonb_agg(jsonb_build_object('unit_id',s.unit_id,'score',s.points,'solved_at',s.created_at,'blood_rank',CASE WHEN blood_rank<=3 THEN blood_rank ELSE NULL END,'round_number',s.round_number,'round_details',s.round_details) || CASE WHEN $9::boolean THEN jsonb_build_object('solver_id',s.user_id,'solver_name',u.username) ELSE '{}'::jsonb END ORDER BY s.created_at,s.id) cells
       FROM display_scores s LEFT JOIN users u ON $9::boolean AND u.id=s.user_id GROUP BY s.owner_key
     ), member_ids AS (

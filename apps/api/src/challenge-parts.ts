@@ -18,6 +18,7 @@ export async function challengeProgress(
   owner: string,
   cutoff: Date | string,
   practice = false,
+  options: { summary?: boolean } = {},
 ) {
   if (!challenges.length) return [];
   const [group] =
@@ -46,10 +47,19 @@ export async function challengeProgress(
           [scope, challenges.map((c) => c.id)],
         );
   const rows = await db.query(
-    `SELECT p.*, (SELECT count(*)::int FROM part_solves s WHERE s.part_id=p.id AND s.scope=$2 AND s.created_at<=$4 AND NOT s.contest_practice) solves,
-      (SELECT count(*)::int FROM part_solves s LEFT JOIN accepted_registrations r ON r.contest_id::text=$2 AND 't:'||r.team_id=s.owner_key LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.part_id=p.id AND s.scope=$2 AND s.created_at<=$4 AND NOT s.contest_practice AND ($2='practice' OR r.team_id IS NOT NULL) AND ${permissionSQL("g", "p.challenge_id", "dynamic")}) dynamic_solves,
+    `WITH selected_parts AS (
+      SELECT p.id,p.challenge_id,p.title,p.role,p.position,p.initial_points,p.minimum_points,${options.summary ? "NULL::text" : "p.description"} description
+      FROM challenge_parts p WHERE p.challenge_id=ANY($1::uuid[])
+    ), counts AS (
+      SELECT s.part_id,count(*)::int solves,
+        count(*) FILTER(WHERE ($2='practice' OR r.team_id IS NOT NULL) AND ${permissionSQL("g", "p.challenge_id", "dynamic")})::int dynamic_solves
+      FROM part_solves s JOIN selected_parts p ON p.id=s.part_id
+      LEFT JOIN accepted_registrations r ON r.contest_id::text=$2 AND 't:'||r.team_id=s.owner_key
+      LEFT JOIN contest_groups g ON g.id=r.group_id
+      WHERE s.scope=$2 AND s.created_at<=$4 AND NOT s.contest_practice GROUP BY s.part_id
+    ) SELECT p.*,coalesce(c.solves,0) solves,coalesce(c.dynamic_solves,0) dynamic_solves,
       EXISTS(SELECT 1 FROM part_solves s WHERE s.part_id=p.id AND s.scope=$2 AND s.owner_key=$3) solved
-     FROM challenge_parts p WHERE p.challenge_id=ANY($1::uuid[]) ORDER BY p.position,p.id`,
+      FROM selected_parts p LEFT JOIN counts c ON c.part_id=p.id ORDER BY p.position,p.id`,
     [challenges.map((c) => c.id), scope, owner, cutoff],
   );
   const bloods =
@@ -59,24 +69,41 @@ export async function challengeProgress(
           `WITH units AS (
       SELECT c.id unit_id,c.id challenge_id,false part FROM challenges c WHERE c.id=ANY($1::uuid[]) AND NOT EXISTS(SELECT 1 FROM challenge_parts p WHERE p.challenge_id=c.id)
       UNION ALL SELECT p.id,p.challenge_id,true FROM challenge_parts p WHERE p.challenge_id=ANY($1::uuid[])
-    ) SELECT u.unit_id,b.team_id,b.name,b.created_at,row_number() OVER(PARTITION BY u.unit_id ORDER BY b.created_at,b.id)::int rank
-      FROM units u CROSS JOIN LATERAL (
-        SELECT s.id,t.id team_id,t.name,s.created_at FROM (
-          SELECT id,owner_key,created_at FROM solves WHERE NOT u.part AND challenge_id=u.unit_id AND scope=$2 AND created_at<=$3 AND NOT contest_practice
-          UNION ALL SELECT id,owner_key,created_at FROM part_solves WHERE u.part AND part_id=u.unit_id AND scope=$2 AND created_at<=$3 AND NOT contest_practice
-        ) s JOIN ranked_registrations r ON r.contest_id::text=$2 AND 't:'||r.team_id=s.owner_key
-        JOIN teams t ON t.id=r.team_id LEFT JOIN contest_groups g ON g.id=r.group_id
-        WHERE ${permissionSQL("g", "u.challenge_id", "blood")}
-        ORDER BY s.created_at,s.id LIMIT 3
-      ) b`,
+    ), events AS (
+      SELECT u.unit_id,u.challenge_id,s.id,s.owner_key,s.created_at FROM units u JOIN solves s ON NOT u.part AND s.challenge_id=u.unit_id
+      WHERE s.scope=$2 AND s.created_at<=$3 AND NOT s.contest_practice
+      UNION ALL
+      SELECT u.unit_id,u.challenge_id,s.id,s.owner_key,s.created_at FROM units u JOIN part_solves s ON u.part AND s.part_id=u.unit_id
+      WHERE s.scope=$2 AND s.created_at<=$3 AND NOT s.contest_practice
+    ), ranked AS (
+      SELECT e.unit_id,t.id team_id,t.name,e.created_at,
+        row_number() OVER(PARTITION BY e.unit_id ORDER BY e.created_at,e.id)::int rank
+      FROM events e JOIN ranked_registrations r ON r.contest_id::text=$2 AND 't:'||r.team_id=e.owner_key
+      JOIN teams t ON t.id=r.team_id LEFT JOIN contest_groups g ON g.id=r.group_id
+      WHERE ${permissionSQL("g", "e.challenge_id", "blood")}
+    ) SELECT * FROM ranked WHERE rank<=3 ORDER BY unit_id,rank`,
           [challenges.map((c) => c.id), scope, cutoff],
         );
+  const groupBy = (rows: Row[], key: string) => {
+    const groups = new Map<string, Row[]>();
+    for (const row of rows) {
+      const group = groups.get(row[key]);
+      if (group) group.push(row);
+      else groups.set(row[key], [row]);
+    }
+    return groups;
+  };
+  const byChallenge = (rows: Row[]) =>
+    new Map(rows.map((row) => [row.challenge_id, row]));
+  const countByChallenge = byChallenge(counts),
+    scoringByChallenge = byChallenge(links),
+    factorByChallenge = byChallenge(factors),
+    partsByChallenge = groupBy(rows, "challenge_id"),
+    bloodsByUnit = groupBy(bloods, "unit_id");
   const firstSolves = (unit: string) =>
-    bloods
-      .filter((b) => b.unit_id === unit)
-      .map(({ unit_id: _unit, ...blood }) => blood);
+    (bloodsByUnit.get(unit) ?? []).map(({ unit_id: _unit, ...blood }) => blood);
   return challenges.map((original) => {
-    const scoring = links.find((l) => l.challenge_id === original.id)?.scoring;
+    const scoring = scoringByChallenge.get(original.id)?.scoring;
     const c: Row = {
       ...effectivePoints(original, scoring),
       contest_scoring: scoring,
@@ -89,8 +116,7 @@ export async function challengeProgress(
           : {}),
       },
     };
-    const parts = rows
-      .filter((p) => p.challenge_id === c.id)
+    const parts = (partsByChallenge.get(c.id) ?? [])
       .map((p) =>
         effectivePoints(
           {
@@ -126,11 +152,10 @@ export async function challengeProgress(
           c.initial_points,
           c.minimum_points,
           c.decay,
-          counts.find((row) => row.challenge_id === c.id)?.dynamic_solves ?? 0,
+          countByChallenge.get(c.id)?.dynamic_solves ?? 0,
           c.dynamic_score,
         );
-    const hintFactor =
-      factors.find((row) => row.challenge_id === c.id)?.factor ?? 1;
+    const hintFactor = factorByChallenge.get(c.id)?.factor ?? 1;
     const personalPoints = (value: number) =>
       Math.floor(Math.round(value * hintFactor * 1e8) / 1e8);
     return {
