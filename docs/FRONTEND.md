@@ -567,8 +567,19 @@ Markdown 代码使用 [Refractor](https://github.com/wooorm/refractor) 的按需
 
 ## 终端与底部入口
 
-`/terminal` 沿用全站主题和 shadcn 按钮，页面顶部集中启动、续期、销毁；主体为完整 xterm.js 终端。连接、清屏和复制集中在终端工具栏。工具镜像启动进度结束后才显示有效期进度，网络错误和创建失败分别提供重连或重试。xterm 和 fit addon 按需加载，不进入首页和题库首屏依赖。
+`/terminal` 沿用全站主题和 shadcn 按钮，以单一工具栏和完整 xterm.js 区域构成工作区。标题、连接状态、复制、清屏、倒计时、续期和销毁集中在同一行，移除重复标题及工具列表文案。工具镜像启动进度结束后才显示有效期进度，网络错误和创建失败分别提供重连或重试。xterm 和 fit addon 按需加载，不进入首页和题库首屏依赖。
 
 布局参考 [Google Cloud Shell](https://docs.cloud.google.com/shell/docs/using-cloud-shell) 的完整终端区域和 [Azure Cloud Shell 工具栏](https://learn.microsoft.com/en-us/azure/cloud-shell/use-the-shell-window) 的集中操作。实现遵循 [xterm.js 安全指南](https://xtermjs.org/docs/guides/security/)。保持平台现有字体、主题色和 UI 组件。
 
-底部工具（我的环境、终端）和信息（比赛/平台概况、信息菜单）相邻排列；右侧仅显示赛程/时间。终端在新窗口打开，保留正在作答的页面。练习左侧目录分页使用 28px 按钮、12px 页码，其余列表维持原尺寸。
+底部按上下文分组：左侧为当前练习环境或比赛信息、比赛导航、战队及赛程；右侧为终端、平台概况、站点信息等常驻入口。终端在新窗口打开，保留正在作答的页面。练习左侧目录分页使用 28px 按钮、12px 页码，其余列表维持原尺寸。
+
+
+## 首页与终端细化
+
+首页公告合并为有明确行间分隔的完整区域，公告整行和全部公告按钮 hover 使用 muted 中性色。日历沿用 shadcn Calendar，用小色条区分同日赛事，鼠标停留查看比赛名；同一比赛在一个月内颜色一致，不改变日期选择行为。
+
+靶机地址、复制、打开保持同一行，HTTP 使用浏览器图标，nc 使用终端图标，均在新窗口打开。终端复用已有容器，目标连接与原 shell 使用独立 tmux 会话；退出目标连接可以回到 shell。运行中状态每 15 秒刷新，处理时每 1.5 秒刷新，闲置停止轮询。倒计时只更新自身，PTY 缩放按事件合并发送，无空闲缩放轮询。
+
+页面标题统一使用「页面名称 - 网站名称」，具体题目、比赛和编辑页使用已加载的名称；账户切换资料、安全、提交记录时同步更新。复用 Query 缓存订阅，不额外发起标题请求，不从后台页面导入重型依赖。
+
+终端操作排列参考 [VS Code 终端](https://code.visualstudio.com/docs/terminal/basics) 与 [Azure Cloud Shell](https://learn.microsoft.com/en-us/azure/cloud-shell/use-the-shell-window)，提示复用现有 shadcn Tooltip。nc 进程采用 [tmux 多参数直接执行](https://man.openbsd.org/tmux.1)，不向已有 shell 拼接命令。

@@ -477,8 +477,15 @@ POST 最多 200 题，单填空 500 字符、每题最多 10 个空位，总请�
 ### 个人终端
 
 - `GET /api/terminal`：当前用户最新终端实例，含状态、排队前方任务数、有效期、续期次数和操作冷却时间。
-- `POST /api/terminal`：幂等启动个人终端，无请求参数。镜像和规格由服务端固定，受平台资源配额约束。
+- `POST /api/terminal`：幂等启动个人终端。可选 `{target: "靶机实例 UUID"}`，启动前校验目标可访问；重复请求复用当前终端。镜像和规格由服务端固定，受平台资源配额约束。
 - `POST /api/instances/:id/renew`、`POST /api/instances/:id/stop`：复用环境续期和销毁，需实例归属权限。
 - `GET /api/terminal/:id/connect`：同源 WebSocket 升级，需有效登录 Cookie、准确 Origin、属于当前用户的运行中终端。管理员也不能连接其他人的终端。
 
 客户端发送 JSON `{type:"input",data:"..."}` 或 `{type:"resize",cols:100,rows:30}`，每帧最多 1 KiB。尺寸范围 2–300 列、1–120 行。服务端以 `{type:"ready"}` 表示可以输入，终端输出为二进制 UTF-8 数据。断线后可重新连接，同一终端的新连接替换旧连接（关闭码 4001）。输入输出有缓冲上限，会话撤销和实例到期会关闭连接。不会将终端命令或输出写入应用日志。
+
+- `GET /api/terminal/targets/:id`：读取可用 nc 靶机的题目名称、连接地址和返回题目链接。仅允许当前用户/战队环境、可访问的公共环境或已报名 AWD 选手的对抗目标；测试靶机仅创建它的管理员可用。
+- `GET /api/terminal/:id/connect?target=UUID`：服务端从数据库解析并验证 nc 地址，以独立 tmux 会话执行 `nc`。客户端不能提供主机、端口或命令。每 10 秒重新检查目标访问权和有效期，切回无 `target` 的连接即回到原有 shell。
+
+题目容器配置新增 `resources.container.protocol: "http" | "nc"`，旧数据按 `http` 处理；`nc` 仅支持端口直连。该显示/连接元数据可以在已有解题或运行环境时修改，镜像、资源规格等原有限制不变。测试实例使用创建时的协议设置。
+
+比赛日历返回 `{days:[{day,count,contests:[{id,title}]}]}`，每天最多返回三个赛事标识，`count` 为全部可见赛事数量；保留原有时区边界和私密比赛权限。
