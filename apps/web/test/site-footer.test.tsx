@@ -255,6 +255,7 @@ test("footer panels load on demand, respect contest access and keep personal res
           );
           assert.ok(document.querySelector('[aria-label^="赛程剩余"]'));
           await click("比赛信息");
+          await settle(() => value("参赛状态") === "未报名");
           assert.equal(value("参赛状态"), "未报名");
           assert.equal(value("报名战队"), "0");
           assert.deepEqual(requests, []);
