@@ -1,5 +1,5 @@
 import { contestVisibilitySQL } from "./contest-entry.js";
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
 import type { DB, Row } from "./db.js";
 import { contestAccess, type User } from "./context.js";
@@ -72,6 +72,7 @@ export async function readSpectatorSnapshot(db: DB, contest: Row, user?: User) {
   const visible = await visibleChallengeIds(db, scope);
   const board = await readScoreboard(db, { scope, page_size: 100 }, user, {
     spectator: true,
+    summary: true,
   });
   const activity = await readContestActivity(db, scope, contest, visible);
   const cutoff = contestCutoff(contest);
@@ -162,7 +163,9 @@ export async function readSpectatorSnapshot(db: DB, contest: Row, user?: User) {
 
 type Peer = {
   socket: WebSocket;
-  request: FastifyRequest;
+  tokenHash: string;
+  ip: string;
+  user?: User;
   alive: boolean;
   signature?: string;
 };
@@ -216,7 +219,7 @@ export function contestSpectatorRoutes(app: FastifyInstance, db: DB) {
         db,
         { scope, page: q.page, group: q.group, page_size: 10 },
         req.user ?? undefined,
-        { spectator: true },
+        { spectator: true, summary: true },
       );
       return {
         total: board.total,
@@ -240,8 +243,7 @@ export function contestSpectatorRoutes(app: FastifyInstance, db: DB) {
   });
   const count = (ip?: string) =>
     [...rooms.values()].reduce(
-      (n, r) =>
-        n + [...r.peers].filter((p) => !ip || p.request.ip === ip).length,
+      (n, r) => n + [...r.peers].filter((p) => !ip || p.ip === ip).length,
       0,
     );
   const send = (peer: Peer, message: string) => {
@@ -283,34 +285,32 @@ export function contestSpectatorRoutes(app: FastifyInstance, db: DB) {
             `SELECT s.token_hash,u.id,u.username,u.email,u.role FROM sessions s JOIN users u ON u.id=s.user_id
               JOIN contests c ON c.id=$2 WHERE s.token_hash=ANY($1::text[]) AND s.expires_at>now() AND NOT u.disabled
               AND (u.role='admin' OR (c.published AND c.spectator_enabled AND ${contestVisibilitySQL("c", "u.id", "false")}))`,
-            [
-              peers.map((p) => digest(p.request.cookies[sessionCookie] ?? "")),
-              scope,
-            ],
+            [[...new Set(peers.map((p) => p.tokenHash))], scope],
           );
-        const allowed = peers.filter((p) => {
-          if (publicAccess) return true;
-          const user = authorized.find(
-            (u) =>
-              u.token_hash === digest(p.request.cookies[sessionCookie] ?? ""),
-          );
-          if (!user) return false;
-          p.request.user = {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            role: user.role,
-          };
-          return true;
-        });
-        for (const p of peers)
-          if (!allowed.includes(p))
-            p.socket.close(1008, "Spectating unavailable");
+        const byToken = new Map(
+          authorized.map((user) => [user.token_hash, user]),
+        );
+        const allowed: Peer[] = [];
+        for (const peer of peers) {
+          if (!publicAccess) {
+            const user = byToken.get(peer.tokenHash);
+            if (!user) {
+              peer.socket.close(1008, "Spectating unavailable");
+              continue;
+            }
+            peer.user = {
+              id: user.id,
+              username: user.username,
+              email: user.email,
+              role: user.role,
+            };
+          }
+          allowed.push(peer);
+        }
         if (!allowed.length) break;
         const data = await snapshot(
           contest,
-          (allowed.find((p) => p.request.user?.role === "admin") ?? allowed[0])
-            ?.request.user ?? undefined,
+          (allowed.find((p) => p.user?.role === "admin") ?? allowed[0])?.user,
         );
         const message = JSON.stringify({ type: "spectator", data });
         const signature = digest(message);
@@ -367,7 +367,13 @@ export function contestSpectatorRoutes(app: FastifyInstance, db: DB) {
         dirty: false,
       };
       rooms.set(scope, room);
-      const peer: Peer = { socket, request, alive: true };
+      const peer: Peer = {
+        socket,
+        tokenHash: digest(request.cookies[sessionCookie] ?? ""),
+        ip: request.ip,
+        user: request.user ?? undefined,
+        alive: true,
+      };
       room.peers.add(peer);
       socket.on("pong", () => {
         peer.alive = true;

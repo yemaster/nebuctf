@@ -99,9 +99,26 @@ test(
     };
     const ws = await connect();
     await wait(() => messages.some((m) => m.type === "activity"));
+    // A session can have several tabs; deduplicating authorization must not drop a recipient.
+    const tabMessages: any[] = [];
+    const tab = await app.injectWS(
+      path,
+      { headers },
+      {
+        onInit: (socket) =>
+          socket.on("message", (data) =>
+            tabMessages.push(JSON.parse(data.toString())),
+          ),
+      },
+    );
+    sockets.push(tab);
+    await wait(() => tabMessages.some((m) => m.type === "activity"));
     await db.transaction((tx) => recordContestReleases(tx, contest, [cid]));
     await wait(() =>
       messages.at(-1)?.data?.items.some((e: any) => e.type === "release"),
+    );
+    await wait(() =>
+      tabMessages.at(-1)?.data?.items.some((e: any) => e.type === "release"),
     );
     await db.transaction((tx) => recordContestNotice(tx, contest, cid, "hint"));
     await wait(() => messages.at(-1)?.data?.hint_updates?.length === 1);
@@ -185,7 +202,12 @@ test(
           [jid, cid, contest, "t:" + team, user],
         );
         await wait(() => messages.some((m) => m.type === "judges"));
+        await wait(() => tabMessages.some((m) => m.type === "judges"));
         const first = messages.findLast((m) => m.type === "judges");
+        assert.deepEqual(
+          tabMessages.findLast((m) => m.type === "judges"),
+          first,
+        );
         assert.deepEqual(Object.keys(first).sort(), ["revision", "type"]);
         assert.equal(
           otherMessages.filter((m) => m.type === "judges").length,
@@ -218,7 +240,11 @@ test(
     const closed = new Promise<number>((resolve) =>
       next.once("close", (code) => resolve(code)),
     );
+    const tabClosed = new Promise<number>((resolve) =>
+      tab.once("close", resolve),
+    );
     await db.query("DELETE FROM sessions WHERE user_id=$1", [user]);
     assert.equal(await closed, 1008);
+    assert.equal(await tabClosed, 1008);
   },
 );

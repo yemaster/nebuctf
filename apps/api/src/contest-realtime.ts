@@ -11,9 +11,9 @@ import { id } from "./schemas.js";
 import { digest, fail, rate } from "./security.js";
 type Peer = {
   socket: WebSocket;
-  request: FastifyRequest;
+  tokenHash: string;
+  userId: string;
   alive: boolean;
-  checked: number;
 };
 type Room = {
   scope: string;
@@ -28,18 +28,7 @@ export function contestRealtimeRoutes(app: FastifyInstance, db: DB) {
   const rooms = new Map<string, Room>();
   let unsubscribe: (() => Promise<void>) | undefined,
     closing = false;
-  async function authorize(
-    req: FastifyRequest,
-    scope: string,
-    refresh = false,
-  ) {
-    if (refresh) {
-      const [user] = await db.query(
-        "SELECT u.id,u.username,u.email,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now() AND NOT u.disabled",
-        [digest(req.cookies[sessionCookie] ?? "")],
-      );
-      req.user = (user as typeof req.user) ?? null;
-    }
+  async function authorize(req: FastifyRequest, scope: string) {
     const user = requireUser(req),
       contest = (await contestAccess(db, scope, user, false))!;
     await progressOwnerFor(db, scope, user);
@@ -83,44 +72,63 @@ export function contestRealtimeRoutes(app: FastifyInstance, db: DB) {
         const valid = await db.query(
           `SELECT s.token_hash,u.id,u.role,reg.group_id,reg.team_id,reg.status,reg.permissions,reg.challenge_permissions FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN LATERAL (SELECT r.group_id,r.team_id,r.status,g.permissions,g.challenge_permissions FROM memberships m JOIN registrations r ON r.team_id=m.team_id LEFT JOIN contest_groups g ON g.id=r.group_id WHERE m.user_id=u.id AND r.contest_id=$2 ORDER BY CASE WHEN r.status='accepted' THEN 0 WHEN r.status='suspended' THEN 1 WHEN r.status='pending' THEN 2 ELSE 3 END,r.created_at DESC LIMIT 1) reg ON true WHERE s.token_hash=ANY($1::text[]) AND s.expires_at>now() AND NOT u.disabled AND (($4::boolean AND u.role='admin') OR (NOT $4::boolean AND ((u.role='admin' AND reg.team_id IS NULL) OR ((u.role='admin' OR $3::boolean) AND reg.status='accepted'))))`,
           [
-            peers.map((p) => digest(p.request.cookies[sessionCookie] ?? "")),
+            [...new Set(peers.map((p) => p.tokenHash))],
             scope,
             contest.published,
             room.admin,
           ],
         );
-        for (const peer of peers)
-          if (
-            !valid.some(
-              (v) =>
-                v.token_hash ===
-                digest(peer.request.cookies[sessionCookie] ?? ""),
-            )
-          )
+        const byToken = new Map(valid.map((user) => [user.token_hash, user]));
+        const allowed: Peer[] = [];
+        const ownerPeers = new Map<string, Peer[]>();
+        const audiences = new Map<
+          string,
+          { user: (typeof valid)[number]; peers: Peer[] }
+        >();
+        for (const peer of peers) {
+          const user = byToken.get(peer.tokenHash);
+          if (!user) {
             peer.socket.close(1008, "Authentication expired");
+            continue;
+          }
+          allowed.push(peer);
+          if (room.admin) continue;
+          if (user.team_id) {
+            const owner = `t:${user.team_id}`;
+            const recipients = ownerPeers.get(owner);
+            if (recipients) recipients.push(peer);
+            else ownerPeers.set(owner, [peer]);
+          }
+          const key = user.team_id
+            ? `group:${user.group_id ?? "default"}`
+            : "preview";
+          const audience = audiences.get(key);
+          if (audience) audience.peers.push(peer);
+          else audiences.set(key, { user, peers: [peer] });
+        }
+        // Retain only compact revisions for audiences that are still connected.
+        for (const key of room.signatures.keys()) {
+          if (key === "admin" && room.admin) continue;
+          if (
+            key.startsWith("judges:")
+              ? ownerPeers.has(key.slice(7))
+              : audiences.has(key)
+          )
+            continue;
+          room.signatures.delete(key);
+        }
         if (room.admin) {
           const revision = await monitorRevision(db, scope);
-          const signature = JSON.stringify(revision);
+          const message = JSON.stringify({ type: "monitor", data: revision });
+          const signature = digest(message);
           if (forced || room.signatures.get("admin") !== signature) {
             room.signatures.set("admin", signature);
-            for (const peer of peers)
-              if (
-                valid.some(
-                  (u) =>
-                    u.token_hash ===
-                    digest(peer.request.cookies[sessionCookie] ?? ""),
-                )
-              )
-                send(peer, JSON.stringify({ type: "monitor", data: revision }));
+            for (const peer of allowed) send(peer, message);
           }
           continue;
         }
         // Private team revisions invalidate patch results without broadcasting patch contents or results to other teams.
-        const owners = [
-          ...new Set(
-            valid.filter((u) => u.team_id).map((u) => `t:${u.team_id}`),
-          ),
-        ];
+        const owners = [...ownerPeers.keys()];
         if (owners.length) {
           const revisions = await db.query(
             "SELECT k.owner_key,j.id,j.updated_at::text FROM unnest($2::text[]) k(owner_key) JOIN LATERAL(SELECT id,updated_at FROM judge_jobs WHERE scope=$1 AND owner_key=k.owner_key ORDER BY updated_at DESC,id DESC LIMIT 1) j ON true",
@@ -131,31 +139,16 @@ export function contestRealtimeRoutes(app: FastifyInstance, db: DB) {
               signature = digest(JSON.stringify(revision));
             if (forced || room.signatures.get(key) !== signature) {
               room.signatures.set(key, signature);
-              for (const peer of peers)
-                if (
-                  valid.some(
-                    (u) =>
-                      `t:${u.team_id}` === revision.owner_key &&
-                      u.token_hash ===
-                        digest(peer.request.cookies[sessionCookie] ?? ""),
-                  )
-                )
-                  send(
-                    peer,
-                    JSON.stringify({ type: "judges", revision: signature }),
-                  );
+              const message = JSON.stringify({
+                type: "judges",
+                revision: signature,
+              });
+              for (const peer of ownerPeers.get(revision.owner_key) ?? [])
+                send(peer, message);
             }
           }
         }
-        const audiences = new Map<string, typeof valid>();
-        for (const user of valid) {
-          const key = user.team_id
-            ? `group:${user.group_id ?? "default"}`
-            : "preview";
-          audiences.set(key, [...(audiences.get(key) ?? []), user]);
-        }
-        for (const [key, users] of audiences) {
-          const user = users[0]!;
+        for (const [key, { user, peers: recipients }] of audiences) {
           const visible = await visibleChallengeIds(db, scope, {
             id: user.id,
             role: user.role,
@@ -176,19 +169,11 @@ export function contestRealtimeRoutes(app: FastifyInstance, db: DB) {
               ]),
             ),
           };
-          const signature = JSON.stringify(scoped);
+          const signature = digest(JSON.stringify(scoped));
           if (forced || room.signatures.get(key) !== signature) {
             room.signatures.set(key, signature);
             const message = JSON.stringify({ type: "activity", data: scoped });
-            for (const peer of peers)
-              if (
-                users.some(
-                  (u) =>
-                    u.token_hash ===
-                    digest(peer.request.cookies[sessionCookie] ?? ""),
-                )
-              )
-                send(peer, message);
+            for (const peer of recipients) send(peer, message);
           }
         }
       } while (room.dirty && room.peers.size && !closing);
@@ -217,8 +202,7 @@ export function contestRealtimeRoutes(app: FastifyInstance, db: DB) {
           } else await authorize(req, scope);
           const userCount = [...rooms.values()].reduce(
             (n, r) =>
-              n +
-              [...r.peers].filter((p) => p.request.user?.id === user.id).length,
+              n + [...r.peers].filter((p) => p.userId === user.id).length,
             0,
           );
           if (userCount >= 4) fail(429, "已达到动态连接数量上限");
@@ -243,17 +227,15 @@ export function contestRealtimeRoutes(app: FastifyInstance, db: DB) {
         rooms.set(key, room);
         const peer: Peer = {
           socket,
-          request,
+          tokenHash: digest(request.cookies[sessionCookie] ?? ""),
+          userId: request.user!.id,
           alive: true,
-          checked: Date.now(),
         };
         if (
           [...rooms.values()].reduce(
             (n, r) =>
               n +
-              [...r.peers].filter(
-                (p) => p.request.user?.id === request.user?.id,
-              ).length,
+              [...r.peers].filter((p) => p.userId === request.user?.id).length,
             0,
           ) >= 4
         ) {

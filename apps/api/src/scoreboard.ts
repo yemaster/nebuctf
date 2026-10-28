@@ -18,7 +18,7 @@ export async function readScoreboard(
   db: DB,
   input: unknown,
   user?: User,
-  options: { detail?: boolean; spectator?: boolean } = {},
+  options: { detail?: boolean; spectator?: boolean; summary?: boolean } = {},
 ) {
   const p = query.parse(input);
   const detail = options.detail ?? false;
@@ -128,7 +128,7 @@ export async function readScoreboard(
         CASE WHEN $9::boolean THEN s.user_id ELSE NULL END user_id,
         CASE WHEN $9::boolean THEN max(s.round_number) ELSE NULL END round_number,
         CASE WHEN $9::boolean THEN jsonb_agg(s.round_details)->0 ELSE NULL END round_details
-      FROM scored s JOIN paged p ON p.owner_key=s.owner_key JOIN units u ON u.unit_id=s.unit_id WHERE ($10::uuid[] IS NULL OR u.challenge_id=ANY($10::uuid[]))
+      FROM scored s JOIN paged p ON p.owner_key=s.owner_key JOIN units u ON u.unit_id=s.unit_id WHERE $12::boolean AND ($10::uuid[] IS NULL OR u.challenge_id=ANY($10::uuid[]))
       GROUP BY s.owner_key,s.unit_id,CASE WHEN $9::boolean THEN s.id ELSE NULL END,CASE WHEN $9::boolean THEN s.user_id ELSE NULL END
     ), page_solves AS MATERIALIZED (
       SELECT s.owner_key,jsonb_agg(jsonb_build_object('unit_id',s.unit_id,'score',s.points,'solved_at',s.created_at,'blood_rank',CASE WHEN blood_rank<=3 THEN blood_rank ELSE NULL END,'round_number',s.round_number,'round_details',s.round_details) || CASE WHEN $9::boolean THEN jsonb_build_object('solver_id',s.user_id,'solver_name',u.username,'solver_avatar_id',u.avatar_id) ELSE '{}'::jsonb END ORDER BY s.created_at,s.id) cells
@@ -141,7 +141,7 @@ export async function readScoreboard(
     ), roster AS (
       SELECT u.id,u.username name,u.avatar_id,bool_or(m.current_member) current_member FROM member_ids m JOIN users u ON u.id=m.user_id GROUP BY u.id
     ), top_teams AS (
-      SELECT * FROM division WHERE $1<>'practice' AND NOT $9::boolean AND score>0 ORDER BY rank LIMIT 5
+      SELECT * FROM division WHERE $12::boolean AND $1<>'practice' AND NOT $9::boolean AND score>0 ORDER BY rank LIMIT 5
     ), timeline_ledger AS (
       SELECT s.id,s.owner_key,s.created_at,CASE WHEN s.points>0 THEN floor(s.points*coalesce(f.factor,1))::int ELSE s.points END points
       FROM base_scored s JOIN top_teams t ON t.owner_key=s.owner_key JOIN units u ON u.unit_id=s.unit_id
@@ -185,6 +185,8 @@ export async function readScoreboard(
         options.spectator ? undefined : user,
       ),
       !!contest && now >= new Date(contest.ends_at).getTime(),
+      // Spectator feeds only consume standings and columns, not the solve matrix or curves.
+      !options.summary || detail,
     ],
   );
   const metadata = {

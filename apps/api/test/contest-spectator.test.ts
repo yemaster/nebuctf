@@ -7,6 +7,7 @@ import { config } from "../src/config.js";
 import { sessionCookie } from "../src/auth.js";
 import { digest, flagHash } from "../src/security.js";
 import { registrationCodeHash } from "../src/contest-entry.js";
+import { readScoreboard } from "../src/scoreboard.js";
 import { creditSolve } from "../src/solve.js";
 import {
   readSpectatorEngagements,
@@ -767,6 +768,35 @@ test(
           const [c] = await db.query("SELECT * FROM contests WHERE id=$1", [
             scope,
           ]);
+          const full = await readScoreboard(db, { scope }, undefined, {
+            spectator: true,
+          });
+          const summary = await readScoreboard(db, { scope }, undefined, {
+            spectator: true,
+            summary: true,
+          });
+          const projection = (board: typeof full) => {
+            const { cutoff, timeline, ...rest } = board;
+            return {
+              ...rest,
+              items: board.items.map((row: Record<string, unknown>) => ({
+                ...row,
+                cells: [],
+              })),
+            };
+          };
+          assert.deepEqual(
+            projection(summary),
+            projection(full),
+            "summary preserves standings, effective points and visibility",
+          );
+          assert.deepEqual(summary.timeline, []);
+          assert(
+            summary.items.every(
+              (row: Record<string, unknown>) =>
+                Array.isArray(row.cells) && row.cells.length === 0,
+            ),
+          );
           return readSpectatorSnapshot(db, c!);
         };
         await ok(`/challenges/${cid}/submit`, alice, {
