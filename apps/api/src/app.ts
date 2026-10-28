@@ -1,3 +1,4 @@
+import { contentTransferRoutes } from "./content-transfer-routes.js";
 import { terminalRoutes } from "./terminal.js";
 import { contestSpectatorRoutes } from "./contest-spectator.js";
 import { writeupRoutes } from "./writeups.js";
@@ -122,6 +123,7 @@ export async function buildApp(db: DB, logging = false) {
   terminalRoutes(app, db);
   imageRoutes(app, db);
   adminRoutes(app, db);
+  contentTransferRoutes(app, db);
   learningRoutes(app, db);
   problemsetRoutes(app, db);
   contestPosterRoutes(app, db);
