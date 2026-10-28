@@ -213,6 +213,7 @@ export interface Team {
   members: Pick<User, "id" | "username" | "avatar_id">[];
 }
 export interface Score {
+  avatar_id?: string | null;
   hint_cost?: number;
   id: string;
   rank: number;

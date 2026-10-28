@@ -17,6 +17,7 @@ import type { Contest, Score, ScoreboardData } from "@/lib/types";
 import { bloodLabels } from "@/lib/scoreboard";
 import { BloodMark } from "@/components/blood-mark";
 import { ScopeSelect } from "./Instances";
+import { ScoreboardCards } from "@/components/scoreboard-cards";
 import { ScoreboardTable } from "@/components/scoreboard-table";
 import { ScoreDetails } from "@/components/score-details";
 import { Button } from "@/components/ui/button";
@@ -99,7 +100,7 @@ function Board({
   const query = new URLSearchParams({
     scope,
     page: String(page),
-    page_size: "30",
+    page_size: competition ? "30" : "12",
   });
   if (group) query.set("group", group);
   if (q) query.set("q", q);
@@ -430,23 +431,38 @@ function Board({
                 </div>
               </div>
             )}
-            {board.items.length > 0 ? (
-              <ScoreboardTable
+            {competition &&
+              (board.items.length > 0 ? (
+                <ScoreboardTable
+                  rows={board.items}
+                  columns={columns}
+                  competition={competition}
+                  grouped={!!group}
+                  selfId={selfId}
+                  onSelect={setDetails}
+                />
+              ) : (
+                <div className="py-12">
+                  <Empty>
+                    {q || participant ? "没有符合条件的排名" : "暂无排名"}
+                  </Empty>
+                </div>
+              ))}
+          </Card>
+          {!competition &&
+            (board.items.length > 0 ? (
+              <ScoreboardCards
                 rows={board.items}
-                columns={columns}
-                competition={competition}
-                grouped={!!group}
                 selfId={selfId}
                 onSelect={setDetails}
               />
             ) : (
-              <div className="py-12">
+              <Card className="border-0 py-12">
                 <Empty>
                   {q || participant ? "没有符合条件的排名" : "暂无排名"}
                 </Empty>
-              </div>
-            )}
-          </Card>
+              </Card>
+            ))}
           <Pagination
             page={page}
             setPage={(value) => update({ page: String(value) })}
@@ -454,6 +470,7 @@ function Board({
             total={board.total}
             hasMore={page * board.page_size < board.total}
             disabled={data.isFetching}
+            alwaysShow={!competition}
           />
           <ScoreDetails
             row={liveDetails}

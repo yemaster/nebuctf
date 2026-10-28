@@ -907,15 +907,33 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
       },
     );
     await t.test(
-      "practice keeps a compact participant table without a huge challenge matrix",
+      "practice uses participant cards, requests twelve per page and keeps pagination visible",
       async () => {
-        board = { ...base, scope: "practice", frozen: false, total: 1 };
+        board = {
+          ...base,
+          scope: "practice",
+          frozen: false,
+          total: 1,
+          page_size: 12,
+        };
         await mount("/scoreboard");
         await settle(
-          () => !!document.querySelector('[aria-label="练习排行榜"]'),
+          () => !!document.querySelector('[aria-label="个人排行榜"]'),
         );
         assert.equal(document.querySelectorAll('th[scope="col"]').length, 0);
-        assert.ok(document.body.textContent?.includes("最后解题"));
+        const cards = document.querySelector('[aria-label="个人排行榜"]')!;
+        assert.equal(cards.children.length, 1);
+        assert(cards.querySelector('[data-slot="avatar"]'));
+        assert(cards.textContent?.includes("总分 100"));
+        assert(cards.textContent?.includes("Flag 1"));
+        assert(cards.textContent?.includes("#1"));
+        assert(document.querySelector('[aria-label="分页"]'));
+        assert(
+          requests.some(
+            (path) =>
+              path.includes("scope=practice") && path.includes("page_size=12"),
+          ),
+        );
         assert.equal(
           document.querySelector('[aria-label="解题标记说明"]'),
           null,

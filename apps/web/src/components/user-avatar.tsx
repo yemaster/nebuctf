@@ -28,7 +28,7 @@ export function UserAvatar({
   return (
     <Avatar aria-hidden="true" className={cn("text-xs", className)}>
       {avatarId && <AvatarImage src={`/api/avatars/${avatarId}`} alt="" />}
-      <AvatarFallback className="text-inherit">
+      <AvatarFallback className="text-[length:inherit]">
         {name ? userInitials(name) : <UserRound className="size-1/2" />}
       </AvatarFallback>
     </Avatar>

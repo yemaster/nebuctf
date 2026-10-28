@@ -14,6 +14,7 @@ export type SkeletonKind =
   | "paper"
   | "directory"
   | "scoreboard"
+  | "ranking"
   | "announcements"
   | "cards"
   | "article"
@@ -64,7 +65,7 @@ export function pageSkeleton(path: string, search = ""): SkeletonKind {
   if (/\/scoreboard$/.test(path))
     return path === "/scoreboard" &&
       (!params.get("scope") || params.get("scope") === "practice")
-      ? "table"
+      ? "ranking"
       : "scoreboard";
   if (path === "/login" || path === "/register") return "auth";
   if (path === "/account")
@@ -497,6 +498,34 @@ function Body({ kind }: { kind: SkeletonKind }) {
       return <ChallengeBody paper />;
     case "directory":
       return <Directory />;
+    case "ranking":
+      return (
+        <>
+          <Heading />
+          <Filters />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {repeat(12, () => (
+              <Panel className="space-y-6 rounded-xl">
+                <div className="flex items-center gap-4">
+                  <Skeleton className="size-16 shrink-0 rounded-full" />
+                  <Skeleton className="h-6 w-28" />
+                </div>
+                <div className="flex items-end justify-between gap-3">
+                  <div className="flex gap-2">
+                    <Skeleton className="h-6 w-16 rounded-full" />
+                    <Skeleton className="h-6 w-14 rounded-full" />
+                  </div>
+                  <Skeleton className="h-9 w-12" />
+                </div>
+              </Panel>
+            ))}
+          </div>
+          <div className="mt-5 flex justify-between">
+            <Skeleton className="h-5 w-20" />
+            <Skeleton className="h-9 w-52" />
+          </div>
+        </>
+      );
     case "scoreboard":
       return (
         <>

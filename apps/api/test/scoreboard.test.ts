@@ -403,15 +403,36 @@ test("scoreboard matrix, timelines, ranks and disclosure boundaries", async (t) 
             `zero_${i}@example.test`,
           ],
         );
-      const first = await get("&page_size=10", "practice"),
-        second = await get("&page_size=10&page=2", "practice");
-      assert.equal(first.total, 33);
-      assert.equal(first.items.length, 10);
-      assert.equal(second.items[0].rank, 11);
+      const avatar = crypto.randomUUID();
+      await db.query("UPDATE users SET avatar_id=$2 WHERE id=$1", [
+        users[0],
+        avatar,
+      ]);
+      const first = await get("&page_size=12", "practice"),
+        second = await get("&page_size=12&page=2", "practice"),
+        third = await get("&page_size=12&page=3", "practice");
       assert.equal(
-        new Set([...first.items, ...second.items].map((row: any) => row.id))
-          .size,
-        20,
+        first.items.find((row: any) => row.id === users[0]).avatar_id,
+        avatar,
+      );
+      assert.equal(
+        first.items.find((row: any) => row.id === users[1]).avatar_id,
+        null,
+      );
+      assert.equal((await detail(users[0], "practice")).avatar_id, avatar);
+      assert.equal(third.items.length, 9);
+      assert.equal(third.items[0].rank, 25);
+      assert.equal(first.total, 33);
+      assert.equal(first.items.length, 12);
+      assert.equal(second.items.length, 12);
+      assert.equal(second.items[0].rank, 13);
+      assert.equal(
+        new Set(
+          [...first.items, ...second.items, ...third.items].map(
+            (row: any) => row.id,
+          ),
+        ).size,
+        33,
       );
       assert.ok(first.items.some((row: any) => row.score === 0));
       const empty = await get("&page=9999", "practice");
