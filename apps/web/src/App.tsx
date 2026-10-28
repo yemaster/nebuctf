@@ -28,43 +28,57 @@ import { routeTransition } from "./lib/route-transition";
 import type { User } from "./lib/types";
 import {
   CardTransitionProvider,
-  loadContestPages,
   useCardTransition,
 } from "./components/card-transition";
 import { ThemeProvider, ThemedToaster } from "./components/theme-provider";
 import { SiteHeader } from "./components/site-shell";
 import { SiteFooter } from "./components/site-footer";
 
-import { Challenges } from "./pages/Challenges";
-import { Announcements } from "./pages/Announcements";
+const Challenges = lazy(() =>
+  import("./pages/Challenges").then((m) => ({ default: m.Challenges })),
+);
+const Announcements = lazy(() =>
+  import("./pages/Announcements").then((m) => ({ default: m.Announcements })),
+);
 const Home = lazy(() =>
   import("./pages/Home").then((m) => ({ default: m.Home })),
 );
 const Contests = lazy(() =>
-  loadContestPages().then((m) => ({ default: m.Contests })),
+  import("./pages/Contests").then((m) => ({ default: m.Contests })),
 );
 const ContestDetail = lazy(() =>
-  loadContestPages().then((m) => ({ default: m.ContestDetail })),
+  import("./pages/Contests").then((m) => ({ default: m.ContestDetail })),
 );
 const ContestArena = lazy(() =>
-  loadContestPages().then((m) => ({ default: m.ContestArena })),
+  import("./pages/Contests").then((m) => ({ default: m.ContestArena })),
 );
 const ContestBoard = lazy(() =>
-  loadContestPages().then((m) => ({ default: m.ContestBoard })),
+  import("./pages/Contests").then((m) => ({ default: m.ContestBoard })),
 );
 const ContestAnnouncements = lazy(() =>
-  loadContestPages().then((m) => ({ default: m.ContestAnnouncements })),
+  import("./pages/Contests").then((m) => ({ default: m.ContestAnnouncements })),
 );
 const ContestResources = lazy(() =>
-  loadContestPages().then((m) => ({ default: m.ContestResources })),
+  import("./pages/Contests").then((m) => ({ default: m.ContestResources })),
 );
 const Scoreboard = lazy(() =>
-  loadContestPages().then((m) => ({ default: m.Scoreboard })),
+  import("./pages/Scoreboard").then((m) => ({ default: m.Scoreboard })),
 );
-import { Auth } from "./pages/Auth";
-import { Account } from "./pages/Account";
-import { TeamPage, TeamJoin } from "./pages/Team";
-import { Instances } from "./pages/Instances";
+const Auth = lazy(() =>
+  import("./pages/Auth").then((m) => ({ default: m.Auth })),
+);
+const Account = lazy(() =>
+  import("./pages/Account").then((m) => ({ default: m.Account })),
+);
+const TeamPage = lazy(() =>
+  import("./pages/Team").then((m) => ({ default: m.TeamPage })),
+);
+const TeamJoin = lazy(() =>
+  import("./pages/Team").then((m) => ({ default: m.TeamJoin })),
+);
+const Instances = lazy(() =>
+  import("./pages/Instances").then((m) => ({ default: m.Instances })),
+);
 const ProblemSets = lazy(() =>
   import("./pages/ProblemSets").then((m) => ({ default: m.ProblemSets })),
 );

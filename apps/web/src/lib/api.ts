@@ -11,7 +11,12 @@ import {
 import { toast } from "sonner";
 export const client = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 10000, refetchOnWindowFocus: false },
+    queries: {
+      retry: (attempt, error) =>
+        attempt < 1 && (!(error instanceof ApiError) || error.status >= 500),
+      staleTime: 10000,
+      refetchOnWindowFocus: false,
+    },
   },
 });
 export class ApiError extends Error {
@@ -71,7 +76,7 @@ export async function api<T>(
 export function useAPI<T>(path: string, enabled = true, poll?: number) {
   return useQuery({
     queryKey: [path],
-    queryFn: () => api<T>(path),
+    queryFn: ({ signal }) => api<T>(path, "GET", undefined, signal),
     enabled,
     refetchInterval: poll,
   });

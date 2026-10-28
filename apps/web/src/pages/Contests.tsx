@@ -1,8 +1,9 @@
 import { ContestTiming } from "@/components/contest-timing";
-import { Scoreboard } from "./Scoreboard";
-export { Scoreboard } from "./Scoreboard";
+const Scoreboard = lazy(() =>
+  import("./Scoreboard").then((m) => ({ default: m.Scoreboard })),
+);
 import { Link, Navigate, useParams } from "react-router-dom";
-import { useState, type ReactNode } from "react";
+import { lazy, useState, type ReactNode } from "react";
 import { ArrowRight, MonitorPlay } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useUser } from "@/App";
@@ -27,12 +28,22 @@ import {
   Pagination,
   QueryState,
 } from "@/components/shared";
-import { Challenges } from "./Challenges";
-import { Announcements } from "./Announcements";
-import { Instances } from "./Instances";
+const Challenges = lazy(() =>
+  import("./Challenges").then((m) => ({ default: m.Challenges })),
+);
+const Announcements = lazy(() =>
+  import("./Announcements").then((m) => ({ default: m.Announcements })),
+);
+const Instances = lazy(() =>
+  import("./Instances").then((m) => ({ default: m.Instances })),
+);
 import { ContestCard } from "@/components/contest-card";
 import { useContestCapabilities } from "@/lib/contest-access";
-import { ContestOverview } from "@/components/contest-overview";
+const ContestOverview = lazy(() =>
+  import("@/components/contest-overview").then((m) => ({
+    default: m.ContestOverview,
+  })),
+);
 export function Contests() {
   const [page, setPage] = useState(1),
     [day, setDay] = useState<Date>();

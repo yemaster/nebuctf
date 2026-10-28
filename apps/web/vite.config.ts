@@ -5,6 +5,7 @@ import { fileURLToPath, URL } from "node:url";
 import { createRequire } from "node:module";
 import { dirname, join, relative } from "node:path";
 import { viteStaticCopy } from "vite-plugin-static-copy";
+import { precompress } from "./build/precompress";
 const require = createRequire(import.meta.url);
 const pdfRoot = dirname(require.resolve("pdfjs-dist/package.json"));
 const pdfVersion = require("pdfjs-dist/package.json").version;
@@ -22,6 +23,7 @@ export default defineConfig({
         }),
       })),
     }),
+    precompress(),
   ],
   resolve: {
     dedupe: ["react", "react-dom"],
@@ -38,6 +40,7 @@ export default defineConfig({
   },
   server: { proxy: { "/api": { target: "http://127.0.0.1:3000", ws: true } } },
   build: {
+    manifest: true,
     rollupOptions: {
       output: {
         onlyExplicitManualChunks: true,
@@ -47,12 +50,10 @@ export default defineConfig({
             return "shared-utils";
           if (/\/node_modules\/(react-pdf|pdfjs-dist)\//.test(id))
             return "pdf-viewer";
-          if (
-            /\/node_modules\/(@uiw|refractor|prismjs|rehype-prism-plus)\//.test(
-              id,
-            )
-          )
+          if (/\/node_modules\/(@uiw|rehype-prism-plus)\//.test(id))
             return "markdown-editor";
+          if (/\/node_modules\/(refractor|prismjs)\//.test(id))
+            return "code-highlight";
           if (
             /\/node_modules\/(recharts|recharts-scale|@reduxjs|react-redux|redux|reselect|immer|victory-vendor|decimal.js-light|es-toolkit|eventemitter3|tiny-invariant)\//.test(
               id,
