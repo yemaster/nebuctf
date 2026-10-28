@@ -1,3 +1,4 @@
+import { UserAvatar } from "../user-avatar";
 import { useAPI } from "@/lib/api";
 import { date } from "@/lib/utils";
 import { Empty, QueryState } from "../shared";
@@ -71,6 +72,11 @@ export function RegistrationMembers({
           <div className={memberColumns}>
             <div className="min-w-0 space-y-2">
               <div className="flex min-w-0 items-center gap-2">
+                <UserAvatar
+                  name={member.username}
+                  avatarId={member.avatar_id}
+                  className="size-6"
+                />
                 <span
                   className="min-w-0 break-all font-medium"
                   title={`用户 ID：${member.id}`}

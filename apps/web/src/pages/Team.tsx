@@ -1,3 +1,4 @@
+import { UserAvatar } from "@/components/user-avatar";
 import { useEffect, useState } from "react";
 import { Captcha } from "@/components/captcha";
 import { useCaptcha } from "@/lib/use-captcha";
@@ -7,14 +8,7 @@ import {
   useNavigate,
   useLocation,
 } from "react-router-dom";
-import {
-  Copy,
-  Plus,
-  UserRound,
-  ArrowLeft,
-  ArrowRight,
-  Users,
-} from "lucide-react";
+import { Copy, Plus, ArrowLeft, ArrowRight, Users } from "lucide-react";
 import { toast } from "sonner";
 import { safeLocalPath } from "@/lib/utils";
 import { useUser } from "@/App";
@@ -127,7 +121,7 @@ function TeamDetail() {
             </div>
             {team.members.map((m) => (
               <div key={m.id} className="flex items-center gap-3 py-4">
-                <UserRound className="size-4 text-muted-foreground" />
+                <UserAvatar name={m.username} avatarId={m.avatar_id} />
                 <span>{m.username}</span>
                 {team.captain_id === m.id && <Badge>队长</Badge>}
                 {team.captain_id === user.id && m.id !== user.id && (

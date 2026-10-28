@@ -1,3 +1,4 @@
+import { AnnouncementMeta } from "@/components/announcement-meta";
 import { useSiteSettings, defaultSite } from "@/lib/site-settings";
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -114,7 +115,7 @@ export function Home() {
                     {a.body}
                   </p>
                   <div className="mt-4 flex items-center justify-between gap-4 text-xs text-muted-foreground">
-                    <time>{date(a.created_at)}</time>
+                    <AnnouncementMeta notice={a} />
                     <span className="flex items-center gap-2">
                       查看公告
                       <ArrowRight className="size-4" />

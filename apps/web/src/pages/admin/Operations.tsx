@@ -1,3 +1,4 @@
+import { UserIdentity } from "@/components/user-avatar";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   AdminToolbar,
@@ -69,7 +70,7 @@ export function AnnouncementAdmin() {
         error={data.error}
         retry={() => void data.refetch()}
       />
-      <Table headers={["公告", "范围", "发布时间", "操作"]}>
+      <Table headers={["公告", "范围", "创建人", "发布时间", "操作"]}>
         {data.data?.items.map((a) => (
           <TableRow key={a.id} className="relative">
             <TableCell className="font-medium">
@@ -81,6 +82,12 @@ export function AnnouncementAdmin() {
               </Link>
             </TableCell>
             <TableCell>{a.contest_title ?? "全站"}</TableCell>
+            <TableCell>
+              <UserIdentity
+                name={a.author?.username}
+                avatarId={a.author?.avatar_id}
+              />
+            </TableCell>
             <TableCell>{date(a.created_at)}</TableCell>
             <TableCell>
               <Button
@@ -358,7 +365,9 @@ export function UserAdmin() {
       <Table headers={["用户", "邮箱", "角色", "状态", "操作"]}>
         {data.data?.items.map((u) => (
           <TableRow key={u.id}>
-            <TableCell>{u.username}</TableCell>
+            <TableCell>
+              <UserIdentity name={u.username} avatarId={u.avatar_id} />
+            </TableCell>
             <TableCell>{u.email}</TableCell>
             <TableCell>{u.role === "admin" ? "管理员" : "用户"}</TableCell>
             <TableCell>{u.disabled ? "已禁用" : "正常"}</TableCell>
@@ -426,7 +435,9 @@ export function LogAdmin({ audit = false }: { audit?: boolean }) {
       >
         {data.data?.items.map((r) => (
           <TableRow key={r.id}>
-            <TableCell>{r.username}</TableCell>
+            <TableCell>
+              <UserIdentity name={r.username} avatarId={r.avatar_id} />
+            </TableCell>
             <TableCell>
               {audit ? r.action : r.title}
               {!audit && r.contest_practice && (

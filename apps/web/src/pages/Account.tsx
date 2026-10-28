@@ -1,3 +1,4 @@
+import { AccountAvatar } from "@/components/account-avatar";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { History, KeyRound, UserRound, Loader2 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
@@ -120,6 +121,7 @@ export function Account() {
                 className="min-w-0 space-y-6 data-[state=inactive]:hidden"
               >
                 <h2 className="text-lg font-semibold">账户资料</h2>
+                <AccountAvatar user={user} />
                 <dl className="flex flex-wrap gap-x-12 gap-y-4 text-sm">
                   <div className="min-w-0 space-y-2">
                     <dt className="text-muted-foreground">用户名</dt>

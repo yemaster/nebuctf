@@ -27,6 +27,7 @@ export type Registration = {
   members: {
     id: string;
     username: string;
+    avatar_id?: string | null;
     email: string;
     disabled: boolean;
     created_at: string;

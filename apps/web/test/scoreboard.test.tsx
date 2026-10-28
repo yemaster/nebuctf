@@ -405,7 +405,7 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
         assert.ok(
           document
             .querySelector('[aria-label="解题记录"]')
-            ?.textContent?.includes("解答人 Alice"),
+            ?.textContent?.includes("Alice"),
         );
         assert.ok(
           document

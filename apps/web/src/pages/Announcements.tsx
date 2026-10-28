@@ -2,7 +2,14 @@ import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useAPI } from "@/lib/api";
 import type { Announcement } from "@/lib/types";
-import { date } from "@/lib/utils";
+import { AnnouncementMeta } from "@/components/announcement-meta";
+import { Markdown } from "@/components/markdown";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardFooter,
+} from "@/components/ui/card";
 import { Empty, PageTitle, QueryState } from "@/components/shared";
 
 export function Announcements({ scope }: { scope?: string }) {
@@ -37,23 +44,25 @@ export function Announcements({ scope }: { scope?: string }) {
         retry={() => void data.refetch()}
         fullPage
       />
-      <div className="max-w-5xl space-y-6">
+      <div className="space-y-4">
         {data.data?.items.map((a) => (
           <article
             key={a.id}
             id={`announcement-${a.id}`}
             tabIndex={-1}
-            className="scroll-mt-6 space-y-5 rounded-xl bg-card p-6 ring-1 ring-border/60 sm:p-8 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="scroll-mt-6 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <div className="flex flex-wrap items-baseline justify-between gap-4">
-              <h2 className="text-xl font-medium">{a.title}</h2>
-              <time className="text-sm text-muted-foreground">
-                {date(a.created_at)}
-              </time>
-            </div>
-            <p className="whitespace-pre-wrap break-words leading-8 text-muted-foreground">
-              {a.body}
-            </p>
+            <Card className="gap-4 border-0 py-6 shadow-sm">
+              <CardHeader className="block">
+                <h2 className="text-xl font-semibold">{a.title}</h2>
+              </CardHeader>
+              <CardContent className="[&_.markdown>:first-child]:mt-0 [&_.markdown>:last-child]:mb-0">
+                <Markdown>{a.body}</Markdown>
+              </CardContent>
+              <CardFooter>
+                <AnnouncementMeta notice={a} />
+              </CardFooter>
+            </Card>
           </article>
         ))}
       </div>

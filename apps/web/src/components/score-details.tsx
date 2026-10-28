@@ -1,3 +1,4 @@
+import { UserIdentity } from "./user-avatar";
 import { hintPrice } from "@/lib/hints";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -248,7 +249,10 @@ function DetailContent({
                         className="hover:bg-transparent"
                       >
                         <TableCell className="max-w-52 whitespace-normal break-words font-medium">
-                          {member.name}
+                          <UserIdentity
+                            name={member.name}
+                            avatarId={member.avatar_id}
+                          />
                           {!member.current_member && (
                             <span className="ml-2 text-xs font-normal text-muted-foreground">
                               已离队
@@ -338,17 +342,25 @@ function DetailContent({
                               ? ` / 第 ${cell.round_number} 轮`
                               : ""}
                           </p>
-                          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                             <span>
                               {unit?.category}
                               {cell.blood_rank
                                 ? ` / ${bloodLabels[cell.blood_rank - 1]}`
                                 : ""}
                             </span>
-                            <span className="break-all">
-                              {cell.solver_name
-                                ? `解答人 ${cell.solver_name}`
-                                : "战队轮次结算"}
+                            <span className="inline-flex items-center gap-1.5">
+                              {cell.solver_name ? (
+                                <>
+                                  <span>解答人</span>
+                                  <UserIdentity
+                                    name={cell.solver_name}
+                                    avatarId={cell.solver_avatar_id}
+                                  />
+                                </>
+                              ) : (
+                                "战队轮次结算"
+                              )}
                             </span>
                             <time
                               dateTime={cell.solved_at}

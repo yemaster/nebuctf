@@ -1,3 +1,4 @@
+import { UserAvatar } from "./user-avatar";
 import { useSiteSettings, defaultSite } from "@/lib/site-settings";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -322,7 +323,11 @@ export function SiteHeader({
                   }
                   aria-label="账户菜单"
                 >
-                  <UserRound className="size-5" />
+                  <UserAvatar
+                    name={user.username}
+                    avatarId={user.avatar_id}
+                    className="size-7"
+                  />
                   <span className="hidden max-w-28 truncate md:block">
                     {user.username}
                   </span>

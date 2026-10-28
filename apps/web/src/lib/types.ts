@@ -9,6 +9,7 @@ import type {
   Phase,
 } from "./competition";
 export interface User {
+  avatar_id?: string | null;
   id: string;
   username: string;
   email: string;
@@ -188,12 +189,14 @@ export interface Instance {
   scope: string;
 }
 export interface Announcement {
+  author?: Pick<User, "id" | "username" | "avatar_id"> | null;
   id: string;
   title: string;
   body: string;
   created_at: string;
 }
 export interface Submission {
+  avatar_id?: string | null;
   contest_practice?: boolean;
   part_title?: string | null;
   id: string;
@@ -207,7 +210,7 @@ export interface Team {
   id: string;
   name: string;
   captain_id: string;
-  members: { id: string; username: string }[];
+  members: Pick<User, "id" | "username" | "avatar_id">[];
 }
 export interface Score {
   hint_cost?: number;
@@ -241,6 +244,7 @@ export interface CategoryScore {
   flags: number;
 }
 export interface MemberScore {
+  avatar_id?: string | null;
   id: string;
   name: string;
   current_member: boolean;
@@ -260,7 +264,11 @@ export interface ScoreDetail extends Score {
   }[];
   details_limited?: boolean;
   team_points?: number;
-  cells: (ScoreCell & { solver_id: string; solver_name: string })[];
+  cells: (ScoreCell & {
+    solver_id: string;
+    solver_name: string;
+    solver_avatar_id?: string | null;
+  })[];
   columns: ScoreColumn[];
   categories: CategoryScore[];
   members: MemberScore[];
@@ -304,6 +312,7 @@ export interface ScoreboardData {
   ends_at: string | null;
 }
 export interface Audit {
+  avatar_id?: string | null;
   id: string;
   username: string;
   action: string;
