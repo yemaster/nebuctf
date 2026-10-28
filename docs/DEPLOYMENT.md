@@ -16,6 +16,7 @@ openssl rand -hex 32
 # Linux 下确认 Socket 组号，并写入 .env 的 DOCKER_GID
 stat -c '%g' /var/run/docker.sock
 
+docker build -t nebuctf/terminal:local deploy/terminal
 docker compose up -d --build
 docker compose ps
 node scripts/admin.mjs

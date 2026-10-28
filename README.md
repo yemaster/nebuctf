@@ -25,6 +25,7 @@
 按 [部署文档](docs/DEPLOYMENT.md) 配置 `.env`、生成独立密钥，再执行：
 
 ```sh
+docker build -t nebuctf/terminal:local deploy/terminal
 docker compose up -d --build
 node scripts/admin.mjs
 ```

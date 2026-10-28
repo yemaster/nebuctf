@@ -198,7 +198,7 @@ export class DockerEngine {
         User: "65534:65534",
         WorkingDir: "/home/player",
         Env: ["HOME=/home/player", "TERM=xterm-256color", "LANG=C.UTF-8"],
-        Cmd: ["tmux", "new-session", "-A", "-s", "shell"],
+        Cmd: ["tmux", "new-session", "-A", "-D", "-s", "shell"],
       },
     );
     return exec.Id;
