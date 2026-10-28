@@ -8,7 +8,6 @@ import {
   Code2,
   Flag,
   GitBranch,
-  ChevronDown,
   Menu,
   Terminal,
   Server,
@@ -361,9 +360,8 @@ export function SiteFooter({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className={control} aria-label="页脚导航">
-          {contestId && <Menu className="size-3.5" />}
-          {contestId ? "比赛菜单" : "链接"}
-          {!contestId && <ChevronDown className="size-3" />}
+          <Menu className="size-3.5" />
+          {contestId ? "比赛菜单" : "菜单"}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -415,6 +413,7 @@ export function SiteFooter({
           aria-label="底部信息与链接"
           className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2"
         >
+          {!contestId && navigation}
           {site.footer_link_url && site.footer_link_label && (
             <Button variant="ghost" className={`${control} max-w-36`} asChild>
               <a
@@ -448,7 +447,6 @@ export function SiteFooter({
               }
             />
           )}
-          {!contestId && navigation}
           {teamPath && registration?.team_name && (
             <Button
               variant="ghost"
