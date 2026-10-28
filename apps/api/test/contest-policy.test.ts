@@ -131,7 +131,11 @@ test(
               new Date().toISOString().slice(0, 10),
             user,
           );
-          assert(calendar.days.every((d: any) => d.count === 0));
+          assert(
+            calendar.days.every(
+              (d: any) => d.count === 0 && d.contests.length === 0,
+            ),
+          );
           assert.equal((await ok("/stats", user)).contests, 0);
         }
         assert(

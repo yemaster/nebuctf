@@ -561,6 +561,10 @@ test("multi-part challenges, collections and contest workflow", async (t) => {
         calendar.json().days.map((d: any) => d.count),
         [1, 1, 0],
       );
+      assert.deepEqual(calendar.json().days[0].contests, [
+        { id, title: "跨天比赛" },
+      ]);
+      assert.deepEqual(calendar.json().days[2].contests, []);
       assert.equal(
         (
           await get(

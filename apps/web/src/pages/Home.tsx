@@ -102,12 +102,12 @@ export function Home() {
               error={announcements.error}
               retry={() => void announcements.refetch()}
             />
-            <div className="space-y-3">
+            <div className="divide-y overflow-hidden rounded-xl bg-card shadow-sm dark:shadow-black/20">
               {announcements.data?.items.slice(0, 3).map((a) => (
                 <Link
                   key={a.id}
                   to={`/announcements#announcement-${a.id}`}
-                  className="group block rounded-xl bg-card p-5 shadow-sm outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring dark:shadow-black/20 sm:p-6"
+                  className="group block px-5 py-4 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 >
                   <h3 className="text-base font-medium leading-7">{a.title}</h3>
                   <p className="mt-2 line-clamp-2 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
@@ -124,7 +124,11 @@ export function Home() {
               ))}
             </div>
             {announcements.data?.items.length === 0 && <Empty>暂无公告</Empty>}
-            <Button variant="ghost" asChild className="w-full">
+            <Button
+              variant="ghost"
+              asChild
+              className="w-full hover:bg-muted hover:text-foreground dark:hover:bg-muted"
+            >
               <Link to="/announcements">
                 全部公告
                 <ArrowRight />

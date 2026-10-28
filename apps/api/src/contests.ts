@@ -84,9 +84,15 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
     }
     return {
       days: await db.query(
-        `SELECT to_char(d.bucket,'YYYY-MM-DD') AS "day",count(c.id)::int count FROM generate_series($1::date::timestamp,$2::date::timestamp,interval '1 day') d(bucket)
-      LEFT JOIN contests c ON c.published AND ${contestVisibilitySQL("c", "$4::uuid", "$5::boolean")} AND c.starts_at<((d.bucket+interval '1 day') AT TIME ZONE $3) AND c.ends_at>(d.bucket AT TIME ZONE $3)
-      GROUP BY d.bucket ORDER BY d.bucket`,
+        `WITH scheduled AS (
+        SELECT d.bucket,c.id,c.title,row_number() OVER(PARTITION BY d.bucket ORDER BY c.starts_at,c.id) position
+        FROM generate_series($1::date::timestamp,$2::date::timestamp,interval '1 day') d(bucket)
+        LEFT JOIN contests c ON c.published AND ${contestVisibilitySQL("c", "$4::uuid", "$5::boolean")}
+        AND c.starts_at<((d.bucket+interval '1 day') AT TIME ZONE $3) AND c.ends_at>(d.bucket AT TIME ZONE $3)
+      ) SELECT to_char(bucket,'YYYY-MM-DD') AS "day",count(id)::int count,
+        coalesce(jsonb_agg(jsonb_build_object('id',id,'title',title) ORDER BY position)
+          FILTER(WHERE id IS NOT NULL AND position<=3),'[]') contests
+      FROM scheduled GROUP BY bucket ORDER BY bucket`,
         [
           p.from,
           p.to,

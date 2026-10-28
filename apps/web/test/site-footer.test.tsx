@@ -205,9 +205,10 @@ test("footer panels load on demand, respect contest access and keep personal res
         await mount(true, contest(false));
         try {
           assert.deepEqual(requests, []);
-          assert.equal(
-            document.querySelector('button[aria-label="平台概况"]'),
-            null,
+          assert.ok(
+            document.querySelector(
+              'nav[aria-label="常驻工具"] button[aria-label="平台概况"]',
+            ),
           );
           assert.equal(
             document.querySelector('button[aria-label="我的环境"]'),
@@ -234,23 +235,21 @@ test("footer panels load on demand, respect contest access and keep personal res
             null,
           );
           await act(async () =>
-            document
-              .querySelector('[role="menu"]')!
-              .dispatchEvent(
-                new dom.window.KeyboardEvent("keydown", {
-                  key: "Escape",
-                  bubbles: true,
-                }),
-              ),
+            document.querySelector('[role="menu"]')!.dispatchEvent(
+              new dom.window.KeyboardEvent("keydown", {
+                key: "Escape",
+                bubbles: true,
+              }),
+            ),
           );
           assert.ok(
             document.querySelector(
-              'nav[aria-label="底部工具"] a[href="/terminal"]',
+              'nav[aria-label="常驻工具"] a[href="/terminal"]',
             ),
           );
           assert.equal(
             document
-              .querySelector('nav[aria-label="底部工具"] a[href="/terminal"]')
+              .querySelector('nav[aria-label="常驻工具"] a[href="/terminal"]')
               ?.getAttribute("target"),
             "_blank",
           );

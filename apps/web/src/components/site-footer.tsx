@@ -1,6 +1,6 @@
 import { useSiteSettings, defaultSite } from "@/lib/site-settings";
 import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   Activity,
   BookOpen,
@@ -18,7 +18,6 @@ import { useAPI } from "@/lib/api";
 import { useContestCapabilities } from "@/lib/contest-access";
 import type { Contest, Instance, User } from "@/lib/types";
 import { contestStatus, date } from "@/lib/utils";
-import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import {
@@ -328,6 +327,10 @@ export function SiteFooter({
   user: User | null;
 }) {
   const site = useSiteSettings(false).data ?? defaultSite;
+  const { pathname } = useLocation();
+  const practiceResources = /^\/(challenges|instances|problemsets)(\/|$)/.test(
+    pathname,
+  );
   // The header owns this query. The footer observes it without another fetch.
   const contest = useAPI<Contest>(`/contests/${contestId}`, false);
   const current = contest.error ? undefined : contest.data;
@@ -359,35 +362,60 @@ export function SiteFooter({
         { href: "/learning", label: "技能树", icon: GitBranch },
         ...(user ? [{ href: "/team", label: "我的战队", icon: Users }] : []),
       ];
+  const navigation = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className={control} aria-label="页脚导航">
+          {contestId ? "比赛导航" : "信息"}
+          <ChevronDown className="size-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align={contestId ? "start" : "end"}
+        side="top"
+        sideOffset={8}
+        className="w-48"
+      >
+        <DropdownMenuItem asChild>
+          <Link to={announcements}>
+            <BookOpen />
+            公告
+          </Link>
+        </DropdownMenuItem>
+        {shortcuts.map(({ href, label, icon: Icon }) => (
+          <DropdownMenuItem key={href} asChild>
+            <Link to={href}>
+              <Icon />
+              {label}
+            </Link>
+          </DropdownMenuItem>
+        ))}
+        {!contestId && (
+          <DropdownMenuItem asChild>
+            <a
+              href="https://github.com/yemaster/nebuctf"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Code2 />
+              项目源码
+            </a>
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
   return (
     <footer
       aria-label="平台状态栏"
       className="h-9 shrink-0 bg-card text-xs text-muted-foreground"
     >
-      <div className="mx-auto flex h-full max-w-[1680px] items-center gap-1 px-3 sm:gap-3 sm:px-6 lg:px-10">
-        <span
-          className={`mr-1 min-w-0 max-w-52 truncate ${contestId ? "hidden xl:block" : ""}`}
-          title={site.footer_text || site.name}
+      <div className="mx-auto flex h-full max-w-[1680px] items-center gap-3 px-3 sm:px-6 lg:px-10">
+        <nav
+          aria-label="当前页面"
+          className="flex min-w-0 items-center gap-1 sm:gap-2"
         >
-          {site.footer_text || site.name}
-          <span
-            className={`ml-2 hidden ${site.footer_text ? "" : "xl:inline"}`}
-          >
-            © {new Date().getFullYear()}
-          </span>
-        </span>
-        {site.footer_link_url && site.footer_link_label && (
-          <a
-            className={`hidden max-w-36 truncate hover:text-foreground ${contestId ? "2xl:block" : "md:block"}`}
-            href={site.footer_link_url}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {site.footer_link_label}
-          </a>
-        )}
-        <nav aria-label="底部工具" className="flex shrink-0 items-center gap-1">
-          {user && (!contestId || access.instances) && (
+          {user && (contestId ? access.instances : practiceResources) && (
             <ResourceSummary
               key={`${user.id}:${contestId ?? "practice"}`}
               scope={contestId ?? "practice"}
@@ -396,6 +424,31 @@ export function SiteFooter({
               }
             />
           )}
+          {contestId && (
+            <>
+              {current && <ContestSummary key={contestId} contest={current} />}
+              {navigation}
+              {current?.registration?.team_name && (
+                <span
+                  className="hidden max-w-48 truncate lg:block"
+                  title={current.registration.group_name ?? undefined}
+                >
+                  {current.registration.team_name}
+                </span>
+              )}
+              {current && (
+                <ContestFooterStatus
+                  contest={current}
+                  receivedAt={contest.dataUpdatedAt}
+                />
+              )}
+            </>
+          )}
+        </nav>
+        <nav
+          aria-label="常驻工具"
+          className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2"
+        >
           {user && (
             <Button variant="ghost" className={control} asChild>
               <Link to="/terminal" target="_blank" rel="noopener noreferrer">
@@ -404,82 +457,26 @@ export function SiteFooter({
               </Link>
             </Button>
           )}
-        </nav>
-        <Separator orientation="vertical" className="!h-4" />
-        <nav aria-label="底部信息" className="flex shrink-0 items-center gap-1">
-          {contestId ? (
-            current && <ContestSummary key={contestId} contest={current} />
-          ) : (
-            <PlatformSummary />
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className={control} aria-label="页脚导航">
-                信息
-                <ChevronDown className="size-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              side="top"
-              sideOffset={8}
-              className="w-48"
-            >
-              <DropdownMenuItem asChild>
-                <Link to={announcements}>
-                  <BookOpen />
-                  公告
-                </Link>
-              </DropdownMenuItem>
-              {shortcuts.map(({ href, label, icon: Icon }) => (
-                <DropdownMenuItem key={href} asChild>
-                  <Link to={href}>
-                    <Icon />
-                    {label}
-                  </Link>
-                </DropdownMenuItem>
-              ))}
-              {!contestId && (
-                <DropdownMenuItem asChild>
-                  <a
-                    href="https://github.com/yemaster/nebuctf"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Code2 />
-                    项目源码
-                  </a>
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </nav>
-        {current?.registration?.team_name && (
+          <PlatformSummary />
+          {!contestId && navigation}
           <span
-            className="hidden min-w-0 max-w-56 truncate lg:block"
-            title={[
-              current.registration.team_name,
-              current.registration.group_name,
-            ]
-              .filter(Boolean)
-              .join(" / ")}
+            className="hidden max-w-40 truncate xl:block"
+            title={site.footer_text || site.name}
           >
-            {current.registration.team_name}
-            {current.registration.group_name && (
-              <span className="ml-3">{current.registration.group_name}</span>
-            )}
+            {site.footer_text || `${site.name} © ${new Date().getFullYear()}`}
           </span>
-        )}
-        <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
-          {current ? (
-            <ContestFooterStatus
-              contest={current}
-              receivedAt={contest.dataUpdatedAt}
-            />
-          ) : (
-            !contestId && <FooterClock />
+          {site.footer_link_url && site.footer_link_label && (
+            <a
+              className="hidden max-w-32 truncate hover:text-foreground 2xl:block"
+              href={site.footer_link_url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {site.footer_link_label}
+            </a>
           )}
-        </div>
+          {!contestId && <FooterClock />}
+        </nav>
       </div>
     </footer>
   );
