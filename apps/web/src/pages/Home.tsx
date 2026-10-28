@@ -160,6 +160,7 @@ export function Home() {
             </div>
             <QueryState
               loading={contests.isLoading}
+              variant="posters"
               error={contests.error}
               retry={() => void contests.refetch()}
             />
@@ -177,6 +178,7 @@ export function Home() {
             <h2 className="text-lg font-medium">解题动态</h2>
             <QueryState
               loading={stats.isLoading}
+              variant="activity"
               error={stats.error}
               retry={() => void stats.refetch()}
             />

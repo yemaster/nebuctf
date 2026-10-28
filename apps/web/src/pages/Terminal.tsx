@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Play,
+  Loader2,
   RotateCw,
   Square,
   Terminal as TerminalIcon,
@@ -262,7 +263,10 @@ export function TerminalPage() {
   const placeholder = (
     <div className="flex min-h-0 flex-1 items-center justify-center p-6">
       {creating || stopping ? (
-        <Loading />
+        <Loader2
+          aria-label={stopping ? "正在销毁终端" : "正在启动终端"}
+          className="size-7 text-muted-foreground motion-safe:animate-spin"
+        />
       ) : (
         <div className="flex max-w-lg flex-col items-center gap-4">
           {target.error ? (
@@ -294,7 +298,7 @@ export function TerminalPage() {
       <Suspense
         fallback={
           <TerminalFrame title={title}>
-            <Loading />
+            <Loading variant="console" />
           </TerminalFrame>
         }
       >

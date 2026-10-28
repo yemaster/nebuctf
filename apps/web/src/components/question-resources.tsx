@@ -197,7 +197,11 @@ function ResourceLaunch({
               </Button>
             </div>
           ) : (
-            <QueryState loading={instances.isLoading} error={null} />
+            <QueryState
+              loading={instances.isLoading}
+              error={null}
+              variant="resource"
+            />
           )}
           {current && !canStart && !instances.error && (
             <InstanceRow key={current.id} instance={current} compact />

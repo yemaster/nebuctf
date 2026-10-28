@@ -141,6 +141,7 @@ export function ChallengePicker({
       </div>
       <QueryState
         loading={data.isLoading && (!selectedOnly || !!value.length)}
+        variant="rows"
         error={data.error}
         retry={() => void data.refetch()}
       />

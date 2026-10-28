@@ -17,7 +17,7 @@ import {
 } from "@/lib/contest-calendar";
 import { Calendar, CalendarDayButton } from "./ui/calendar";
 import { Card } from "./ui/card";
-import { QueryState } from "./shared";
+import { Loading, QueryState } from "./shared";
 
 const EventsContext = createContext<ReturnType<typeof layoutContestCalendar>>(
   layoutContestCalendar([]),
@@ -95,6 +95,12 @@ export function ContestCalendar({
     () => layoutContestCalendar(data.data?.days ?? []),
     [data.data],
   );
+  if (data.isLoading)
+    return (
+      <Card className="min-w-0 border-0 p-4">
+        <Loading variant="calendar" />
+      </Card>
+    );
   return (
     <Card className="min-w-0 gap-4 border-0 p-4 dark:shadow-black/20">
       <h2 className="text-lg font-medium">比赛日历</h2>

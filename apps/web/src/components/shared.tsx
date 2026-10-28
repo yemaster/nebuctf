@@ -1,5 +1,11 @@
 import { cn } from "@/lib/utils";
 import { useRef, type ReactNode } from "react";
+import { useInRouterContext, useLocation } from "react-router-dom";
+import {
+  ContentSkeleton,
+  pageSkeleton,
+  type SkeletonKind,
+} from "./content-skeleton";
 import {
   Pagination as PaginationRoot,
   PaginationContent,
@@ -8,7 +14,7 @@ import {
 } from "./ui/pagination";
 import { ApiError } from "@/lib/api";
 import { StatusPage } from "./status-page";
-import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Empty as EmptyRoot, EmptyContent } from "./ui/empty";
 import {
   Table as TableRoot,
@@ -45,15 +51,45 @@ export function Empty({ children = "暂无内容" }: { children?: ReactNode }) {
     </EmptyRoot>
   );
 }
-export function Loading({ fullPage = false }: { fullPage?: boolean }) {
+type LoadingProps = {
+  fullPage?: boolean;
+  variant?: SkeletonKind;
+  routeShell?: boolean;
+  className?: string;
+};
+export function Loading(props: LoadingProps) {
+  const routed = useInRouterContext();
+  return routed ? (
+    <RouteLoading {...props} />
+  ) : (
+    <ContentSkeleton
+      kind={props.variant}
+      fullPage={props.fullPage}
+      className={props.className}
+    />
+  );
+}
+function RouteLoading({
+  fullPage = false,
+  variant,
+  routeShell = false,
+  className,
+}: LoadingProps) {
+  const { pathname, search } = useLocation();
+  const shell = routeShell
+    ? pathname.startsWith("/admin")
+      ? "admin"
+      : /\/manage(?:\/|$)/.test(pathname)
+        ? "management"
+        : undefined
+    : undefined;
   return (
-    <div
-      role="status"
-      className={`flex w-full flex-col items-center justify-center gap-5 text-muted-foreground ${fullPage ? "h-full min-h-[55dvh]" : "min-h-48 py-10"}`}
-    >
-      <Loader2 className="size-9 motion-safe:animate-spin" />
-      <span className="text-sm">加载中</span>
-    </div>
+    <ContentSkeleton
+      kind={variant ?? (fullPage ? pageSkeleton(pathname, search) : "content")}
+      fullPage={fullPage}
+      shell={shell}
+      className={className}
+    />
   );
 }
 export function QueryState({
@@ -61,11 +97,13 @@ export function QueryState({
   error,
   retry,
   fullPage = false,
+  variant,
 }: {
   loading: boolean;
   error: Error | null;
   retry?: () => void;
   fullPage?: boolean;
+  variant?: SkeletonKind;
 }) {
   if (error)
     return (
@@ -77,7 +115,7 @@ export function QueryState({
         compact={!fullPage}
       />
     );
-  if (loading) return <Loading fullPage={fullPage} />;
+  if (loading) return <Loading fullPage={fullPage} variant={variant} />;
   return null;
 }
 export function Field({

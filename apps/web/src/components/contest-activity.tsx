@@ -9,7 +9,6 @@ import {
   ChevronUp,
   Flag,
   LockKeyhole,
-  Loader2,
 } from "lucide-react";
 import { useContestRealtime } from "@/lib/contest-realtime";
 import { useAPI } from "@/lib/api";
@@ -25,6 +24,7 @@ import {
   CollapsibleTrigger,
 } from "./ui/collapsible";
 import { ScrollArea } from "./ui/scroll-area";
+import { Loading } from "./shared";
 
 export interface ContestEvent {
   id: string;
@@ -288,13 +288,7 @@ function ActivityPanel({
                 </div>
               )}
               {data.isLoading ? (
-                <div
-                  role="status"
-                  className="flex h-40 items-center justify-center gap-2 text-sm text-muted-foreground"
-                >
-                  <Loader2 className="size-4 motion-safe:animate-spin" />
-                  加载中
-                </div>
+                <Loading variant="activity" />
               ) : (
                 <ScrollArea className="h-80 max-h-[50dvh]">
                   <ul aria-label="近期比赛动态" className="px-4 pb-3">

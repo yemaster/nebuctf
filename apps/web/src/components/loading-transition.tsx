@@ -32,7 +32,7 @@ export function LoadingFallback() {
   return null;
 }
 
-// Short reads skip the spinner. A visible spinner gets time to settle before
+// Short reads skip the skeleton. A visible skeleton gets time to settle before
 // its opaque surface fades away, with the ready content already underneath.
 export function LoadingTransition({
   pending,
@@ -58,6 +58,7 @@ export function LoadingTransition({
   return (
     <div className="relative min-h-[55dvh]" aria-busy={waiting}>
       <div
+        className={waiting ? "absolute inset-x-0 top-0" : undefined}
         inert={waiting || undefined}
         aria-hidden={waiting || undefined}
         style={{ visibility: waiting ? "hidden" : undefined }}
@@ -68,8 +69,9 @@ export function LoadingTransition({
         {waiting && (
           <TransitionSurface
             key="loading"
+            flow
             loading={indicator}
-            loadingClassName="h-[55dvh]"
+            loadingClassName="min-h-[55dvh]"
           />
         )}
       </AnimatePresence>

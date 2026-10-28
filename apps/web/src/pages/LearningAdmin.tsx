@@ -371,7 +371,7 @@ export function TreeEditor() {
         />
       )}
       {(!id || data.data) && (
-        <Suspense fallback={<Loading fullPage />}>
+        <Suspense fallback={<Loading variant="tree-canvas" />}>
           <TreeForm
             key={id ?? "new"}
             tree={data.data ?? null}

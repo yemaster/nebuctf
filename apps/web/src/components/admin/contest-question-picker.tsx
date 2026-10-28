@@ -146,6 +146,7 @@ export function ContestQuestionPicker({
             ))}
             <QueryState
               loading={details.isLoading}
+              variant="rows"
               error={details.error}
               retry={() => void details.refetch()}
             />

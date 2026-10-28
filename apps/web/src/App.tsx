@@ -227,7 +227,7 @@ function AppShell() {
                   }
                 >
                   <PageBoundary>
-                    <Suspense fallback={<Loading fullPage />}>
+                    <Suspense fallback={<Loading fullPage routeShell />}>
                       <Routes location={location}>
                         <Route
                           path="/contests/:id/spectate"
@@ -323,6 +323,7 @@ function AppShell() {
                   key={cardTransition.selected}
                   card={cardTransition.selected ?? undefined}
                   loading={cardTransition.loading}
+                  loadingClassName="px-4 py-6 sm:px-6 lg:px-10 lg:py-8"
                 />
               )}
             </AnimatePresence>

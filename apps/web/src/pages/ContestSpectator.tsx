@@ -497,7 +497,7 @@ function CityView({
   const focus = notice?.challenge_id ?? engagement?.challenge_id ?? null;
   return (
     <>
-      <Suspense fallback={<Loading fullPage />}>
+      <Suspense fallback={<Loading variant="scene" className="h-full" />}>
         <ArenaScene
           data={data}
           live={live}

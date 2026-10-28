@@ -371,7 +371,7 @@ export function LearningDetail() {
               tree.nodes.length ? (tree.completed / tree.nodes.length) * 100 : 0
             }
           />
-          <Suspense fallback={<Loading fullPage />}>
+          <Suspense fallback={<Loading variant="tree-canvas" />}>
             <LearningTreeView key={id} nodes={tree.nodes} />
           </Suspense>
         </div>

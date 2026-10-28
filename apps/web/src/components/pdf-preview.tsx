@@ -54,7 +54,7 @@ export function PdfPreview({
   };
   return (
     <PreviewBoundary key={`${url}:${attempt}`} retry={retry}>
-      <Suspense fallback={<Loading fullPage />}>
+      <Suspense fallback={<Loading fullPage variant="document" />}>
         <PdfDocument url={url} retry={retry} />
       </Suspense>
     </PreviewBoundary>

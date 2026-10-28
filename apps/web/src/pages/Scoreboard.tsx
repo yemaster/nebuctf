@@ -348,7 +348,7 @@ function Board({
                   <Suspense
                     fallback={
                       <div className="flex h-72 items-center justify-center">
-                        <Loading />
+                        <Loading variant="chart" />
                       </div>
                     }
                   >

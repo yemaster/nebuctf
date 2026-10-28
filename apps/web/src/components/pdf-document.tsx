@@ -153,13 +153,13 @@ export default function PdfDocument({
         {error ? (
           <PdfFailure retry={retry} message={error} />
         ) : !file ? (
-          <Loading fullPage />
+          <Loading fullPage variant="document" />
         ) : (
           <Document
             file={file}
             options={options}
             suspense={false}
-            loading={<Loading fullPage />}
+            loading={<Loading fullPage variant="document" />}
             error={<PdfFailure retry={retry} />}
             noData={<PdfFailure retry={retry} />}
             onLoadSuccess={({ numPages }) => setPages(numPages)}
@@ -170,7 +170,7 @@ export default function PdfDocument({
               width={Math.min(1600, width * zoom)}
               devicePixelRatio={Math.min(window.devicePixelRatio || 1, 1.5)}
               renderAnnotationLayer={false}
-              loading={<Loading />}
+              loading={<Loading variant="document" />}
               error={<PdfFailure retry={retry} />}
               className="shadow-sm"
             />

@@ -103,6 +103,7 @@ export function ObjectivePaper({
     return (
       <QueryState
         loading={query.isLoading}
+        variant="paper"
         error={query.error}
         retry={() => void query.refetch()}
         fullPage

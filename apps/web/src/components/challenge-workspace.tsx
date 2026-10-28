@@ -169,6 +169,7 @@ export function ChallengeWorkspace({
     <ScrollArea className="h-full min-h-0">
       <QueryState
         loading={detail.isLoading}
+        variant="challenge"
         error={detail.error}
         retry={() => void detail.refetch()}
         fullPage

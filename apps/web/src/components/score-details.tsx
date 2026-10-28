@@ -197,7 +197,7 @@ function DetailContent({
                 <Suspense
                   fallback={
                     <div className="flex h-64 items-center justify-center">
-                      <Loading />
+                      <Loading variant="radar" />
                     </div>
                   }
                 >

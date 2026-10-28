@@ -396,7 +396,9 @@ function ChallengeBrowser({
                     </AccordionTrigger>
                     <AccordionContent>
                       {paper.query.data?.items.length ? (
-                        <Suspense fallback={<Loading />}>
+                        <Suspense
+                          fallback={<Loading variant="objective-nav" />}
+                        >
                           <ObjectiveNavigation
                             model={paper}
                             hideCompleted={hideSolved}
@@ -641,7 +643,11 @@ function ChallengeBrowser({
         >
           <AnimatePresence>
             {transition.phase === "loading" && (
-              <TransitionSurface key={selected} loading />
+              <TransitionSurface
+                key={selected}
+                loading
+                variant={selected === OBJECTIVE_PAPER ? "paper" : "challenge"}
+              />
             )}
           </AnimatePresence>
           <m.div
@@ -754,7 +760,16 @@ function ChallengeBrowser({
                   forceMount
                   className="min-h-0 flex-1 data-[state=inactive]:hidden"
                 >
-                  <Suspense fallback={<Loading fullPage />}>
+                  <Suspense
+                    fallback={
+                      <Loading
+                        fullPage
+                        variant={
+                          c.id === OBJECTIVE_PAPER ? "paper" : "challenge"
+                        }
+                      />
+                    }
+                  >
                     {c.id === OBJECTIVE_PAPER ? (
                       <ObjectivePaper
                         scope={scope}

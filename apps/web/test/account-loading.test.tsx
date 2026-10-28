@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import React, { act, lazy, Suspense } from "react";
 import { JSDOM } from "jsdom";
+import { MemoryRouter } from "react-router-dom";
 
 test("account loading preserves one surface through chunk and data readiness", async (t) => {
   const dom = new JSDOM("<!doctype html><div id='root'></div>");
@@ -46,9 +47,11 @@ test("account loading preserves one surface through chunk and data readiness", a
     if (!root) root = createRoot(host);
     await act(async () =>
       root.render(
-        <LazyMotion features={domAnimation}>
-          <LoadingBoundary>{content}</LoadingBoundary>
-        </LazyMotion>,
+        <MemoryRouter initialEntries={["/account?section=submissions"]}>
+          <LazyMotion features={domAnimation}>
+            <LoadingBoundary>{content}</LoadingBoundary>
+          </LazyMotion>
+        </MemoryRouter>,
       ),
     );
   };
@@ -59,7 +62,7 @@ test("account loading preserves one surface through chunk and data readiness", a
     host.querySelector("[aria-busy]")!.getAttribute("aria-busy");
   try {
     await t.test(
-      "fast data never paints a spinner and retains the input",
+      "fast data never paints a skeleton and retains the input",
       async () => {
         await render(<Page pending />);
         const input = host.querySelector("input")!;
@@ -74,7 +77,7 @@ test("account loading preserves one surface through chunk and data readiness", a
       },
     );
     await t.test(
-      "a slow chunk hands its visible spinner to slow data without restarting",
+      "a slow chunk hands the submissions skeleton to slow data without restarting",
       async () => {
         let resolve!: (module: { default: typeof Page }) => void;
         const Chunk = lazy(
@@ -90,11 +93,15 @@ test("account loading preserves one surface through chunk and data readiness", a
         );
         await render(content(true));
         await tick(120);
-        const spinner = host.querySelector('[role="status"]');
-        assert.ok(spinner);
+        const skeleton = host.querySelector('[role="status"]');
+        assert.ok(skeleton);
+        assert.equal(skeleton.getAttribute("data-skeleton"), "submissions");
+        assert.equal(skeleton.getAttribute("aria-label"), "加载中");
+        assert.ok(skeleton.querySelector('[data-slot="skeleton"]'));
+        assert.equal(skeleton.querySelector("svg"), null);
         await tick(20);
         await act(async () => resolve({ default: Page }));
-        assert.equal(host.querySelector('[role="status"]'), spinner);
+        assert.equal(host.querySelector('[role="status"]'), skeleton);
         assert.equal(busy(), "true");
         await render(content(false));
         await tick(219);

@@ -183,6 +183,7 @@ export function ContestQuestions({
         )}
         <QueryState
           loading={query.isLoading}
+          variant="rows"
           error={query.error}
           retry={() => void query.refetch()}
         />
