@@ -328,6 +328,23 @@ test("footer groups information on the left, keeps local time on the right and l
             'nav[aria-label="底部信息与链接"] a[aria-label="管理战队 ALPHA"]',
           );
           assert.ok(team);
+          assert.equal(
+            team.querySelector('[data-slot="badge"]')?.textContent,
+            "公开组",
+          );
+          const footerActions = [
+            ...document.querySelectorAll(
+              'nav[aria-label="底部信息与链接"] button, nav[aria-label="底部信息与链接"] a',
+            ),
+          ];
+          const menu = document.querySelector('button[aria-label="页脚导航"]')!;
+          assert.equal(menu.textContent?.trim(), "比赛菜单");
+          assert.equal(
+            footerActions.indexOf(menu),
+            footerActions.indexOf(
+              document.querySelector('button[aria-label="比赛信息"]')!,
+            ) + 1,
+          );
           const target = new URL(
             team.getAttribute("href")!,
             "http://localhost",
@@ -342,6 +359,17 @@ test("footer groups information on the left, keeps local time on the right and l
           assert.equal(tools.querySelectorAll("a,button").length, 1);
           assert(tools.querySelector('a[href="/terminal"]'));
           assert(tools.querySelector('[aria-label^="本地时间"]'));
+          await act(async () => {
+            const withoutGroup = contest(true);
+            withoutGroup.registration!.group_name = null as any;
+            cache.setQueryData(["/contests/cup"], withoutGroup);
+          });
+          await settle(
+            () =>
+              !document.querySelector(
+                'a[aria-label="管理战队 ALPHA"] [data-slot="badge"]',
+              ),
+          );
           await click("我的环境");
           await settle(() => value("运行靶机") === "1");
           assert.deepEqual(requests, ["/api/instances?scope=cup&owned=true"]);

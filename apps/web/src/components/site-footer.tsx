@@ -19,6 +19,7 @@ import { useContestCapabilities } from "@/lib/contest-access";
 import type { Contest, Instance, User } from "@/lib/types";
 import { date } from "@/lib/utils";
 import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import {
   DropdownMenu,
@@ -359,7 +360,7 @@ export function SiteFooter({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className={control} aria-label="页脚导航">
-          链接
+          {contestId ? "比赛菜单" : "链接"}
           <ChevronDown className="size-3" />
         </Button>
       </DropdownMenuTrigger>
@@ -441,6 +442,7 @@ export function SiteFooter({
           ) : (
             <PlatformSummary />
           )}
+          {contestId && navigation}
           {user && (contestId ? access.instances : practiceResources) && (
             <ResourceSummary
               key={`${user.id}:${contestId ?? "practice"}`}
@@ -450,20 +452,28 @@ export function SiteFooter({
               }
             />
           )}
-          {navigation}
+          {!contestId && navigation}
           {teamPath && registration?.team_name && (
             <Button
               variant="ghost"
-              className={`${control} min-w-0 max-w-44`}
+              className={`${control} min-w-0 max-w-64`}
               asChild
             >
               <Link
                 to={teamPath}
                 aria-label={`管理战队 ${registration.team_name}`}
-                title={`管理战队 ${registration.team_name}`}
+                title={`管理战队 ${registration.team_name}${registration.group_name ? ` / ${registration.group_name}` : ""}`}
               >
                 <Users className="size-3.5" />
                 <span className="truncate">{registration.team_name}</span>
+                {registration.group_name && (
+                  <Badge
+                    variant="secondary"
+                    className="max-w-24 shrink-0 px-1.5 py-0 text-[10px] font-normal"
+                  >
+                    <span className="truncate">{registration.group_name}</span>
+                  </Badge>
+                )}
               </Link>
             </Button>
           )}
