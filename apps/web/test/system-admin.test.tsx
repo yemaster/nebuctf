@@ -243,7 +243,7 @@ test(
           nav.querySelector('a[aria-current="page"][href="/admin/overview"]'),
         );
         assert(container.textContent!.includes("Worker 在线"));
-        assert.equal(document.title, site.name);
+        assert.equal(document.title, `概览 - ${site.name}`);
         assert(container.textContent!.includes("教学平台"));
         assert.equal(
           container.querySelectorAll('[aria-label="CPU 配额"]').length,

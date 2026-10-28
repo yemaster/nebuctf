@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useDocumentTitle } from "./lib/page-title";
 import { useSiteSettings } from "@/lib/site-settings";
 const ContestSpectator = lazy(() =>
   import("./pages/ContestSpectator").then((m) => ({
@@ -123,9 +123,7 @@ export function App() {
 }
 function AppShell() {
   const site = useSiteSettings();
-  useEffect(() => {
-    document.title = site.data?.name ?? "NebuCTF";
-  }, [site.data?.name]);
+  useDocumentTitle(site.data?.name ?? "NebuCTF");
   const cardTransition = useCardTransition();
   const { data } = useAPI<{ user: User | null }>("/me");
   const user = data?.user ?? null;
