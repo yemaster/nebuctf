@@ -583,3 +583,9 @@ Markdown 代码使用 [Refractor](https://github.com/wooorm/refractor) 的按需
 页面标题统一使用「页面名称 - 网站名称」，具体题目、比赛和编辑页使用已加载的名称；账户切换资料、安全、提交记录时同步更新。复用 Query 缓存订阅，不额外发起标题请求，不从后台页面导入重型依赖。
 
 终端操作排列参考 [VS Code 终端](https://code.visualstudio.com/docs/terminal/basics) 与 [Azure Cloud Shell](https://learn.microsoft.com/en-us/azure/cloud-shell/use-the-shell-window)，提示复用现有 shadcn Tooltip。nc 进程采用 [tmux 多参数直接执行](https://man.openbsd.org/tmux.1)，不向已有 shell 拼接命令。
+
+## 大屏分类区域与内容迁移
+
+观战城市按 Web、Pwn、Reverse、Crypto、Misc、Forensics 划分连续区域，区域标题与对应设施保持空间关联。题目标签分两行显示名称、整题解出数和当前分值；多 flag 分值求和，整题解出数只计一次，遵守封榜与公开范围。分数和解答更新只修改标签，不重建建筑；继续使用实例化网格、最多 12 个题目标签、遮挡避让、30 FPS 上限和后台暂停。
+
+比赛与题目列表增加导入入口及逐行导出图标，编辑页亦可导出。导入使用独立整页，文件校验、包内列表、名称和赛程、必要的 Flag 重填、确认操作按顺序排列，使用现有 shadcn 表单、表格、提示与进度组件，亮暗主题一致。详见 [导入导出教程](IMPORT_EXPORT.md)。

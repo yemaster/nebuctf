@@ -78,3 +78,5 @@ npm run format
 
 
 比赛支持独立配置公开排行榜与 [3D 观战大屏](docs/CONTEST-SPECTATING.md)、邀请码/指定战队报名，以及不影响正式成绩的赛后练习。后台入口：比赛管理 → 编辑比赛 → 访问与报名。
+
+比赛与题目迁移：[导入导出教程](docs/IMPORT_EXPORT.md)。
