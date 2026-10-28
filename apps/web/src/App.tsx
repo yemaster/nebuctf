@@ -102,6 +102,10 @@ const LearningDetail = lazy(() =>
 );
 import { Loading } from "./components/shared";
 import { TransitionSurface } from "./components/transition-surface";
+import {
+  LoadingBoundary,
+  LoadingFallback,
+} from "./components/loading-transition";
 import { PageBoundary, StatusPage } from "./components/status-page";
 const UserContext = createContext<User | null>(null);
 export const useUser = () => useContext(UserContext);
@@ -285,7 +289,16 @@ function AppShell() {
                         <Route path="/admin/*" element={<Admin />} />
                         <Route path="/login" element={<Auth />} />
                         <Route path="/register" element={<Auth register />} />
-                        <Route path="/account" element={<Account />} />
+                        <Route
+                          path="/account"
+                          element={
+                            <LoadingBoundary>
+                              <Suspense fallback={<LoadingFallback />}>
+                                <Account />
+                              </Suspense>
+                            </LoadingBoundary>
+                          }
+                        />
                         <Route path="*" element={<StatusPage status={404} />} />
                       </Routes>
                     </Suspense>

@@ -1,14 +1,17 @@
 import { m, useIsPresent, useReducedMotion } from "motion/react";
 import { Loading } from "./shared";
+import { cn } from "@/lib/utils";
 
 // Keep the same background while the spinner leaves and the content appears.
 // An exiting layer relinquishes its native name before another card can open.
 export function TransitionSurface({
   loading,
   card,
+  loadingClassName,
 }: {
   loading: boolean;
   card?: string;
+  loadingClassName?: string;
 }) {
   const present = useIsPresent();
   const reduced = useReducedMotion();
@@ -31,7 +34,7 @@ export function TransitionSurface({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: reduced ? 0 : 0.12, ease: "easeOut" }}
-          className="h-full"
+          className={cn("h-full", loadingClassName)}
         >
           <Loading fullPage />
         </m.div>
