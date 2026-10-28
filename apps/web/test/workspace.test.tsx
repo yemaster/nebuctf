@@ -71,10 +71,15 @@ async function render(
   cache.setQueryData(["/me"], {
     user: { id: "player", username: "player", role: options.role ?? "user" },
   });
-  cache.setQueryData([`/challenges?scope=${scope}&category=&q=&page=1`], {
-    items: [c],
-    total: 1,
-  });
+  cache.setQueryData(
+    [
+      `/challenges?scope=${scope}&category=&q=&page=1${scope === "practice" ? "&page_size=10" : ""}`,
+    ],
+    {
+      items: [c],
+      total: 1,
+    },
+  );
   cache.setQueryData([`/challenges/${id}?scope=${scope}`], c);
   if (options.challenge?.challenge_type === "objective") {
     cache.setQueryData([`/contests/${scope}/objective-paper`], {
@@ -361,4 +366,27 @@ test("unregistered container preview offers a compact registration notice instea
   assert(!html.includes("403"));
   assert(!html.includes("启动靶机"));
   assert(!html.includes("生成附件"));
+});
+
+test("contest completed filter hides directory entries without closing the current challenge", async () => {
+  const path = `/contests/${contestId}/challenges?challenge=${id}&hide_solved=1`;
+  const completed = await render(path, true, contestId);
+  const directory = completed.match(
+    /<aside[^>]*aria-label="题目目录"[^>]*>([\s\S]*?)<\/aside>/,
+  )?.[1];
+  assert(directory);
+  assert(directory.includes("隐藏已完成"));
+  assert(directory.includes("没有未完成的题目"));
+  assert(!directory.includes("分步挑战"));
+  assert(completed.includes("该题目已解答"));
+  assert(!directory.includes('aria-label="分页"'));
+  const partial = await render(path, false, contestId);
+  assert(partial.match(/<aside[\s\S]*?<\/aside>/)?.[0].includes("分步挑战"));
+  const practice = await render(`/challenges?challenge=${id}`, false);
+  assert(
+    practice
+      .match(/<aside[\s\S]*?<\/aside>/)?.[0]
+      .includes('aria-label="分页"'),
+  );
+  assert(!practice.includes("隐藏已完成"));
 });

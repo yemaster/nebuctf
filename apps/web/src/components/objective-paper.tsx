@@ -30,16 +30,19 @@ export function ObjectiveNavigation({
   model,
   active,
   onSelect,
+  hideCompleted = false,
 }: {
   model: ObjectivePaperModel;
   active: string | null;
   onSelect: (id: string) => void;
+  hideCompleted?: boolean;
 }) {
   return (
     <nav aria-label="客观题题号" className="px-2 pb-3">
       <div className="grid grid-cols-6 gap-2">
         {model.query.data?.items.map((q, i) => {
           const state = model.state(q);
+          if (hideCompleted && state === "correct") return null;
           return (
             <Button
               key={q.id}

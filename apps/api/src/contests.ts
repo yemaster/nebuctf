@@ -57,7 +57,7 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
       total: count!.total,
       items: (
         await db.query(
-          `SELECT c.*,(SELECT count(*)::int FROM registrations r WHERE r.contest_id=c.id) teams FROM contests c WHERE ${condition} ORDER BY starts_at DESC,id LIMIT 24 OFFSET $5`,
+          `SELECT c.*,(SELECT count(*)::int FROM registrations r WHERE r.contest_id=c.id) teams FROM contests c WHERE ${condition} ORDER BY CASE WHEN starts_at<=now() AND ends_at>now() THEN 0 WHEN starts_at>now() THEN 1 ELSE 2 END,CASE WHEN ends_at>now() THEN starts_at END ASC,starts_at DESC,id LIMIT 24 OFFSET $5`,
           [...values, (p.page - 1) * 24],
         )
       ).map((c) => publicContest(c)),

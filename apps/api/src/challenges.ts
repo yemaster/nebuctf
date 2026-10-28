@@ -25,7 +25,11 @@ import { visibleChallengeIds } from "./group-permissions.js";
 export function challengeRoutes(app: FastifyInstance, db: DB) {
   hintRoutes(app, db);
   app.get("/api/challenges", async (req) => {
-    const p = page.parse(req.query);
+    const p = page
+      .extend({
+        page_size: z.coerce.number().int().min(1).max(100).default(24),
+      })
+      .parse(req.query);
     const contest = await contestAccess(db, p.scope, req.user ?? undefined);
     const cutoff = contestCutoff(contest);
     if (!req.user && p.scope !== "practice") fail(401, "请先登录");
@@ -44,15 +48,27 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
       p.q,
       p.category,
       owner,
-      p.scope === "practice" ? (p.page - 1) * 24 : 0,
+      p.scope === "practice" ? (p.page - 1) * p.page_size : 0,
       cutoff,
       sections,
       visibleIds,
+      p.page_size,
     ];
+    const condition = `WHERE c.published AND (($1='practice' AND c.practice) OR EXISTS(SELECT 1 FROM contest_challenges cc WHERE cc.challenge_id=c.id AND cc.contest_id::text=$1 AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()) AND ($4='' OR CASE WHEN c.challenge_type='objective' THEN 'objective' ELSE 'practical' END=ANY($7::text[])))) AND ($8::uuid[] IS NULL OR c.id=ANY($8::uuid[])) AND ($2='' OR c.title ILIKE '%'||$2||'%') AND ($3='' OR c.category=$3)`;
     const rows = await db.query(
-      `SELECT c.*,count(*) OVER()::int total,(SELECT count(*)::int FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.created_at<=$6 AND NOT s.contest_practice) solves,EXISTS(SELECT 1 FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.owner_key=$4) solved FROM challenges c WHERE c.published AND (($1='practice' AND c.practice) OR EXISTS(SELECT 1 FROM contest_challenges cc WHERE cc.challenge_id=c.id AND cc.contest_id::text=$1 AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()) AND ($4='' OR CASE WHEN c.challenge_type='objective' THEN 'objective' ELSE 'practical' END=ANY($7::text[])))) AND ($8::uuid[] IS NULL OR c.id=ANY($8::uuid[])) AND ($2='' OR c.title ILIKE '%'||$2||'%') AND ($3='' OR c.category=$3) ORDER BY c.created_at,c.id LIMIT CASE WHEN $1='practice' THEN 24 ELSE 200 END OFFSET $5`,
+      `SELECT c.id,c.title,c.category,c.difficulty,c.kind,c.challenge_type,c.initial_points,c.minimum_points,c.decay,c.dynamic_score,c.created_at,c.resources,c.objective,(c.patch_config IS NOT NULL) patch_config,count(*) OVER()::int total,(SELECT count(*)::int FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.created_at<=$6 AND NOT s.contest_practice) solves,EXISTS(SELECT 1 FROM solves s WHERE s.challenge_id=c.id AND s.scope=$1 AND s.owner_key=$4) solved FROM challenges c ${condition} ORDER BY c.created_at,c.id LIMIT CASE WHEN $1='practice' THEN $9 ELSE 200 END OFFSET $5`,
       args,
     );
+    const total =
+      rows[0]?.total ??
+      (p.page > 1 && p.scope === "practice"
+        ? (
+            await db.query(
+              `SELECT count(*)::int total FROM challenges c WHERE c.published AND c.practice AND ($1='' OR c.title ILIKE '%'||$1||'%') AND ($2='' OR c.category=$2)`,
+              [p.q, p.category],
+            )
+          )[0]!.total
+        : 0);
     const [objectives] = contest
       ? await db.query(
           "SELECT count(*)::int total FROM challenges c JOIN contest_challenges cc ON cc.challenge_id=c.id WHERE cc.contest_id=$1 AND c.challenge_type='objective' AND c.published AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()) AND ($2::uuid[] IS NULL OR c.id=ANY($2::uuid[]))",
@@ -69,6 +85,7 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
           owner,
           cutoff,
           isContestPractice(contest),
+          { summary: true },
         )
       ).map((c) => ({
         ...c,
@@ -76,8 +93,9 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
         hints: undefined,
         parts: c.parts.map((p) => ({ ...p, description: undefined })),
       })),
-      total: rows[0]?.total ?? 0,
+      total,
       page: p.page,
+      page_size: p.scope === "practice" ? p.page_size : 200,
       phases,
       clock: contest ? await readContestClock(db, contest) : null,
     };

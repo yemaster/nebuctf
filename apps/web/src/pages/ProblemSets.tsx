@@ -121,7 +121,7 @@ export function ProblemSetDetail() {
   const page = Math.max(1, Math.min(10000, Number(params.get("page")) || 1));
   const setPage = (value: number) => setParams({ page: String(value) });
   const data = useAPI<ProblemSet & { items: Challenge[] }>(
-      `/problemsets/${id}?page=${page}`,
+      `/problemsets/${id}?page=${page}&page_size=10`,
     ),
     s = data.data;
   if (data.error || data.isLoading)
@@ -181,7 +181,9 @@ export function ProblemSetDetail() {
             page={page}
             setPage={setPage}
             total={s.total}
-            hasMore={page * 24 < s.total}
+            pageSize={10}
+            alwaysShow
+            hasMore={page * 10 < s.total}
           />
         </div>
       )}

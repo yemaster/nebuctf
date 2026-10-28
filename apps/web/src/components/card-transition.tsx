@@ -35,7 +35,7 @@ export function cardDestination(target: CardDestination) {
     case "problemset":
       return {
         path: `/problemsets/${id}`,
-        query: `/problemsets/${id}?page=1`,
+        query: `/problemsets/${id}?page=1&page_size=10`,
         load: () => import("@/pages/ProblemSets"),
       };
     case "article":

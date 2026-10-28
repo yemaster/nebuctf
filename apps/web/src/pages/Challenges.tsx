@@ -1,7 +1,13 @@
-import {
-  ObjectivePaper,
-  ObjectiveNavigation,
-} from "@/components/objective-paper";
+const ObjectivePaper = lazy(() =>
+  import("@/components/objective-paper").then((m) => ({
+    default: m.ObjectivePaper,
+  })),
+);
+const ObjectiveNavigation = lazy(() =>
+  import("@/components/objective-paper").then((m) => ({
+    default: m.ObjectiveNavigation,
+  })),
+);
 import { useObjectivePaper } from "@/lib/use-objective-paper";
 import { OBJECTIVE_PAPER } from "@/lib/objective-paper";
 import { activateFromRow } from "@/lib/row-action";
@@ -20,7 +26,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -32,9 +38,12 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useAPI } from "@/lib/api";
+import { api, useAPI } from "@/lib/api";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { Challenge } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   InputGroup,
   InputGroupInput,
@@ -56,8 +65,12 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Empty, Pagination, QueryState } from "@/components/shared";
-import { ChallengeWorkspace } from "@/components/challenge-workspace";
+import { Empty, Loading, Pagination, QueryState } from "@/components/shared";
+const ChallengeWorkspace = lazy(() =>
+  import("@/components/challenge-workspace").then((m) => ({
+    default: m.ChallengeWorkspace,
+  })),
+);
 import { learningReturnPath } from "@/lib/learning-navigation";
 import { usePracticeTransition } from "@/lib/practice-transition";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
@@ -106,7 +119,12 @@ function ChallengeBrowser({
   const [search, setSearch] = useState(params.get("q") ?? "");
   const q = params.get("q") ?? "";
   const category = params.get("category") ?? "";
-  const page = Math.max(1, Math.min(10000, Number(params.get("page")) || 1));
+  const requestedPage = Number(params.get("page") ?? 1);
+  const page = Number.isInteger(requestedPage)
+    ? Math.max(1, Math.min(10000, requestedPage))
+    : 1;
+  const pageSize = 10;
+  const hideSolved = scope !== "practice" && params.get("hide_solved") === "1";
   useEffect(() => setSearch(q), [q]);
   function filter(values: Record<string, string>) {
     setParams((previous) => {
@@ -120,21 +138,24 @@ function ChallengeBrowser({
   const [mobile, setMobile] = useState(false);
   const [expanded, setExpanded] = useState(["客观题", ...categories]);
   const [opened, setOpened] = useState<OpenChallenge[]>([]);
-  const data = useAPI<{
-    items: Challenge[];
-    total: number;
-    filtered_total?: number;
-    title?: string;
-    phases?: Phase[];
-    clock?: ContestClock | null;
-    objective_count?: number;
-  }>(
-    problemset
-      ? `/problemsets/${encodeURIComponent(problemset)}?page=${page}${q ? `&q=${encodeURIComponent(q)}` : ""}${category ? `&category=${encodeURIComponent(category)}` : ""}`
-      : `/challenges?scope=${scope}&category=${category}&q=${encodeURIComponent(q)}&page=${page}`,
-    true,
-    scope === "practice" ? undefined : 15000,
-  );
+  const listPath = problemset
+    ? `/problemsets/${encodeURIComponent(problemset)}?page=${page}&page_size=${pageSize}${q ? `&q=${encodeURIComponent(q)}` : ""}${category ? `&category=${encodeURIComponent(category)}` : ""}`
+    : `/challenges?scope=${scope}&category=${category}&q=${encodeURIComponent(q)}&page=${page}${scope === "practice" ? `&page_size=${pageSize}` : ""}`;
+  const data = useQuery({
+    queryKey: [listPath],
+    queryFn: ({ signal }) =>
+      api<{
+        items: Challenge[];
+        total: number;
+        filtered_total?: number;
+        title?: string;
+        phases?: Phase[];
+        clock?: ContestClock | null;
+        objective_count?: number;
+      }>(listPath, "GET", undefined, signal),
+    placeholderData: keepPreviousData,
+    refetchInterval: scope === "practice" ? false : 15000,
+  });
   const total = data.data?.filtered_total ?? data.data?.total;
   const returnToSet = problemset
     ? `/problemsets/${encodeURIComponent(problemset)}?page=${page}`
@@ -218,11 +239,17 @@ function ChallengeBrowser({
     `/challenges/${selected}?scope=${scope}`,
     !!selected && selected !== OBJECTIVE_PAPER,
   );
+  const directoryItems =
+    data.data?.items.filter((c) => !hideSolved || !c.solved) ?? [];
+  const visibleObjectives =
+    !hideSolved ||
+    !paper.query.data ||
+    paper.query.data.items.some((q) => paper.state(q) !== "correct");
   const groups = [...(scope === "practice" ? ["客观题"] : []), ...categories]
     .map((name) => ({
       name,
       items:
-        data.data?.items.filter((c) =>
+        directoryItems.filter((c) =>
           name === "客观题"
             ? c.challenge_type === "objective"
             : c.challenge_type !== "objective" && c.category === name,
@@ -292,7 +319,7 @@ function ChallengeBrowser({
           </InputGroupAddon>
         </InputGroup>
       </form>
-      <div className="px-5 pb-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pb-2">
         <NativeSelect
           aria-label="题目分类"
           value={category}
@@ -308,6 +335,19 @@ function ChallengeBrowser({
             </NativeSelectOption>
           ))}
         </NativeSelect>
+        {scope !== "practice" && (
+          <Label className="flex items-center gap-2 text-xs font-normal">
+            <Switch
+              size="sm"
+              checked={hideSolved}
+              onCheckedChange={(value) =>
+                filter({ hide_solved: value ? "1" : "" })
+              }
+              aria-label="隐藏已完成"
+            />
+            隐藏已完成
+          </Label>
+        )}
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-4 pb-6">
@@ -334,6 +374,7 @@ function ChallengeBrowser({
               onValueChange={setExpanded}
             >
               {scope !== "practice" &&
+                visibleObjectives &&
                 (objectiveCount > 0 || selected === OBJECTIVE_PAPER) && (
                   <AccordionItem value="客观题" className="border-0">
                     <AccordionTrigger
@@ -355,17 +396,20 @@ function ChallengeBrowser({
                     </AccordionTrigger>
                     <AccordionContent>
                       {paper.query.data?.items.length ? (
-                        <ObjectiveNavigation
-                          model={paper}
-                          active={
-                            selected === OBJECTIVE_PAPER
-                              ? (paperFocus ??
-                                paper.query.data?.items[0]?.id ??
-                                null)
-                              : null
-                          }
-                          onSelect={selectObjective}
-                        />
+                        <Suspense fallback={<Loading />}>
+                          <ObjectiveNavigation
+                            model={paper}
+                            hideCompleted={hideSolved}
+                            active={
+                              selected === OBJECTIVE_PAPER
+                                ? (paperFocus ??
+                                  paper.query.data?.items[0]?.id ??
+                                  null)
+                                : null
+                            }
+                            onSelect={selectObjective}
+                          />
+                        </Suspense>
                       ) : (
                         <Button
                           variant="ghost"
@@ -409,18 +453,27 @@ function ChallengeBrowser({
               ))}
             </Accordion>
           )}
-          {data.data?.items.length === 0 && !objectiveCount && (
-            <Empty>没有符合条件的题目</Empty>
-          )}
-          {scope === "practice" && (
-            <Pagination
-              page={page}
-              setPage={setPage}
-              hasMore={page * 24 < (total ?? 0)}
-            />
-          )}
+          {directoryItems.length === 0 &&
+            !(objectiveCount && visibleObjectives) && (
+              <Empty>
+                {hideSolved ? "没有未完成的题目" : "没有符合条件的题目"}
+              </Empty>
+            )}
         </div>
       </ScrollArea>
+      {scope === "practice" && (
+        <div className="shrink-0 border-t px-4 pb-4">
+          <Pagination
+            page={page}
+            setPage={setPage}
+            hasMore={page * pageSize < (total ?? 0)}
+            total={total}
+            pageSize={pageSize}
+            alwaysShow
+            disabled={data.isFetching}
+          />
+        </div>
+      )}
     </>
   );
   const catalog = (
@@ -510,9 +563,11 @@ function ChallengeBrowser({
       <Pagination
         page={page}
         setPage={setPage}
-        hasMore={page * 24 < (data.data?.total ?? 0)}
+        hasMore={page * pageSize < (data.data?.total ?? 0)}
         total={data.data?.total}
-        pageSize={24}
+        pageSize={pageSize}
+        alwaysShow
+        disabled={data.isFetching}
       />
     </div>
   );
@@ -698,24 +753,26 @@ function ChallengeBrowser({
                   forceMount
                   className="min-h-0 flex-1 data-[state=inactive]:hidden"
                 >
-                  {c.id === OBJECTIVE_PAPER ? (
-                    <ObjectivePaper
-                      scope={scope}
-                      model={paper}
-                      focus={paperFocus}
-                      active={selected === OBJECTIVE_PAPER}
-                    />
-                  ) : (
-                    <ChallengeWorkspace
-                      id={c.id}
-                      scope={scope}
-                      active={selected === c.id}
-                      solved={
-                        data.data?.items.find((item) => item.id === c.id)
-                          ?.solved
-                      }
-                    />
-                  )}
+                  <Suspense fallback={<Loading fullPage />}>
+                    {c.id === OBJECTIVE_PAPER ? (
+                      <ObjectivePaper
+                        scope={scope}
+                        model={paper}
+                        focus={paperFocus}
+                        active={selected === OBJECTIVE_PAPER}
+                      />
+                    ) : (
+                      <ChallengeWorkspace
+                        id={c.id}
+                        scope={scope}
+                        active={selected === c.id}
+                        solved={
+                          data.data?.items.find((item) => item.id === c.id)
+                            ?.solved
+                        }
+                      />
+                    )}
+                  </Suspense>
                 </TabsContent>
               ))}
               {!selected && (

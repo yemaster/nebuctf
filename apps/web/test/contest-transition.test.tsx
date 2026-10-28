@@ -97,10 +97,13 @@ test("contest navigation handles shared snapshots, fallbacks and unregistered de
       attachments: [],
       parts: [],
     };
-    cache.setQueryData(["/challenges?scope=practice&category=&q=&page=1"], {
-      items: [challenge],
-      total: 1,
-    });
+    cache.setQueryData(
+      ["/challenges?scope=practice&category=&q=&page=1&page_size=10"],
+      {
+        items: [challenge],
+        total: 1,
+      },
+    );
     cache.setQueryData([`/challenges/${id}?scope=practice`], challenge);
     cache.setQueryData(["/announcements"], {
       items: [
@@ -125,7 +128,7 @@ test("contest navigation handles shared snapshots, fallbacks and unregistered de
       items: [{ id, title: "入门题单", total: 2, completed: 0 }],
       total: 1,
     });
-    cache.setQueryData([`/problemsets/${id}?page=1`], {
+    cache.setQueryData([`/problemsets/${id}?page=1&page_size=10`], {
       id,
       title: "入门题单",
       total: 0,
@@ -257,7 +260,11 @@ test("contest navigation handles shared snapshots, fallbacks and unregistered de
           for (const [list, detail, query] of [
             ["/contests", path, path],
             ["/learning", `/learning/${id}`, `/learning/trees/${id}`],
-            ["/problemsets", `/problemsets/${id}`, `/problemsets/${id}?page=1`],
+            [
+              "/problemsets",
+              `/problemsets/${id}`,
+              `/problemsets/${id}?page=1&page_size=10`,
+            ],
             ["/library", "/library/intro", "/articles/intro"],
           ]) {
             await mount(list!);

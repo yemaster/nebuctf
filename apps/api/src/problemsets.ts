@@ -37,7 +37,11 @@ export function problemsetRoutes(app: FastifyInstance, db: DB) {
   });
   app.get("/api/problemsets/:id", async (req) => {
     const pid = id.parse((req.params as any).id),
-      p = page.parse(req.query),
+      p = page
+        .extend({
+          page_size: z.coerce.number().int().min(1).max(100).default(24),
+        })
+        .parse(req.query),
       owner = req.user ? `u:${req.user.id}` : "";
     const [set] = await db.query(
       `${summary} WHERE p.id=$2 AND (p.published OR $3)`,
@@ -56,12 +60,20 @@ export function problemsetRoutes(app: FastifyInstance, db: DB) {
       EXISTS(SELECT 1 FROM solves s WHERE s.challenge_id=c.id AND s.scope='practice' AND s.owner_key=$2) solved
       FROM problemset_items i JOIN challenges c ON c.id=i.challenge_id WHERE i.problemset_id=$1 AND c.published AND c.practice
       AND strpos(lower(c.title),lower($4::text))>0 AND ($5='' OR c.category=$5)
-      ORDER BY i.position,c.id LIMIT 24 OFFSET $3`,
-      [pid, owner, (p.page - 1) * 24, p.q.trim(), p.category],
+      ORDER BY i.position,c.id LIMIT $6 OFFSET $3`,
+      [
+        pid,
+        owner,
+        (p.page - 1) * p.page_size,
+        p.q.trim(),
+        p.category,
+        p.page_size,
+      ],
     );
     return {
       ...set,
       filtered_total: count!.total,
+      page_size: p.page_size,
       items: await challengeProgress(db, rows, "practice", owner, new Date()),
       page: p.page,
     };

@@ -98,7 +98,7 @@ test(
         "/me": { user: { id: "player", username: "选手", role: "user" } },
         "/teams/mine": { items: [] },
         "/contests": { items: [] },
-        [`/challenges?scope=practice&category=&q=&page=1`]: {
+        [`/challenges?scope=practice&category=&q=&page=1&page_size=10`]: {
           items: [challenge],
           total: 1,
         },
@@ -169,10 +169,11 @@ test(
         "practice rows open from their score and preserve filters for normal and modified clicks",
         async () => {
           await mount("/challenges?page=3&category=Misc&q=flag", {
-            "/challenges?scope=practice&category=Misc&q=flag&page=3": {
-              items: [challenge],
-              total: 73,
-            },
+            "/challenges?scope=practice&category=Misc&q=flag&page=3&page_size=10":
+              {
+                items: [challenge],
+                total: 73,
+              },
           });
           await settle(
             () => !!container.querySelector('ul[aria-label="题目列表"] a'),
@@ -233,7 +234,7 @@ test(
           const nextId = "10000000-0000-4000-8000-000000000002";
           const next = { ...challenge, id: nextId, title: "题单第二题" };
           await mount(`/problemsets/${id}?page=2`, {
-            [`/problemsets/${id}?page=2`]: {
+            [`/problemsets/${id}?page=2&page_size=10`]: {
               id,
               title: "入门题单",
               total: 26,
@@ -241,7 +242,7 @@ test(
               items: [next, challenge],
             },
             [`/challenges/${nextId}?scope=practice`]: next,
-            "/challenges?scope=practice&category=&q=&page=2": {
+            "/challenges?scope=practice&category=&q=&page=2&page_size=10": {
               items: [{ ...challenge, title: "题单外的练习" }],
               total: 1,
             },
@@ -290,19 +291,19 @@ test(
         "a refreshed problemset workspace keeps scoped paging and category filters",
         async () => {
           await mount(`/challenges?problemset=${id}&challenge=${id}&page=2`, {
-            [`/problemsets/${id}?page=2`]: {
+            [`/problemsets/${id}?page=2&page_size=10`]: {
               title: "入门题单",
               total: 25,
               filtered_total: 25,
               items: [challenge],
             },
-            [`/problemsets/${id}?page=1`]: {
+            [`/problemsets/${id}?page=1&page_size=10`]: {
               title: "入门题单",
               total: 25,
               filtered_total: 25,
               items: [challenge],
             },
-            [`/problemsets/${id}?page=1&category=Misc`]: {
+            [`/problemsets/${id}?page=1&page_size=10&category=Misc`]: {
               title: "入门题单",
               total: 25,
               filtered_total: 1,
@@ -330,10 +331,18 @@ test(
           });
           await settle(
             () =>
-              cache.getQueryState([`/problemsets/${id}?page=1&category=Misc`])
-                ?.isInvalidated === false,
+              cache.getQueryState([
+                `/problemsets/${id}?page=1&page_size=10&category=Misc`,
+              ])?.isInvalidated === false,
           );
-          assert.equal(container.querySelector('[aria-label="下一页"]'), null);
+          assert.equal(
+            (
+              container.querySelector(
+                '[aria-label="下一页"]',
+              ) as HTMLButtonElement
+            ).disabled,
+            true,
+          );
           assert.ok(
             container
               .querySelector('[aria-label="题单题目"]')
