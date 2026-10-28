@@ -897,3 +897,10 @@ OperationProgress 支持在退场后显示有效期内容，同一资源始终�
 - 实际 WebGL 回归通过六分类区域、实时减少到两分类、清空与重新上线、题目分数和解出数更新，以及全屏/退出全屏和暂停。没有改变渲染质量或动效参数。
 - 已部署到 huawei-sh，代码为 `b57af61`，只重建并重启 API/Web，其他服务保持运行。Nginx、服务健康、真实公开页面及标题正常；两场真实比赛的观战排名投影与完整排行榜一致。公网 113 个 JS/CSS 共 5,107,803 字节与本地构建逐字节一致，旧版本资源继续返回 200。
 - 无数据库迁移，性能测试的独立临时库与远程临时文件已清理。保留回退镜像 `nebuctf-platform:before-perf2-20261029`、`nebuctf-web:before-perf2-20261029`。使用本地 yemaster 身份分类提交，未推送 GitHub。
+
+
+## 2026-10-29：日历配色与普通页脚菜单
+
+- 读取 GZCTF `7e61deef` 的 [赛程颜色选择](https://github.com/GZTimeWalker/GZCTF/blob/7e61deefdd3d5232c9dfaabcc7cd856932f774ed/src/GZCTF/ClientApp/src/pages/games/Index.tsx) 与 [自定义灰色板](https://github.com/GZTimeWalker/GZCTF/blob/7e61deefdd3d5232c9dfaabcc7cd856932f774ed/src/GZCTF/ClientApp/src/utils/ThemeOverride.ts)，采用其使用的 Mantine 蓝、紫、青、靛、葡萄紫色阶和中性灰。彩色色阶沿用赛程的亮色 4 / 暗色 9；为当前细条降低饱和度，移除原有统一压暗滤镜，亮色略透明、暗色保持实色。颜色归属、连续条带、跨周行位和每日三条上限不变。
+- 普通页脚“链接”更名为“菜单”，使用左侧 Lucide Menu 图标，入口移到左侧信息区最前面；比赛菜单保留倒计时后的原位置。
+- 类型检查及生产构建通过，日历/页脚现有 7 项测试通过，首屏依赖预算通过。桌面 Chrome 查看亮暗截图，验证五场交叠比赛的行位、色彩连续、边界、每日上限、日期选中与方向键，以及页脚最左位置、图标顺序、点击展开、菜单项和 Escape 关闭。未测试手机端。
