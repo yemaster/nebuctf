@@ -1,0 +1,146 @@
+{
+  "baseline_commit": "397b25d",
+  "date": "2026-10-29",
+  "backend_fixture": {
+    "users": 100,
+    "teams": 100,
+    "challenges": 80,
+    "parts": 120,
+    "solves": 40000,
+    "warmup": 2,
+    "samples": 7
+  },
+  "backend": {
+    "before": {
+      "ms": 524.9506930000007,
+      "queries": 14,
+      "dbBytes": 2827697,
+      "heapAllocated": 3653352,
+      "heapRetained": 7336
+    },
+    "after": {
+      "ms": 263.85171500000024,
+      "queries": 14,
+      "dbBytes": 91258,
+      "heapAllocated": 346536,
+      "heapRetained": 23320
+    }
+  },
+  "frontend": {
+    "before": [
+      {
+        "route": "index.html",
+        "files": 7,
+        "decoded_bytes": 931241,
+        "compressed_bytes": 265939
+      },
+      {
+        "route": "src/pages/Home.tsx",
+        "files": 14,
+        "decoded_bytes": 1025680,
+        "compressed_bytes": 297388
+      },
+      {
+        "route": "src/pages/Auth.tsx",
+        "files": 12,
+        "decoded_bytes": 947400,
+        "compressed_bytes": 273157
+      },
+      {
+        "route": "src/pages/Contests.tsx",
+        "files": 14,
+        "decoded_bytes": 1031788,
+        "compressed_bytes": 299431
+      },
+      {
+        "route": "src/pages/Challenges.tsx",
+        "files": 17,
+        "decoded_bytes": 971259,
+        "compressed_bytes": 281495
+      }
+    ],
+    "after": [
+      {
+        "route": "index.html",
+        "files": 5,
+        "decoded_bytes": 891728,
+        "compressed_bytes": 254469
+      },
+      {
+        "route": "src/pages/Home.tsx",
+        "files": 12,
+        "decoded_bytes": 986095,
+        "compressed_bytes": 285881
+      },
+      {
+        "route": "src/pages/Auth.tsx",
+        "files": 10,
+        "decoded_bytes": 908085,
+        "compressed_bytes": 261910
+      },
+      {
+        "route": "src/pages/Contests.tsx",
+        "files": 12,
+        "decoded_bytes": 992133,
+        "compressed_bytes": 287915
+      },
+      {
+        "route": "src/pages/Challenges.tsx",
+        "files": 16,
+        "decoded_bytes": 950250,
+        "compressed_bytes": 277322
+      },
+      {
+        "route": "src/pages/Admin.tsx",
+        "files": 10,
+        "decoded_bytes": 922012,
+        "compressed_bytes": 265076
+      },
+      {
+        "route": "src/pages/admin/Operations.tsx",
+        "files": 14,
+        "decoded_bytes": 934168,
+        "compressed_bytes": 270536
+      }
+    ]
+  },
+  "runtime_fixture": {
+    "sections": 50,
+    "code_blocks": 50,
+    "input": "flag{performance-regression-test-0123456789}",
+    "warmup": 1,
+    "samples": 5
+  },
+  "runtime": {
+    "before": {
+      "wallMs": 960.835208,
+      "scriptMs": 552.724,
+      "taskMs": 922.8000000000005,
+      "heapBytes": 36471872
+    },
+    "after": {
+      "wallMs": 40.1436249999997,
+      "scriptMs": 6.255,
+      "taskMs": 14.147000000000007,
+      "heapBytes": 899596
+    }
+  },
+  "admin_users": {
+    "before": {
+      "decoded_bytes": 1917574,
+      "compressed_bytes": 574249,
+      "files": 51
+    },
+    "after": {
+      "decoded_bytes": 934168,
+      "compressed_bytes": 270536,
+      "files": 14
+    }
+  },
+  "checks": {
+    "spectator_projection_identical": true,
+    "markdown_light_pixels_identical": true,
+    "markdown_dark_pixels_identical": true,
+    "admin_users_pixels_identical": true
+  }
+}
