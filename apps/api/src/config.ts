@@ -29,6 +29,9 @@ const env = z
     DOMAIN_SCHEME: z.enum(["http", "https"]).default("https"),
     GATEWAY_CONTAINER: z.string().default("nebuctf-gateway"),
     GATEWAY_PORT: z.coerce.number().default(8081),
+    TERMINAL_IMAGE: z.string().default("nebuctf/terminal:local"),
+    TERMINAL_WORKER_URL: z.string().url().default("ws://worker:8082"),
+    TERMINAL_PORT: z.coerce.number().int().min(0).max(65535).default(8082),
     DOCKER_SOCKET: z.string().default("/var/run/docker.sock"),
     CHALLENGE_HOST: z
       .string()

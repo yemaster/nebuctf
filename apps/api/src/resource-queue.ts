@@ -2,7 +2,7 @@ import type { DB, Row } from "./db.js";
 
 // Shared by the scheduler and the queue counter; no other participant's data is exposed.
 export const queuePriority = (alias: string) =>
-  `CASE WHEN EXISTS(SELECT 1 FROM solves s WHERE s.challenge_id=${alias}.challenge_id AND s.scope=${alias}.scope AND s.owner_key=${alias}.owner_key) THEN 1 ELSE 0 END`;
+  `CASE WHEN ${alias}.kind='terminal' OR EXISTS(SELECT 1 FROM solves s WHERE s.challenge_id=${alias}.challenge_id AND s.scope=${alias}.scope AND s.owner_key=${alias}.owner_key) THEN 1 ELSE 0 END`;
 export const queueReady = (alias: string) =>
   `${alias}.expires_at>now() AND NOT EXISTS(SELECT 1 FROM instances previous WHERE previous.id::text IN (SELECT jsonb_array_elements_text(coalesce(${alias}.spec->'replace_ids','[]'::jsonb))) AND previous.status NOT IN ('stopped','failed'))`;
 export async function withQueuePositions(db: DB, items: Row[]) {

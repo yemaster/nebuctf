@@ -67,6 +67,9 @@ const Scoreboard = lazy(() =>
 const Auth = lazy(() =>
   import("./pages/Auth").then((m) => ({ default: m.Auth })),
 );
+const TerminalPage = lazy(() =>
+  import("./pages/Terminal").then((m) => ({ default: m.TerminalPage })),
+);
 const Account = lazy(() =>
   import("./pages/Account").then((m) => ({ default: m.Account })),
 );
@@ -278,6 +281,16 @@ function AppShell() {
                         <Route path="/team" element={<TeamPage />} />
                         <Route path="/team/new" element={<TeamJoin />} />
                         <Route path="/instances" element={<Instances />} />
+                        <Route
+                          path="/terminal"
+                          element={
+                            <LoadingBoundary>
+                              <Suspense fallback={<LoadingFallback />}>
+                                <TerminalPage />
+                              </Suspense>
+                            </LoadingBoundary>
+                          }
+                        />
                         <Route
                           path="/contests/:id/manage/*"
                           element={<ContestManagement />}

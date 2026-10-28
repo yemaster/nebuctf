@@ -144,7 +144,7 @@ export function systemAdminRoutes(app: FastifyInstance, db: DB) {
         "SELECT resource_type,status,count(*)::int count FROM instances WHERE status NOT IN ('stopped','failed') GROUP BY resource_type,status",
       ),
       db.query(
-        "SELECT i.id,c.title,i.error,i.updated_at FROM instances i JOIN challenges c ON c.id=i.challenge_id WHERE i.error IS NOT NULL ORDER BY i.updated_at DESC LIMIT 5",
+        "SELECT i.id,coalesce(c.title,'终端') title,i.error,i.updated_at FROM instances i LEFT JOIN challenges c ON c.id=i.challenge_id WHERE i.error IS NOT NULL ORDER BY i.updated_at DESC LIMIT 5",
       ),
       db.query(
         "SELECT category,count(*)::int count FROM challenges GROUP BY category ORDER BY count(*) DESC,category",

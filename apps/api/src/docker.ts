@@ -1,3 +1,4 @@
+import type { Duplex } from "node:stream";
 import { request } from "node:http";
 import { config } from "./config.js";
 import { StringDecoder } from "node:string_decoder";
@@ -183,6 +184,75 @@ export class DockerEngine {
       `/exec/${encodeURIComponent(exec.Id)}/json`,
     );
     if (state.Running || state.ExitCode !== 0) throw Error("Flag 写入失败");
+  }
+  async createTerminalExec(container: string) {
+    const exec = await this.call<{ Id: string }>(
+      "POST",
+      `/containers/${encodeURIComponent(container)}/exec`,
+      {
+        AttachStdin: true,
+        AttachStdout: true,
+        AttachStderr: true,
+        Tty: true,
+        Privileged: false,
+        User: "65534:65534",
+        WorkingDir: "/home/player",
+        Env: ["HOME=/home/player", "TERM=xterm-256color", "LANG=C.UTF-8"],
+        Cmd: ["tmux", "new-session", "-A", "-s", "shell"],
+      },
+    );
+    return exec.Id;
+  }
+  resizeTerminal(exec: string, cols: number, rows: number) {
+    return this.call(
+      "POST",
+      `/exec/${encodeURIComponent(exec)}/resize?w=${cols}&h=${rows}`,
+    );
+  }
+  attachTerminal(exec: string, signal: AbortSignal): Promise<Duplex> {
+    return new Promise((resolve, reject) => {
+      const body = JSON.stringify({ Detach: false, Tty: true });
+      const req = request({
+        socketPath: this.socketPath,
+        path: `/v1.45/exec/${encodeURIComponent(exec)}/start`,
+        method: "POST",
+        signal,
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+          Connection: "Upgrade",
+          Upgrade: "tcp",
+        },
+      });
+      const timeout = setTimeout(
+        () => req.destroy(Error("Terminal attach timeout")),
+        10000,
+      );
+      req.on("upgrade", (res, socket, head) => {
+        clearTimeout(timeout);
+        if (res.statusCode !== 101) {
+          socket.destroy();
+          reject(Error("Terminal upgrade failed"));
+          return;
+        }
+        socket.pause();
+        if (head.length) socket.unshift(head);
+        const abort = () => socket.destroy();
+        signal.addEventListener("abort", abort, { once: true });
+        socket.once("close", () => signal.removeEventListener("abort", abort));
+        if (signal.aborted) socket.destroy();
+        resolve(socket);
+      });
+      req.on("response", (res) => {
+        res.resume();
+        req.destroy(Error("Terminal upgrade refused"));
+      });
+      req.on("error", (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+      req.end(body);
+    });
   }
   listImages() {
     return this.call<ImageInfo[]>("GET", "/images/json");

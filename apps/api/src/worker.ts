@@ -12,16 +12,22 @@ import { storage, validateImage } from "./resources.js";
 import { cleanDockerMessage } from "./image-reference.js";
 const label = "io.nebuctf.instance";
 export function containerConfig(i: Row): Record<string, any> {
-  const generator = i.kind === "dynamic_attachment",
+  const terminal = i.kind === "terminal",
+    generator = i.kind === "dynamic_attachment",
     port = `${i.spec.port}/tcp`;
   return {
     name: `nebuctf-${i.id}`,
     Image: i.spec.image,
     User: "65534:65534",
-    Env: flagEnvironment(i),
+    Env: terminal
+      ? ["HOME=/home/player", "TERM=xterm-256color", "LANG=C.UTF-8"]
+      : flagEnvironment(i),
+    ...(terminal
+      ? { Cmd: ["sleep", "infinity"], WorkingDir: "/home/player" }
+      : {}),
     Labels: { [label]: i.id },
     NetworkDisabled: generator,
-    ExposedPorts: generator ? {} : { [port]: {} },
+    ExposedPorts: generator || terminal ? {} : { [port]: {} },
     HostConfig: {
       NetworkMode: generator ? "none" : `nebuctf-${i.id}`,
       Memory: i.spec.memory * 1024 * 1024,
@@ -35,6 +41,12 @@ export function containerConfig(i: Row): Record<string, any> {
       RestartPolicy: { Name: "no" },
       Tmpfs: {
         "/tmp": "rw,noexec,nosuid,nodev,size=32m,mode=1777",
+        ...(terminal
+          ? {
+              "/home/player":
+                "rw,nosuid,nodev,size=32m,uid=65534,gid=65534,mode=700",
+            }
+          : {}),
         ...(i.spec.awd
           ? { "/run/nebuctf": "rw,noexec,nosuid,nodev,size=1m,mode=1777" }
           : {}),
@@ -43,7 +55,7 @@ export function containerConfig(i: Row): Record<string, any> {
           : {}),
       },
       PortBindings:
-        generator || i.spec.access_mode === "domain"
+        generator || terminal || i.spec.access_mode === "domain"
           ? {}
           : {
               [port]: [
@@ -203,7 +215,7 @@ export class Worker {
         [artifact.length, i.id],
       );
       if (!rows.length) await this.cleanup(i);
-      else await recordIssuedFlags(this.db, i);
+      else if (i.kind !== "terminal") await recordIssuedFlags(this.db, i);
     } else {
       info = await this.docker.inspectContainer(name);
       const healthDeadline = Date.now() + 30000;
@@ -222,11 +234,14 @@ export class Worker {
       const binding = info.NetworkSettings.Ports[`${i.spec.port}/tcp`]?.[0];
       const internalHost =
         info.NetworkSettings.Networks[`nebuctf-${i.id}`]?.IPAddress;
-      if (domain ? !internalHost : !binding)
+      if (i.kind !== "terminal" && (domain ? !internalHost : !binding))
         throw Error("instance endpoint missing");
-      const endpoint = domain
-        ? `${config.DOMAIN_SCHEME}://${i.id}.${config.CHALLENGE_DOMAIN}`
-        : `${config.CHALLENGE_HOST}:${binding!.HostPort}`;
+      const endpoint =
+        i.kind === "terminal"
+          ? null
+          : domain
+            ? `${config.DOMAIN_SCHEME}://${i.id}.${config.CHALLENGE_DOMAIN}`
+            : `${config.CHALLENGE_HOST}:${binding!.HostPort}`;
       const rows = await this.db.query(
         "UPDATE instances SET status='running',expires_at=CASE WHEN owner_key='shared' THEN max_expires_at ELSE LEAST(now()+(spec->>'ttl')::int * interval '1 second',max_expires_at) END,container_id=$1,endpoint=$2,upstream_host=$4,upstream_port=$5,updated_at=now() WHERE id=$3 AND status='starting' AND expires_at>now() RETURNING id",
         [
@@ -238,7 +253,7 @@ export class Worker {
         ],
       );
       if (!rows.length) await this.cleanup(i);
-      else await recordIssuedFlags(this.db, i);
+      else if (i.kind !== "terminal") await recordIssuedFlags(this.db, i);
     }
   }
   async tick() {

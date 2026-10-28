@@ -1,3 +1,4 @@
+import { terminalRoutes } from "./terminal.js";
 import { contestSpectatorRoutes } from "./contest-spectator.js";
 import { writeupRoutes } from "./writeups.js";
 import { captchaRoutes } from "./captcha.js";
@@ -118,6 +119,7 @@ export async function buildApp(db: DB, logging = false) {
     cursor = batch[batch.length - 1]!.id;
   }
   resourceRoutes(app, db);
+  terminalRoutes(app, db);
   imageRoutes(app, db);
   adminRoutes(app, db);
   learningRoutes(app, db);

@@ -1,3 +1,4 @@
+import { startTerminalWorker } from "./terminal-worker.js";
 import { setTimeout } from "node:timers/promises";
 import { writeFile } from "node:fs/promises";
 import pg from "pg";
@@ -29,6 +30,11 @@ const db = await openDB(),
   judges = new JudgeWorker(db),
   awd = new AwdWorker(db),
   images = new ImageWorker(db);
+const terminalServer = startTerminalWorker(db);
+terminalServer.on("error", (error) => {
+  console.error("terminal server failed", error.message);
+  process.exit(1);
+});
 let running = true,
   iteration = 0;
 for (const signal of ["SIGTERM", "SIGINT"])
@@ -73,5 +79,7 @@ await worker.drain();
 await judges.drain();
 await awd.drain();
 await images.stop();
+for (const peer of terminalServer.clients) peer.terminate();
+await new Promise<void>((resolve) => terminalServer.close(() => resolve()));
 await db.close();
 await leader.end();

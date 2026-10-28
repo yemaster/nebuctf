@@ -269,3 +269,11 @@ INSERT INTO schema_migrations(version) VALUES(25) ON CONFLICT DO NOTHING;
 ALTER TABLE challenges ADD COLUMN IF NOT EXISTS flag_template text NOT NULL DEFAULT '';
 ALTER TABLE challenge_parts ADD COLUMN IF NOT EXISTS flag_template text;
 INSERT INTO schema_migrations(version) VALUES(26) ON CONFLICT DO NOTHING;
+
+ALTER TABLE instances ALTER COLUMN challenge_id DROP NOT NULL;
+ALTER TABLE instances DROP CONSTRAINT IF EXISTS instances_terminal_owner;
+ALTER TABLE instances ADD CONSTRAINT instances_terminal_owner CHECK (
+   (kind='terminal' AND resource_type='terminal' AND requested_by IS NOT NULL AND challenge_id IS NULL AND scope='practice' AND owner_key='u:'||requested_by::text)
+   OR (kind<>'terminal' AND resource_type<>'terminal' AND challenge_id IS NOT NULL));
+CREATE UNIQUE INDEX IF NOT EXISTS instances_terminal_active ON instances(owner_key) WHERE kind='terminal' AND status IN ('queued','starting','running','ready','stopping');
+INSERT INTO schema_migrations(version) VALUES(27) ON CONFLICT DO NOTHING;

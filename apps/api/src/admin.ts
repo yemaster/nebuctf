@@ -796,7 +796,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
         memory: config.MAX_MEMORY,
       },
       items: await db.query(
-        "SELECT i.id,c.title,i.status,i.kind,i.scope,i.owner_key,i.spec,i.endpoint,i.expires_at,i.error FROM instances i JOIN challenges c ON c.id=i.challenge_id ORDER BY i.created_at DESC,i.id LIMIT 24 OFFSET $1",
+        "SELECT i.id,coalesce(c.title,'终端') title,i.status,i.kind,i.scope,i.owner_key,i.spec,i.endpoint,i.expires_at,i.error FROM instances i LEFT JOIN challenges c ON c.id=i.challenge_id ORDER BY i.created_at DESC,i.id LIMIT 24 OFFSET $1",
         [(p.page - 1) * 24],
       ),
     };

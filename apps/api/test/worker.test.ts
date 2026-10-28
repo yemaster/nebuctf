@@ -210,3 +210,24 @@ test("worker starts TTL at readiness, honors absolute deadlines and marks startu
     await db.close();
   }
 });
+
+test("terminal starts without flags or a published endpoint and uses normal cleanup", async () => {
+  const { db, calls } = database(),
+    docker = new FakeDocker(),
+    worker = new Worker(db, docker);
+  const terminal = {
+    ...instance,
+    challenge_id: null,
+    kind: "terminal",
+    spec: { image: "nebuctf/terminal:local", cpu: 250, memory: 128, ttl: 1800 },
+  };
+  await worker.start(terminal);
+  const update = calls.find((c) => c.sql.includes("status='running'"));
+  assert.equal(update?.params?.[1], null);
+  assert.deepEqual((docker.spec!.HostConfig as any).PortBindings, {});
+  assert.deepEqual(docker.spec!.Cmd, ["sleep", "infinity"]);
+  assert.equal(calls.filter((c) => c.sql.includes("issued_flags")).length, 0);
+  await worker.cleanup(terminal);
+  assert.equal(docker.container, undefined);
+  assert.equal(docker.network, undefined);
+});

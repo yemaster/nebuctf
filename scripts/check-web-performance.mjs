@@ -41,7 +41,9 @@ for (const route of [
     encoded = 0;
   for (const name of files) {
     assert(
-      !/markdown-editor|pdf-viewer|spectator-3d|charts-|flow-/.test(name),
+      !/markdown-editor|pdf-viewer|spectator-3d|charts-|flow-|web-terminal-/.test(
+        name,
+      ),
       `Eager heavy dependency on ${route}: ${name}`,
     );
     const file = new URL(name, root),

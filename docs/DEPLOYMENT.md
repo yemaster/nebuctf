@@ -181,3 +181,35 @@ WriteUp 存于现有私有 files 卷，文件名为 writeup-UUID、权限 600，
 升级前备份数据库，更新 API、Worker、Gateway 共用后端镜像及 Web。观战复用现有 HTTP 端口和同源 WebSocket 代理，无新增端口或域名要求。Three.js 模块仅访问观战路由时加载；客户端需要支持 WebGL 2，失败时保留排行及动态。观战限流和渲染上限不是并发容量保证，生产比赛需按参赛规模另行压测。
 
 回滚迁移 18 时，应恢复升级前数据库备份并同时恢复旧后端镜像；不要只切换旧 API 镜像，因为旧版客观题写入依赖原来的三列唯一键。备份包含账户和比赛数据，应保留为仅管理员可读。
+
+## 交互终端
+
+先在 Worker 所在宿主构建工具镜像，再发布 API、Worker 和 Web：
+
+```sh
+docker build -t nebuctf/terminal:local deploy/terminal
+docker compose up -d --build api worker web
+```
+
+镜像包含 bash、nc、curl、Python 3、tmux、less 和 vim。需要国内 Debian 软件源时，可给构建追加 `--build-arg DEBIAN_MIRROR=https://mirrors.huaweicloud.com`，保留 apt 的软件包签名校验。`TERMINAL_IMAGE` 可覆盖镜像名称，仍须符合 `IMAGE_PREFIXES`。
+
+终端从底部「终端」打开，地址为 `/terminal`。每位用户最多一个活跃终端，按 250m CPU、128 MiB 内存预约资源，计入平台总量和该用户的个人环境配额。启动后计时，使用平台默认时长、续期次数和续期增量；开始/销毁共用一分钟操作冷却。文件存放在 32 MiB 的临时 HOME 中，销毁或到期即清除。关闭页面只断开连接，重连继续同一 tmux 会话。
+
+终端不发布主机端口。浏览器经同源 `/api/terminal/:id/connect` WebSocket 连接 API，API 再用短期签名凭据连接 Worker 内部 8082 端口。API 不挂载 Docker Socket。Worker 检查用户、会话、实例归属、到期时间和容器标签，随后用固定的非 root tmux 命令打开 PTY。在线连接每 10 秒重新检查授权，网络中断显示重新连接入口。无需修改现有靶机端口范围。
+
+迁移 27 允许终端实例不绑定题目，并增加终端所属用户和唯一活跃实例约束。回滚到不支持终端的版本前，先回收终端实例。
+
+## 发布时保留旧版页面资源
+
+Web 使用 `web-assets` 卷保存最近 30 天的带哈希 JS、CSS、Worker 及版本化 PDF 资源。Nginx 优先读取当前镜像，缺失时读取保留资源。新页面始终加载当前 `index.html`，已经打开的旧页面可以继续加载尚未访问过的页面模块。
+
+首次启用这一机制前，先归档仍在运行的 Web 镜像；旧版镜像标签也可作为参数补入：
+
+```sh
+sh scripts/archive-web-assets.sh
+# 可选：sh scripts/archive-web-assets.sh nebuctf-web:previous
+
+docker compose up -d --build
+```
+
+后续容器启动会自动更新资源卷并清理超过 30 天的历史文件。不要在普通更新时删除 `web-assets` 卷。资源加载失败会显示刷新入口，不再作为应用渲染异常显示 500；平台不会自动刷新并丢弃未保存内容。

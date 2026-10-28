@@ -8,6 +8,7 @@ import {
   Square,
   ExternalLink,
   Server,
+  Terminal,
   FileArchive,
   Check,
 } from "lucide-react";
@@ -168,7 +169,9 @@ export function InstanceRow({
       className={`grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border-0 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:p-5 [&_[data-slot=item-footer]]:col-span-full ${compact ? "rounded-none bg-transparent" : "rounded-xl bg-card shadow-sm ring-1 ring-border/60"}`}
     >
       <ItemMedia className="text-muted-foreground">
-        {attachment ? (
+        {i.kind === "terminal" ? (
+          <Terminal className="size-5" />
+        ) : attachment ? (
           <FileArchive className="size-5" />
         ) : (
           <Server className="size-5" />
@@ -195,6 +198,14 @@ export function InstanceRow({
       </ItemContent>
       {alive && (
         <ItemActions className="col-span-full flex-wrap justify-end sm:col-span-1">
+          {i.kind === "terminal" && i.status === "running" && !stopping && (
+            <Button variant="secondary" size="sm" asChild>
+              <Link to="/terminal" target="_blank" rel="noopener noreferrer">
+                <Terminal />
+                打开终端
+              </Link>
+            </Button>
+          )}
           {i.status === "ready" && !stopping && (
             <DownloadButton
               href={`/api/instances/${i.id}/artifact`}

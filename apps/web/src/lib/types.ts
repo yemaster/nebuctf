@@ -170,7 +170,7 @@ export interface Instance {
   renew_count?: number;
   renew_limit?: number | null;
   max_expires_at?: string;
-  resource_type?: "container" | "attachment";
+  resource_type?: "container" | "attachment" | "terminal";
   created_at: string;
   ttl?: number;
   next_operation_at?: string | null;
