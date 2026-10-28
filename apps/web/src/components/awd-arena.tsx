@@ -1,5 +1,7 @@
-import { Copy, ExternalLink, RotateCw } from "lucide-react";
+import { Copy, ExternalLink, RotateCw, Terminal } from "lucide-react";
 import { api, ApiError, useAPI, useAction } from "@/lib/api";
+import { copyText } from "@/lib/clipboard";
+import { toast } from "sonner";
 import { endpointURL } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -25,6 +27,7 @@ type Arena = {
     name: string;
     instance_id: string | null;
     endpoint: string | null;
+    protocol?: "http" | "nc";
     status: string | null;
     own: boolean;
     health: string | null;
@@ -139,20 +142,36 @@ export function AwdArena({ id, scope }: { id: string; scope: string }) {
                         size="icon"
                         aria-label={`复制 ${i.name} 靶机地址`}
                         onClick={() =>
-                          void navigator.clipboard.writeText(i.endpoint!)
+                          void copyText(i.endpoint!).catch(() =>
+                            toast.error("复制失败，请手动选择地址"),
+                          )
                         }
                       >
                         <Copy />
                       </Button>
-                      {endpointURL(i.endpoint) && (
+                      {(i.protocol === "nc"
+                        ? i.instance_id
+                        : endpointURL(i.endpoint)) && (
                         <Button variant="ghost" size="icon" asChild>
                           <a
-                            href={endpointURL(i.endpoint)!}
+                            href={
+                              i.protocol === "nc"
+                                ? `/terminal?target=${i.instance_id}`
+                                : endpointURL(i.endpoint)!
+                            }
                             target="_blank"
                             rel="noopener noreferrer"
-                            aria-label={`打开 ${i.name} 靶机`}
+                            aria-label={
+                              i.protocol === "nc"
+                                ? `在容器终端打开 ${i.name} 靶机`
+                                : `打开 ${i.name} 靶机`
+                            }
                           >
-                            <ExternalLink />
+                            {i.protocol === "nc" ? (
+                              <Terminal />
+                            ) : (
+                              <ExternalLink />
+                            )}
                           </a>
                         </Button>
                       )}

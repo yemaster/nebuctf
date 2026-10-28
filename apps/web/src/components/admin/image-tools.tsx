@@ -1,3 +1,5 @@
+import { copyText } from "@/lib/clipboard";
+import { Terminal } from "lucide-react";
 import type { ResourceProfile } from "@/lib/competition";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -220,6 +222,7 @@ type TestInstance = {
   status: string;
   kind: string;
   endpoint?: string;
+  protocol?: "http" | "nc";
   error?: string;
   expires_at: string;
   image: string;
@@ -307,7 +310,12 @@ export function ImageTools({
     action.isPending ||
     (!!instance &&
       ["queued", "starting", "stopping"].includes(instance.status));
-  const endpoint = instance?.endpoint ? endpointURL(instance.endpoint) : null;
+  const endpoint =
+    instance?.protocol === "nc"
+      ? `/terminal?target=${instance.id}`
+      : instance?.endpoint
+        ? endpointURL(instance.endpoint)
+        : null;
   return (
     <div className="mt-4 space-y-4" aria-label="镜像与测试环境">
       <div className="flex flex-wrap items-center gap-3">
@@ -403,8 +411,7 @@ export function ImageTools({
             variant="ghost"
             aria-label="复制测试靶机地址"
             onClick={() =>
-              navigator.clipboard
-                .writeText(instance.endpoint ?? "")
+              copyText(instance.endpoint ?? "")
                 .then(() => toast.success("已复制"))
                 .catch(() => toast.error("复制失败"))
             }
@@ -417,9 +424,13 @@ export function ImageTools({
                 href={endpoint}
                 target="_blank"
                 rel="noreferrer"
-                aria-label="打开测试靶机"
+                aria-label={
+                  instance.protocol === "nc"
+                    ? "在容器终端打开测试靶机"
+                    : "打开测试靶机"
+                }
               >
-                <ExternalLink />
+                {instance.protocol === "nc" ? <Terminal /> : <ExternalLink />}
               </a>
             </Button>
           )}

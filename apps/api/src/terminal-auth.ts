@@ -4,6 +4,7 @@ import { config } from "./config.js";
 import type { DB } from "./db.js";
 const claims = z.object({
   instance: z.uuid(),
+  target: z.uuid().optional(),
   user: z.uuid(),
   session: z.string().regex(/^[a-f0-9]{64}$/),
   expires: z.number().int(),

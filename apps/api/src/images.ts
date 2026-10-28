@@ -31,6 +31,7 @@ export async function imageStatus(db: DB) {
 const imageSelect = `SELECT i.*,j.id job_id,j.status job_status,j.error job_error FROM docker_images i LEFT JOIN LATERAL (SELECT id,status,error FROM docker_image_pulls WHERE image=i.image ORDER BY created_at DESC LIMIT 1) j ON true`;
 const testSpec = z.object({
   image: imageReference,
+  protocol: z.enum(["http", "nc"]),
   access_mode: z.enum(["port", "domain"]),
   port: z.number().int().min(1024).max(65535),
   cpu: z.number().int().min(100).max(4000),
@@ -122,7 +123,7 @@ export function imageRoutes(app: FastifyInstance, db: DB) {
       .optional()
       .parse((req.query as any).resource_type);
     const [instance] = await db.query(
-      `SELECT id,status,kind,endpoint,error,created_at,expires_at,(spec->>'ttl')::int ttl,spec->>'image' image FROM instances WHERE challenge_id=$1 AND requested_by=$2 AND scope='test' AND ($3::text IS NULL OR resource_type=$3) ORDER BY created_at DESC LIMIT 1`,
+      `SELECT id,status,kind,endpoint,coalesce(spec->>'protocol','http') protocol,error,created_at,expires_at,(spec->>'ttl')::int ttl,spec->>'image' image FROM instances WHERE challenge_id=$1 AND requested_by=$2 AND scope='test' AND ($3::text IS NULL OR resource_type=$3) ORDER BY created_at DESC LIMIT 1`,
       [cid, user.id, type ?? null],
     );
     const [cooldown] = await db.query(
@@ -154,7 +155,9 @@ export function imageRoutes(app: FastifyInstance, db: DB) {
       if (!challenge) fail(404, "题目不存在");
       const c = resourceChallenge(challenge!, type);
       if (!c) return fail(400, "请先保存此资源配置");
-      const spec = testSpec.parse({ ...c, ...overrides });
+      const spec = testSpec.parse({ protocol: "http", ...c, ...overrides });
+      if (spec.protocol === "nc" && spec.access_mode !== "port")
+        fail(400, "nc 服务需要使用端口直连");
       validateImage(spec.image);
       const owner = `u:${user.id}`;
       const [existing] = await tx.query(

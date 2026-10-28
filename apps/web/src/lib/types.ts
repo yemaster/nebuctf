@@ -165,6 +165,7 @@ export interface Contest {
   challenge_ids: string[];
 }
 export interface Instance {
+  protocol?: "http" | "nc";
   queue_ahead?: number | null;
   queue_blocked?: boolean;
   renew_count?: number;

@@ -4,6 +4,7 @@ import { Field } from "../shared";
 import { Input } from "../ui/input";
 import { NativeSelect, NativeSelectOption } from "../ui/native-select";
 import { ImageTools } from "./image-tools";
+import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import { Switch } from "../ui/switch";
 export function ResourceProfileEditor({
   value: v,
@@ -63,6 +64,29 @@ export function ResourceProfileEditor({
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {!generator && (
           <>
+            <Field label="连接方式">
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                value={v.protocol ?? "http"}
+                className="w-full"
+                onValueChange={(protocol) => {
+                  if (protocol === "http" || protocol === "nc")
+                    set({
+                      ...v,
+                      protocol,
+                      ...(protocol === "nc" ? { access_mode: "port" } : {}),
+                    });
+                }}
+              >
+                <ToggleGroupItem value="http" className="flex-1">
+                  HTTP
+                </ToggleGroupItem>
+                <ToggleGroupItem value="nc" className="flex-1">
+                  nc
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </Field>
             <Field label="服务端口">
               <Input
                 name={`${type}-port`}
@@ -85,7 +109,10 @@ export function ResourceProfileEditor({
                 }
               >
                 <NativeSelectOption value="port">端口直连</NativeSelectOption>
-                <NativeSelectOption value="domain">
+                <NativeSelectOption
+                  value="domain"
+                  disabled={v.protocol === "nc"}
+                >
                   泛域名代理
                 </NativeSelectOption>
               </NativeSelect>

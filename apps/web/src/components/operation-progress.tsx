@@ -9,8 +9,10 @@ export function OperationProgress({
   label,
   completeLabel = "已完成",
   idle,
+  compact = false,
 }: {
   busy: boolean;
+  compact?: boolean;
   failed?: boolean;
   label: string;
   completeLabel?: string;
@@ -91,11 +93,11 @@ export function OperationProgress({
   if (!view.visible) return busy ? null : (idle ?? null);
   return (
     <div
-      className={`w-full space-y-3 motion-safe:duration-250 ${view.leaving ? "motion-safe:animate-out motion-safe:fade-out motion-safe:slide-out-to-top-1" : "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1"}`}
+      className={`${compact ? "flex items-center gap-2" : "w-full space-y-3"} motion-safe:duration-250 ${view.leaving ? "motion-safe:animate-out motion-safe:fade-out motion-safe:slide-out-to-top-1" : "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1"}`}
     >
       <div
         role="status"
-        className={`flex items-center gap-2 text-sm ${view.done ? "text-success" : "text-muted-foreground"}`}
+        className={`flex items-center gap-2 ${compact ? "text-xs" : "text-sm"} ${view.done ? "text-success" : "text-muted-foreground"}`}
       >
         {view.done ? (
           <CheckCircle2 className="size-4 motion-safe:animate-in motion-safe:zoom-in-50" />
@@ -108,7 +110,7 @@ export function OperationProgress({
         value={view.value}
         activity={!view.done}
         aria-label={view.done ? completeLabel : label}
-        className={`h-1.5 [&_[data-slot=progress-indicator]]:duration-200 [&_[data-slot=progress-indicator]]:ease-linear ${view.done ? "[&_[data-slot=progress-indicator]]:bg-success" : "[&_[data-slot=progress-indicator]]:motion-safe:animate-pulse"}`}
+        className={`${compact ? "w-20" : "w-full"} h-1.5 [&_[data-slot=progress-indicator]]:duration-200 [&_[data-slot=progress-indicator]]:ease-linear ${view.done ? "[&_[data-slot=progress-indicator]]:bg-success" : "[&_[data-slot=progress-indicator]]:motion-safe:animate-pulse"}`}
       />
     </div>
   );

@@ -1,3 +1,4 @@
+import { resourceProfiles } from "./challenge-model.js";
 import { requireSubmissionSlot } from "./submission-policy.js";
 import {
   contestResourcePolicy,
@@ -76,7 +77,10 @@ export function awdRoutes(app: FastifyInstance, db: DB) {
     return {
       round: round ?? null,
       clock: await readContestClock(db, contest),
-      items,
+      items: items.map((i) => ({
+        ...i,
+        protocol: resourceProfiles(c).container?.protocol ?? "http",
+      })),
       history,
       resource_blocked: hasEnvironment
         ? null

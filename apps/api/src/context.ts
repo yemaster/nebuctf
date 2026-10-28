@@ -169,7 +169,10 @@ export const publicChallenge = (c: Row) => ({
   objective: c.objective ? publicObjective(c.objective) : null,
   resources: {
     container: resourceProfiles(c).container
-      ? { mode: resourceProfiles(c).container!.mode }
+      ? {
+          mode: resourceProfiles(c).container!.mode,
+          protocol: resourceProfiles(c).container!.protocol,
+        }
       : null,
     attachment: !!resourceProfiles(c).attachment,
   },

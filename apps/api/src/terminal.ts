@@ -1,3 +1,4 @@
+import { terminalTarget, terminalTargetQuery } from "./terminal-target.js";
 import type { FastifyInstance } from "fastify";
 import WebSocket from "ws";
 import { requireUser, sessionCookie } from "./auth.js";
@@ -26,9 +27,24 @@ export function terminalRoutes(app: FastifyInstance, db: DB) {
     );
     return { instance: (await withQueuePositions(db, rows))[0] ?? null };
   });
+  app.get("/api/terminal/targets/:id", async (req) => {
+    const result = await terminalTarget(
+      db,
+      id.parse((req.params as { id: string }).id),
+      requireUser(req),
+    );
+    return {
+      id: result.id,
+      title: result.title,
+      endpoint: result.endpoint,
+      href: result.href,
+    };
+  });
   app.post("/api/terminal", async (req) => {
     const u = requireUser(req),
       owner = `u:${u.id}`;
+    const { target } = terminalTargetQuery.parse(req.body ?? {});
+    if (target) await terminalTarget(db, target, u);
     await rate(db, `terminal:${u.id}`, 10, 60);
     return db.transaction(async (tx) => {
       await lock(tx);
@@ -82,14 +98,17 @@ export function terminalRoutes(app: FastifyInstance, db: DB) {
           [iid, `u:${u.id}`],
         );
         if (!row) fail(404, "终端未启动或已到期");
+        const { target } = terminalTargetQuery.parse(req.query);
+        if (target) await terminalTarget(db, target, u);
         await rate(db, `terminal-connect:${u.id}`, 20, 60);
       },
     },
     (socket, req) => {
       const iid = (req.params as { id: string }).id;
+      const { target } = terminalTargetQuery.parse(req.query);
       const upstream = new WebSocket(config.TERMINAL_WORKER_URL, {
         headers: {
-          Authorization: `Bearer ${signTerminalTicket({ instance: iid, user: req.user!.id, session: digest(req.cookies[sessionCookie]!) })}`,
+          Authorization: `Bearer ${signTerminalTicket({ instance: iid, target, user: req.user!.id, session: digest(req.cookies[sessionCookie]!) })}`,
         },
         handshakeTimeout: 10000,
         maxPayload: 65536,

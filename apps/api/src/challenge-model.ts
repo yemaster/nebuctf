@@ -8,13 +8,25 @@ const resourceLimits = {
   memory: z.number().int().min(32).max(4096).default(256),
   ttl: z.number().int().min(60).max(7200).default(1800),
 };
-export const containerInput = z.object({
-  ...resourceLimits,
-  use_platform_ttl: z.boolean().optional(),
-  mode: z.enum(["private", "public"]).default("private"),
-  access_mode: z.enum(["port", "domain"]).default("port"),
-  port: z.number().int().min(1024).max(65535).default(8080),
-});
+export const containerInput = z
+  .object({
+    ...resourceLimits,
+    use_platform_ttl: z.boolean().optional(),
+    mode: z.enum(["private", "public"]).default("private"),
+    protocol: z.enum(["http", "nc"]).default("http"),
+    access_mode: z.enum(["port", "domain"]).default("port"),
+    port: z.number().int().min(1024).max(65535).default(8080),
+  })
+  .refine((v) => v.protocol !== "nc" || v.access_mode === "port", {
+    message: "nc 服务需要使用端口直连",
+    path: ["access_mode"],
+  });
+export function runtimeResourceProfiles(c: Row) {
+  const profiles = resourceProfiles(c);
+  if (!profiles.container) return profiles;
+  const { protocol: _protocol, ...container } = profiles.container;
+  return { ...profiles, container };
+}
 export const generatorInput = z.object(resourceLimits);
 export const resourcesInput = z.object({
   container: containerInput.nullable().default(null),
@@ -22,12 +34,19 @@ export const resourcesInput = z.object({
 });
 export type ResourceProfiles = z.infer<typeof resourcesInput>;
 export function resourceProfiles(c: Row): ResourceProfiles {
-  if (c.resources) return c.resources;
+  if (c.resources)
+    return {
+      ...c.resources,
+      container: c.resources.container
+        ? { protocol: "http", ...c.resources.container }
+        : null,
+    };
   const limits = { image: c.image, cpu: c.cpu, memory: c.memory, ttl: c.ttl };
   return {
     container: ["static_container", "dynamic_container"].includes(c.kind)
       ? {
           ...limits,
+          protocol: "http",
           access_mode: c.access_mode,
           port: c.port,
           mode: c.kind === "static_container" ? "public" : "private",

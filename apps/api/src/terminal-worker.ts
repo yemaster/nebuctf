@@ -4,6 +4,8 @@ import { DockerEngine } from "./docker.js";
 import { config } from "./config.js";
 import type { DB } from "./db.js";
 import { terminalAccess, verifyTerminalTicket } from "./terminal-auth.js";
+import { terminalTarget } from "./terminal-target.js";
+import type { User } from "./context.js";
 import { z } from "zod";
 
 const command = z.discriminatedUnion("type", [
@@ -38,14 +40,19 @@ export function startTerminalWorker(
       () => socket.close(1008, "Authentication timeout"),
       10000,
     );
-    const resize = setInterval(() => {
-      if (!execId || !dimensions) return;
-      const value = dimensions;
-      dimensions = undefined;
-      void docker
-        .resizeTerminal(execId, value.cols, value.rows)
-        .catch(() => socket.close(1011, "Resize failed"));
-    }, 150);
+    let resize: ReturnType<typeof setTimeout> | undefined;
+    const scheduleResize = () => {
+      if (resize || !execId || !dimensions) return;
+      resize = setTimeout(() => {
+        resize = undefined;
+        const value = dimensions;
+        dimensions = undefined;
+        if (value && execId)
+          void docker
+            .resizeTerminal(execId, value.cols, value.rows)
+            .catch(() => socket.close(1011, "Resize failed"));
+      }, 100);
+    };
     const heartbeat = setInterval(() => {
       if (!alive) socket.terminate();
       else {
@@ -62,8 +69,10 @@ export function startTerminalWorker(
       try {
         if (binary) throw Error("Invalid input");
         const value = command.parse(JSON.parse(raw.toString()));
-        if (value.type === "resize") dimensions = value;
-        else {
+        if (value.type === "resize") {
+          dimensions = value;
+          scheduleResize();
+        } else {
           if (stream.writableLength > 65536) throw Error("Input too fast");
           stream.write(value.data);
         }
@@ -76,7 +85,7 @@ export function startTerminalWorker(
       controller.abort();
       stream?.destroy();
       clearTimeout(handshake);
-      clearInterval(resize);
+      clearTimeout(resize);
       clearInterval(heartbeat);
       clearInterval(validate);
       if (instance && active.get(instance) === socket) active.delete(instance);
@@ -85,9 +94,19 @@ export function startTerminalWorker(
       const ticket = verifyTerminalTicket(
         request.headers.authorization?.replace(/^Bearer /, "") ?? "",
       );
+      const getTarget = async () => {
+        if (!ticket.target) return undefined;
+        const [user] = await db.query<User>(
+          "SELECT id,username,email,role FROM users WHERE id=$1 AND NOT disabled",
+          [ticket.user],
+        );
+        if (!user) throw Error("Session expired");
+        return terminalTarget(db, ticket.target, user);
+      };
       if (!(await terminalAccess(db, ticket)))
         return socket.close(1008, "Session expired");
       if (socket.readyState !== WebSocket.OPEN) return;
+      const target = await getTarget();
       instance = ticket.instance;
       const info = await docker.inspectContainer(`nebuctf-${instance}`);
       if (
@@ -98,7 +117,7 @@ export function startTerminalWorker(
       if (socket.readyState !== WebSocket.OPEN) return;
       active.get(instance)?.close(4001, "Connected elsewhere");
       active.set(instance, socket);
-      execId = await docker.createTerminalExec(info.Id);
+      execId = await docker.createTerminalExec(info.Id, target);
       stream = await docker.attachTerminal(execId, controller.signal);
       if (socket.readyState !== WebSocket.OPEN) {
         stream.destroy();
@@ -109,8 +128,9 @@ export function startTerminalWorker(
         if (checking) return;
         checking = true;
         void terminalAccess(db, ticket)
-          .then((allowed) => {
+          .then(async (allowed) => {
             if (!allowed) socket.close(1008, "Session expired");
+            else await getTarget();
           })
           .catch(() => socket.close(1011, "Session check failed"))
           .finally(() => {

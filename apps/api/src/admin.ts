@@ -8,7 +8,11 @@ import {
 import { validateWriteup, writeupInput } from "./writeup-config.js";
 import { recordContestNotice } from "./activity-events.js";
 import { isDeepStrictEqual } from "node:util";
-import { flagMode, resourceProfiles } from "./challenge-model.js";
+import {
+  flagMode,
+  resourceProfiles,
+  runtimeResourceProfiles,
+} from "./challenge-model.js";
 import { validateTiming, contestScoringInput } from "./competition-rules.js";
 import { recordContestReleases } from "./contest-activity.js";
 import { saveContestGroups } from "./contest-groups.js";
@@ -235,8 +239,8 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
                 (data.flag_template ?? old.flag_template ?? "") !==
                   (old.flag_template ?? "") ||
                 !isDeepStrictEqual(
-                  resourceProfiles(data),
-                  resourceProfiles(old),
+                  runtimeResourceProfiles(data),
+                  runtimeResourceProfiles(old),
                 ) ||
                 ["objective", "patch_config", "awd_config"].some(
                   (key) =>

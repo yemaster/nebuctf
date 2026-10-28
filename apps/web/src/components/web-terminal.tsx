@@ -1,15 +1,36 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { Copy, Eraser, RotateCw } from "lucide-react";
 import { Button } from "./ui/button";
+import {
+  TerminalFrame,
+  TerminalTool,
+  type TerminalFrameProps,
+} from "./terminal-frame";
 import { useTheme } from "./theme-provider";
 import { toast } from "sonner";
 import { copyText } from "@/lib/clipboard";
 
-export function WebTerminal({ id }: { id: string }) {
+export function WebTerminal({
+  id,
+  target,
+  title,
+  actions,
+  progress,
+  notice,
+  placeholder,
+  onDisconnect,
+}: {
+  id?: string;
+  target?: string;
+  placeholder?: ReactNode;
+  onDisconnect?: () => void;
+} & Omit<TerminalFrameProps, "children" | "status">) {
   const host = useRef<HTMLDivElement>(null);
+  const disconnect = useRef(onDisconnect);
+  disconnect.current = onDisconnect;
   const terminal = useRef<Terminal>(null);
   const { resolved } = useTheme();
   const [revision, setRevision] = useState(0);
@@ -18,7 +39,7 @@ export function WebTerminal({ id }: { id: string }) {
   >("connecting");
   const [selected, setSelected] = useState(false);
   useEffect(() => {
-    if (!host.current) return;
+    if (!id || !host.current) return;
     const term = new Terminal({
       fontFamily:
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
@@ -37,7 +58,7 @@ export function WebTerminal({ id }: { id: string }) {
     terminal.current = term;
     setStatus("connecting");
     const socket = new WebSocket(
-      `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/api/terminal/${id}/connect`,
+      `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/api/terminal/${id}/connect${target ? `?target=${encodeURIComponent(target)}` : ""}`,
     );
     socket.binaryType = "arraybuffer";
     let ready = false,
@@ -96,6 +117,7 @@ export function WebTerminal({ id }: { id: string }) {
         ready = false;
         term.options.disableStdin = true;
         setStatus(event.code === 4001 ? "replaced" : "closed");
+        if (event.code !== 4001) disconnect.current?.();
       }
     };
     socket.onerror = () => {
@@ -126,7 +148,7 @@ export function WebTerminal({ id }: { id: string }) {
       term.dispose();
       terminal.current = null;
     };
-  }, [id, revision]);
+  }, [id, target, revision]);
   useEffect(() => {
     if (terminal.current)
       terminal.current.options.theme =
@@ -143,71 +165,91 @@ export function WebTerminal({ id }: { id: string }) {
               cursor: "#171717",
               selectionBackground: "#d4d4d4",
             };
-  }, [resolved, revision, id]);
+  }, [resolved, revision, id, target]);
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card">
-      <div className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
-        <span className="font-mono text-xs">bash</span>
-        <span
-          role="status"
-          className={`text-xs ${status === "ready" ? "text-success" : "text-muted-foreground"}`}
-        >
-          {status === "ready"
-            ? "已连接"
-            : status === "connecting"
-              ? "连接中"
-              : status === "replaced"
-                ? "已在其他窗口连接"
-                : "连接已断开"}
-        </span>
-        {(status === "closed" || status === "replaced") && (
-          <Button
-            variant="secondary"
-            size="sm"
-            className="h-7"
-            onClick={() => setRevision((v) => v + 1)}
-          >
-            <RotateCw />
-            重新连接
-          </Button>
-        )}
-        <div className="ml-auto flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            aria-label="复制选中内容"
-            title="复制选中内容"
-            disabled={!selected}
-            onClick={() =>
-              void copyText(terminal.current?.getSelection() ?? "").catch(
-                (e: Error) => toast.error(e.message),
-              )
+    <TerminalFrame
+      title={title}
+      progress={progress}
+      notice={notice}
+      status={
+        id && (
+          <span
+            role="status"
+            aria-label={
+              status === "ready"
+                ? "已连接"
+                : status === "connecting"
+                  ? "连接中"
+                  : status === "replaced"
+                    ? "已在其他窗口连接"
+                    : "连接已断开"
             }
+            className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"
           >
-            <Copy className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            aria-label="清屏"
-            title="清屏"
-            onClick={() => {
-              terminal.current?.clear();
-              terminal.current?.focus();
-            }}
-          >
-            <Eraser className="size-4" />
-          </Button>
+            <span
+              aria-hidden="true"
+              className={`size-2 rounded-full ${status === "ready" ? "bg-success" : status === "connecting" ? "bg-warning motion-safe:animate-pulse" : "bg-destructive"}`}
+            />
+            {(status === "closed" || status === "replaced") && (
+              <>
+                <span>
+                  {status === "replaced" ? "已在其他窗口连接" : "连接已断开"}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => setRevision((v) => v + 1)}
+                >
+                  <RotateCw />
+                  重新连接
+                </Button>
+              </>
+            )}
+          </span>
+        )
+      }
+      actions={
+        <>
+          {id && (
+            <>
+              <TerminalTool
+                label="复制选中内容"
+                disabled={!selected}
+                onClick={() =>
+                  void copyText(terminal.current?.getSelection() ?? "").catch(
+                    (e: Error) => toast.error(e.message),
+                  )
+                }
+              >
+                <Copy />
+              </TerminalTool>
+              <TerminalTool
+                label="清屏"
+                onClick={() => {
+                  terminal.current?.clear();
+                  terminal.current?.focus();
+                }}
+              >
+                <Eraser />
+              </TerminalTool>
+              <span className="mx-2 h-4 border-l" />
+            </>
+          )}
+          {actions}
+        </>
+      }
+    >
+      {id ? (
+        <div
+          className="min-h-0 flex-1 bg-white px-4 py-3 dark:bg-[#141414]"
+          onClick={() => terminal.current?.focus()}
+        >
+          <div ref={host} className="h-full w-full" aria-label="Linux 终端" />
         </div>
-      </div>
-      <div
-        className="min-h-0 flex-1 bg-white p-4 dark:bg-[#141414]"
-        onClick={() => terminal.current?.focus()}
-      >
-        <div ref={host} className="h-full w-full" aria-label="Linux 终端" />
-      </div>
-    </div>
+      ) : (
+        placeholder
+      )}
+    </TerminalFrame>
   );
 }

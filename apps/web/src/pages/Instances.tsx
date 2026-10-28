@@ -1,3 +1,4 @@
+import { copyText } from "@/lib/clipboard";
 import { endpointURL } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -163,7 +164,12 @@ export function InstanceRow({
     remaining >= 3600
       ? `${Math.floor(remaining / 3600)}:${String(Math.floor((remaining % 3600) / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`
       : `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`;
-  const url = i.endpoint ? endpointURL(i.endpoint) : undefined;
+  const url =
+    i.protocol === "nc"
+      ? `/terminal?target=${i.id}`
+      : i.endpoint
+        ? endpointURL(i.endpoint)
+        : undefined;
   return (
     <Item
       className={`grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border-0 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:p-5 [&_[data-slot=item-footer]]:col-span-full ${compact ? "rounded-none bg-transparent" : "rounded-xl bg-card shadow-sm ring-1 ring-border/60"}`}
@@ -286,8 +292,7 @@ export function InstanceRow({
                 size="icon-sm"
                 aria-label="复制地址"
                 onClick={() =>
-                  navigator.clipboard
-                    .writeText(i.endpoint!)
+                  copyText(i.endpoint!)
                     .then(() => setCopied(true))
                     .catch(() => toast.error("复制失败，请手动选择地址"))
                 }
@@ -300,10 +305,12 @@ export function InstanceRow({
                     href={url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label="打开靶机"
-                    title="打开靶机"
+                    aria-label={
+                      i.protocol === "nc" ? "在容器终端打开" : "打开靶机"
+                    }
+                    title={i.protocol === "nc" ? "在容器终端打开" : "打开靶机"}
                   >
-                    <ExternalLink />
+                    {i.protocol === "nc" ? <Terminal /> : <ExternalLink />}
                   </a>
                 </InputGroupButton>
               )}

@@ -1,3 +1,4 @@
+import type { TerminalTarget } from "./terminal-target.js";
 import type { Duplex } from "node:stream";
 import { request } from "node:http";
 import { config } from "./config.js";
@@ -185,7 +186,7 @@ export class DockerEngine {
     );
     if (state.Running || state.ExitCode !== 0) throw Error("Flag 写入失败");
   }
-  async createTerminalExec(container: string) {
+  async createTerminalExec(container: string, target?: TerminalTarget) {
     const exec = await this.call<{ Id: string }>(
       "POST",
       `/containers/${encodeURIComponent(container)}/exec`,
@@ -198,7 +199,20 @@ export class DockerEngine {
         User: "65534:65534",
         WorkingDir: "/home/player",
         Env: ["HOME=/home/player", "TERM=xterm-256color", "LANG=C.UTF-8"],
-        Cmd: ["tmux", "new-session", "-A", "-D", "-s", "shell"],
+        Cmd: target
+          ? [
+              "tmux",
+              "new-session",
+              "-A",
+              "-D",
+              "-s",
+              `nc-${target.id}`,
+              "nc",
+              "-v",
+              target.host,
+              String(target.port),
+            ]
+          : ["tmux", "new-session", "-A", "-D", "-s", "shell"],
       },
     );
     return exec.Id;

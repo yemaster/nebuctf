@@ -13,6 +13,7 @@ export type ResourceProfile = {
   ttl: number;
   use_platform_ttl?: boolean;
   mode?: "private" | "public";
+  protocol?: "http" | "nc";
   access_mode?: "port" | "domain";
   port?: number;
 };
@@ -77,6 +78,7 @@ export const defaultResource = (): ResourceProfile => ({
   ttl: 1800,
   mode: "private",
   access_mode: "port",
+  protocol: "http",
   port: 8080,
 });
 export function profiles(c: Challenge | null): Resources {
