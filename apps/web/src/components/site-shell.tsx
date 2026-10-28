@@ -323,13 +323,17 @@ export function SiteHeader({
                   }
                   aria-label="账户菜单"
                 >
-                  <UserAvatar
-                    name={user.username}
-                    avatarId={user.avatar_id}
-                    className="size-7"
-                  />
-                  <span className="hidden max-w-28 truncate md:block">
-                    {user.username}
+                  <span className="inline-flex h-7 min-w-0 items-center gap-2">
+                    <UserAvatar
+                      name={user.username}
+                      avatarId={user.avatar_id}
+                      className="size-7"
+                    />
+                    <span className="hidden h-full min-w-0 max-w-28 items-center md:flex">
+                      <span className="truncate leading-none">
+                        {user.username}
+                      </span>
+                    </span>
                   </span>
                   <ChevronDown className="hidden md:block" />
                 </Button>
