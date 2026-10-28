@@ -51,6 +51,9 @@ export function WebTerminal({ id }: { id: string }) {
     const resize = () => {
       if (!host.current?.clientWidth || !host.current?.clientHeight) return;
       fit.fit();
+      // Keep the renderer and remote PTY on the same bounded dimensions.
+      if (term.cols > 300 || term.rows > 120)
+        term.resize(Math.min(300, term.cols), Math.min(120, term.rows));
       send({
         type: "resize",
         cols: Math.min(300, term.cols),
