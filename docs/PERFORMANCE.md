@@ -87,3 +87,5 @@ node scripts/check-web-performance.mjs
 桌面 Chrome 使用同一远程 origin、隔离 API 夹具和分别拦截的旧、新生产产物，对含 50 节正文与 50 个 Python 代码块的题面连续输入同一段 Flag。预热一次后测五次，CDP `ScriptDuration` 中位增量从 552.72 ms 降到 6.25 ms；这是指定长题面的脚本执行时间，不代表所有页面或实际打字耗时。题面亮暗截图和后台用户列表稳定截图逐像素一致。延迟数据下的骨架屏、页面切换、报错替换及账户菜单验证通过。
 
 完整测量摘要见 [2026-10-29.json](performance/2026-10-29.json)。功能验证记录见 [VERIFICATION.md](VERIFICATION.md)。实现依据：[React memo](https://react.dev/reference/react/memo)、[Vite 异步代码分割](https://vite.dev/guide/features.html#async-chunk-loading-optimization)。
+
+部署后再次使用真实公网请求、全新浏览器上下文测量，包含主题初始化脚本：首页 JS/CSS 298103 → 286596 B，登录 273872 → 262625 B，比赛列表 300146 → 288630 B，三页均无浏览器错误。该结果与依赖闭包检查一致；本次总构建文件体积基本不变，收益来自按页面拆分和减少初始传输，不能把后台用户页的降幅理解为整站所有代码体积的降幅。

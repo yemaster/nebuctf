@@ -142,5 +142,41 @@
     "markdown_light_pixels_identical": true,
     "markdown_dark_pixels_identical": true,
     "admin_users_pixels_identical": true
+  },
+  "public_cold_load": {
+    "before": [
+      {
+        "path": "/",
+        "js_css_bytes": 298103,
+        "errors": []
+      },
+      {
+        "path": "/login",
+        "js_css_bytes": 273872,
+        "errors": []
+      },
+      {
+        "path": "/contests",
+        "js_css_bytes": 300146,
+        "errors": []
+      }
+    ],
+    "after": [
+      {
+        "path": "/",
+        "js_css_bytes": 286596,
+        "errors": []
+      },
+      {
+        "path": "/login",
+        "js_css_bytes": 262625,
+        "errors": []
+      },
+      {
+        "path": "/contests",
+        "js_css_bytes": 288630,
+        "errors": []
+      }
+    ]
   }
 }
