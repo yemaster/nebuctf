@@ -54,7 +54,7 @@ export function teamRoutes(app: FastifyInstance, db: DB) {
       team: {
         ...safe,
         members: await db.query(
-          "SELECT u.id,u.username FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.team_id=$1 ORDER BY u.created_at",
+          "SELECT u.id,u.username,u.avatar_id FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.team_id=$1 ORDER BY u.created_at",
           [team.id],
         ),
       },

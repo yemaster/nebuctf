@@ -45,9 +45,13 @@ export async function authRoutes(app: FastifyInstance, db: DB) {
       )
         fail(403, "请求来源验证失败");
     }
-    if (!req.routeOptions.config.aiProxy && req.cookies[sessionCookie]) {
+    if (
+      !req.routeOptions.config.aiProxy &&
+      req.routeOptions.url !== "/api/avatars/:id" &&
+      req.cookies[sessionCookie]
+    ) {
       const [user] = await db.query<User>(
-        "SELECT u.id,u.username,u.email,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now() AND NOT u.disabled",
+        "SELECT u.id,u.username,u.email,u.role,u.avatar_id FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now() AND NOT u.disabled",
         [digest(req.cookies[sessionCookie]!)],
       );
       if (user) req.user = user;
@@ -107,6 +111,7 @@ export async function authRoutes(app: FastifyInstance, db: DB) {
         username: data.username,
         email: data.email,
         role: "user",
+        avatar_id: null,
       },
     };
   });
@@ -118,8 +123,8 @@ export async function authRoutes(app: FastifyInstance, db: DB) {
     await rate(db, `login-ip:${req.ip}`, 30, 900);
     const [user] = await db.query(
       data.identifier.includes("@")
-        ? "SELECT id,username,email,password_hash,role,disabled FROM users WHERE lower(email)=lower($1)"
-        : "SELECT id,username,email,password_hash,role,disabled FROM users WHERE lower(username)=lower($1)",
+        ? "SELECT id,username,email,password_hash,role,disabled,avatar_id FROM users WHERE lower(email)=lower($1)"
+        : "SELECT id,username,email,password_hash,role,disabled,avatar_id FROM users WHERE lower(username)=lower($1)",
       [data.identifier],
     );
     // Both identifiers share the existing email-based account limit.
@@ -168,6 +173,7 @@ export async function authRoutes(app: FastifyInstance, db: DB) {
         username: user!.username,
         email: user!.email,
         role: user!.role,
+        avatar_id: user!.avatar_id,
       },
     };
   });

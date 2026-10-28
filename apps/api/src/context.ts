@@ -12,6 +12,7 @@ import {
   requirePermission,
 } from "./group-permissions.js";
 export interface User {
+  avatar_id?: string | null;
   id: string;
   username: string;
   email: string;

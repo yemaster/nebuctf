@@ -718,7 +718,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
     );
     return {
       items: await db.query(
-        "SELECT a.*,c.title contest_title FROM announcements a LEFT JOIN contests c ON c.id=a.contest_id WHERE ($1='' OR a.title ILIKE '%'||$1||'%') ORDER BY a.created_at DESC,a.id LIMIT 24 OFFSET $2",
+        "SELECT a.*,c.title contest_title,CASE WHEN u.id IS NULL THEN NULL ELSE jsonb_build_object('id',u.id,'username',u.username,'avatar_id',u.avatar_id) END author FROM announcements a LEFT JOIN contests c ON c.id=a.contest_id LEFT JOIN users u ON u.id=a.created_by WHERE ($1='' OR a.title ILIKE '%'||$1||'%') ORDER BY a.created_at DESC,a.id LIMIT 24 OFFSET $2",
         [p.q, (p.page - 1) * 24],
       ),
       total: count!.total,
@@ -727,9 +727,10 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
   });
   app.get("/api/admin/announcements/:id", async (req) => {
     requireAdmin(req);
-    const [notice] = await db.query("SELECT * FROM announcements WHERE id=$1", [
-      id.parse((req.params as any).id),
-    ]);
+    const [notice] = await db.query(
+      "SELECT a.*,CASE WHEN u.id IS NULL THEN NULL ELSE jsonb_build_object('id',u.id,'username',u.username,'avatar_id',u.avatar_id) END author FROM announcements a LEFT JOIN users u ON u.id=a.created_by WHERE a.id=$1",
+      [id.parse((req.params as any).id)],
+    );
     if (!notice) fail(404, "公告不存在");
     return notice;
   });
@@ -769,8 +770,8 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
             if (!rows.length) fail(404, "公告不存在");
           } else
             await tx.query(
-              "INSERT INTO announcements(id,title,body,contest_id) VALUES($1,$2,$3,$4)",
-              [aid, data.title, data.body, data.contest_id],
+              "INSERT INTO announcements(id,title,body,contest_id,created_by) VALUES($1,$2,$3,$4,$5)",
+              [aid, data.title, data.body, data.contest_id, user.id],
             );
           await audit(
             tx,
@@ -813,7 +814,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
       page_size: 10,
       total: (await db.query("SELECT count(*)::int n FROM audit_logs"))[0]!.n,
       items: await db.query(
-        "SELECT a.id,u.username,a.action,a.target,a.created_at FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id ORDER BY a.created_at DESC,a.id DESC LIMIT 10 OFFSET $1",
+        "SELECT a.id,u.username,u.avatar_id,a.action,a.target,a.created_at FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id ORDER BY a.created_at DESC,a.id DESC LIMIT 10 OFFSET $1",
         [(p.page - 1) * 10],
       ),
     };
@@ -826,7 +827,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
       page_size: 10,
       total: (await db.query("SELECT count(*)::int n FROM submissions"))[0]!.n,
       items: await db.query(
-        "SELECT s.id,u.username,c.title,s.scope,s.correct,s.created_at,s.contest_practice,p.title part_title FROM submissions s LEFT JOIN challenge_parts p ON p.id=s.part_id JOIN users u ON u.id=s.user_id JOIN challenges c ON c.id=s.challenge_id ORDER BY s.created_at DESC,s.id DESC LIMIT 10 OFFSET $1",
+        "SELECT s.id,u.username,u.avatar_id,c.title,s.scope,s.correct,s.created_at,s.contest_practice,p.title part_title FROM submissions s LEFT JOIN challenge_parts p ON p.id=s.part_id JOIN users u ON u.id=s.user_id JOIN challenges c ON c.id=s.challenge_id ORDER BY s.created_at DESC,s.id DESC LIMIT 10 OFFSET $1",
         [(p.page - 1) * 10],
       ),
     };
@@ -836,7 +837,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
     const p = page.parse(req.query);
     return {
       items: await db.query(
-        "SELECT id,username,email,role,disabled,created_at FROM users WHERE username ILIKE '%'||$1||'%' ORDER BY created_at DESC LIMIT 50 OFFSET $2",
+        "SELECT id,username,email,role,disabled,created_at,avatar_id FROM users WHERE username ILIKE '%'||$1||'%' ORDER BY created_at DESC LIMIT 50 OFFSET $2",
         [p.q, (p.page - 1) * 50],
       ),
     };

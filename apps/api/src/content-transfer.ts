@@ -617,8 +617,14 @@ export async function importContent(
         );
         for (const n of manifest.contest.announcements)
           await tx.query(
-            "INSERT INTO announcements(id,contest_id,title,body) VALUES($1,$2,$3,$4)",
-            [crypto.randomUUID(), contestId, n.title, rewriteLinks(n.body)],
+            "INSERT INTO announcements(id,contest_id,title,body,created_by) VALUES($1,$2,$3,$4,$5)",
+            [
+              crypto.randomUUID(),
+              contestId,
+              n.title,
+              rewriteLinks(n.body),
+              actor,
+            ],
           );
       }
       const target = contestId ?? remap(manifest.challenges[0]!.id);

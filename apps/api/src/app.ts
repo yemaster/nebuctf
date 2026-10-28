@@ -1,3 +1,4 @@
+import { avatarRoutes } from "./avatars.js";
 import { contentTransferRoutes } from "./content-transfer-routes.js";
 import { terminalRoutes } from "./terminal.js";
 import { contestSpectatorRoutes } from "./contest-spectator.js";
@@ -95,6 +96,7 @@ export async function buildApp(db: DB, logging = false) {
   });
   await authRoutes(app, db);
   profileRoutes(app, db);
+  avatarRoutes(app, db);
   systemAdminRoutes(app, db);
   registrationMailRoutes(app, db);
   aiRoutes(app, db);

@@ -275,7 +275,7 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
       await contestAccess(db, scope, req.user ?? undefined, false);
     return {
       items: await db.query(
-        "SELECT id,title,body,created_at FROM announcements WHERE ($1='practice' AND contest_id IS NULL) OR contest_id::text=$1 ORDER BY created_at DESC LIMIT 30",
+        "SELECT a.id,a.title,a.body,a.created_at,CASE WHEN u.id IS NULL THEN NULL ELSE jsonb_build_object('id',u.id,'username',u.username,'avatar_id',u.avatar_id) END author FROM announcements a LEFT JOIN users u ON u.id=a.created_by WHERE ($1='practice' AND contest_id IS NULL) OR contest_id::text=$1 ORDER BY a.created_at DESC,a.id LIMIT 30",
         [scope],
       ),
     };

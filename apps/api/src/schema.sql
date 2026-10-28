@@ -277,3 +277,11 @@ ALTER TABLE instances ADD CONSTRAINT instances_terminal_owner CHECK (
    OR (kind<>'terminal' AND resource_type<>'terminal' AND challenge_id IS NOT NULL));
 CREATE UNIQUE INDEX IF NOT EXISTS instances_terminal_active ON instances(owner_key) WHERE kind='terminal' AND status IN ('queued','starting','running','ready','stopping');
 INSERT INTO schema_migrations(version) VALUES(27) ON CONFLICT DO NOTHING;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_id uuid;
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES users(id) ON DELETE SET NULL;
+UPDATE announcements a SET created_by=(
+  SELECT l.actor_id FROM audit_logs l JOIN users u ON u.id=l.actor_id
+  WHERE l.action='announcement.create' AND l.target=a.id::text ORDER BY l.created_at,l.id LIMIT 1
+) WHERE a.created_by IS NULL AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=28);
+INSERT INTO schema_migrations(version) VALUES(28) ON CONFLICT DO NOTHING;

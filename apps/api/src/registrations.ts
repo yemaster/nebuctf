@@ -75,7 +75,7 @@ export function registrationRoutes(app: FastifyInstance, db: DB) {
           SELECT user_id FROM memberships WHERE team_id=$1
           UNION SELECT user_id FROM contest_members WHERE team_id=$1 AND contest_id=$2
         )
-        SELECT u.id,u.username,u.email,u.disabled,u.created_at,u.role,
+        SELECT u.id,u.username,u.avatar_id,u.email,u.disabled,u.created_at,u.role,
           u.real_name,u.student_number,u.phone,u.email_verified_at,
           u.id=t.captain_id captain,
           EXISTS(SELECT 1 FROM memberships m WHERE m.team_id=$1 AND m.user_id=u.id) current_member,
