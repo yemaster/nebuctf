@@ -1,3 +1,4 @@
+import { ContentImport } from "./admin/ContentImport";
 import { ContestManagement } from "./ContestManagement";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -136,7 +137,8 @@ function AdminLayout() {
     .flatMap((g) => g.items)
     .find((item) => item.path === segment);
   const editing = location.pathname.endsWith("/edit"),
-    creating = location.pathname.endsWith("/new");
+    creating = location.pathname.endsWith("/new"),
+    importing = location.pathname.endsWith("/import");
   return (
     <>
       <Sidebar collapsible="icon" className="absolute h-full">
@@ -206,12 +208,12 @@ function AdminLayout() {
                   </BreadcrumbItem>
                 </>
               )}
-              {(editing || creating) && (
+              {(editing || creating || importing) && (
                 <>
                   <BreadcrumbSeparator />
                   <BreadcrumbItem>
                     <BreadcrumbPage>
-                      {creating ? "新建" : "编辑"}
+                      {importing ? "导入" : creating ? "新建" : "编辑"}
                     </BreadcrumbPage>
                   </BreadcrumbItem>
                 </>
@@ -261,12 +263,20 @@ function AdminLayout() {
               <Route path="ai/:id/edit" element={<AIRouteEditor />} />
               <Route path="challenges" element={<ChallengeAdmin />} />
               <Route path="images" element={<ImagesAdmin />} />
+              <Route
+                path="challenges/import"
+                element={<ContentImport kind="challenge" />}
+              />
               <Route path="challenges/new" element={<ChallengeEditor />} />
               <Route path="challenges/:id/edit" element={<ChallengeEditor />} />
               <Route path="contests" element={<ContestAdmin />} />
               <Route
                 path="contests/:id/manage/*"
                 element={<ContestManagement />}
+              />
+              <Route
+                path="contests/import"
+                element={<ContentImport kind="contest" />}
               />
               <Route path="contests/new" element={<ContestEditor />} />
               <Route path="contests/:id/edit" element={<ContestEditor />} />

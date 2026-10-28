@@ -1,3 +1,4 @@
+import { ArchiveExport } from "@/components/admin/archive-export";
 import { useState } from "react";
 import { ChallengeForm } from "@/components/admin/challenge-form";
 import { ActionError } from "@/components/action-error";
@@ -109,6 +110,14 @@ export function ChallengeAdmin() {
         title="题目"
         createHref={editor("/admin/challenges/new")}
         createLabel="新建题目"
+        actions={
+          <Button asChild variant="outline">
+            <Link to={editor("/admin/challenges/import")}>
+              <Upload />
+              导入
+            </Link>
+          </Button>
+        }
         search={params.get("q") ?? ""}
         onSearch={(value) => filter("q", value)}
       >
@@ -221,6 +230,12 @@ export function ChallengeAdmin() {
             </TableCell>
             <TableCell>
               <div className="relative z-10 flex items-center gap-1">
+                <ArchiveExport
+                  kind="challenge"
+                  id={c.id}
+                  title={c.title}
+                  icon
+                />
                 <Button asChild variant="ghost" size="icon">
                   <Link
                     to={editor(`/admin/challenges/${c.id}/edit`)}
@@ -317,6 +332,12 @@ export function ChallengeEditor() {
         }
         back={back}
         form="challenge-form"
+        actions={
+          id &&
+          data.data && (
+            <ArchiveExport kind="challenge" id={id} title={data.data.title} />
+          )
+        }
         pending={save.isPending}
       />
       {id && (

@@ -47,6 +47,7 @@ export function AdminToolbar({
   search,
   onSearch,
   children,
+  actions,
 }: {
   title: string;
   createHref: string;
@@ -54,17 +55,21 @@ export function AdminToolbar({
   search: string;
   onSearch: (value: string) => void;
   children?: ReactNode;
+  actions?: ReactNode;
 }) {
   return (
     <>
       <PageTitle
         action={
-          <Button asChild>
-            <Link to={createHref}>
-              <Plus />
-              {createLabel}
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            {actions}
+            <Button asChild>
+              <Link to={createHref}>
+                <Plus />
+                {createLabel}
+              </Link>
+            </Button>
+          </div>
         }
       >
         {title}
@@ -108,12 +113,14 @@ export function EditorHeading({
   form,
   pending,
   backLabel = "返回列表",
+  actions,
 }: {
   title: string;
   back: string;
   form: string;
   pending: boolean;
   backLabel?: string;
+  actions?: ReactNode;
 }) {
   return (
     <div
@@ -128,9 +135,12 @@ export function EditorHeading({
         </Button>
         <h1 className="min-w-0 break-words text-2xl font-semibold">{title}</h1>
       </div>
-      <Button type="submit" form={form} disabled={pending}>
-        {pending ? "保存中" : "保存"}
-      </Button>
+      <div className="flex items-center gap-2">
+        {actions}
+        <Button type="submit" form={form} disabled={pending}>
+          {pending ? "保存中" : "保存"}
+        </Button>
+      </div>
     </div>
   );
 }

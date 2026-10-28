@@ -1,3 +1,4 @@
+import { ArchiveExport } from "@/components/admin/archive-export";
 import { ContestForm } from "@/components/admin/contest-form";
 import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { Pencil, Upload, Users } from "lucide-react";
@@ -47,6 +48,14 @@ export function ContestAdmin() {
         title="比赛"
         createHref={editor("/admin/contests/new")}
         createLabel="新建比赛"
+        actions={
+          <Button asChild variant="outline">
+            <Link to={editor("/admin/contests/import")}>
+              <Upload />
+              导入
+            </Link>
+          </Button>
+        }
         search={params.get("q") ?? ""}
         onSearch={(v) => filter("q", v)}
       />
@@ -122,6 +131,7 @@ export function ContestAdmin() {
                     <Users />
                   </Link>
                 </Button>
+                <ArchiveExport kind="contest" id={c.id} title={c.title} icon />
                 <Button asChild variant="ghost" size="icon">
                   <Link
                     to={editor(`/admin/contests/${c.id}/edit`)}
@@ -207,6 +217,12 @@ export function ContestEditor() {
         back={back}
         backLabel={back.startsWith("/contests/") ? "返回比赛" : "返回列表"}
         form="contest-form"
+        actions={
+          id &&
+          data.data && (
+            <ArchiveExport kind="contest" id={id} title={data.data.title} />
+          )
+        }
         pending={save.isPending}
       />
       {id && (

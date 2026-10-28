@@ -83,6 +83,7 @@ export function pageTitle(
     if (!id) return "管理中心";
     const label = admin[id];
     if (!label) return "页面不存在";
+    if (section === "import") return `导入${label}`;
     if (section === "new") return `新建${label}`;
     if (sub === "edit") {
       const resource =
