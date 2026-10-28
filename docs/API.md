@@ -6,6 +6,7 @@
 | --- | --- |
 | 身份 | `GET /me`；`POST /auth/register`、`/auth/login`、`/auth/logout`、`/auth/password` |
 | 参赛资料 | `GET/PUT /account/profile`，仅操作当前登录账户的姓名、学号、电话 |
+| 头像 | `POST/DELETE /account/avatar`；`GET /avatars/:id` 获取公开头像 |
 | 个人提交 | `GET /submissions?page=1&page_size=10&q=&result=all`，仅当前登录用户的提交记录 |
 | 安全验证 | `POST /captcha/challenge`；登录、注册、创建战队和加入战队必须提交一次性 HashPow 结果 |
 | 战队 | `GET /teams/mine`、`/team?team=UUID`；`POST /teams`、`/team/join`、`/team/leave`、`/team/invite`、`/team/captain` |
@@ -489,3 +490,11 @@ POST 最多 200 题，单填空 500 字符、每题最多 10 个空位，总请�
 题目容器配置新增 `resources.container.protocol: "http" | "nc"`，旧数据按 `http` 处理；`nc` 仅支持端口直连。该显示/连接元数据可以在已有解题或运行环境时修改，镜像、资源规格等原有限制不变。测试实例使用创建时的协议设置。
 
 比赛日历返回 `{days:[{day,count,contests:[{id,title}]}]}`，每天最多返回三个赛事标识，`count` 为全部可见赛事数量；保留原有时区边界和私密比赛权限。
+
+## 用户头像与公告作者
+
+`POST /account/avatar` 使用 multipart 的 `file` 字段，最大 5 MiB，支持静态 PNG、JPEG、WebP。服务端校验实际格式与最多 1600 万像素，自动纠正方向、居中裁切为 256×256、重新编码 WebP 并移除 EXIF/GPS 等元数据；原文件不保留。处理遵循 [sharp 输出规则](https://sharp.pixelplumbing.com/api-output/)。每个账户每分钟最多 10 次修改，同一账户同时处理一个文件，单 API 进程最多处理两个。
+
+成功返回 `{ "avatar_id": "UUID" }`，`DELETE /account/avatar` 恢复默认并返回 `{ "avatar_id": null }`。接口只允许操作登录者自身，沿用 Origin/CSRF 检查；替换或删除后清理旧文件，失败保留原头像。`GET /avatars/:id` 不要求登录，返回 `image/webp`、ETag 和 immutable 缓存。头像文件使用服务器生成的 UUID，读取无需查询会话或用户数据库。用户身份及对应列表增加可空的 `avatar_id`。
+
+公告接口增加 `author: { id, username, avatar_id } | null`，不包含邮箱或参赛资料。创建接口根据登录管理员记录作者，不接受客户端指定创建人；编辑不改作者。导入文件包中的公告由执行导入的管理员创建，原站用户身份不随包迁移。
