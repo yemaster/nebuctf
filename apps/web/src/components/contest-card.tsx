@@ -25,12 +25,7 @@ export function ContestCard({ contest: c }: { contest: Contest }) {
         running && "shadow-md",
       )}
     >
-      <Card
-        className={cn(
-          "h-full gap-0 overflow-hidden border-0 py-0 shadow-none transition-colors group-hover:bg-muted",
-          running && "bg-success/5 group-hover:bg-success/10",
-        )}
-      >
+      <Card className="h-full gap-0 overflow-hidden border-0 py-0 shadow-none transition-colors group-hover:bg-muted">
         <div className="relative">
           <ContestPoster
             contest={c}
