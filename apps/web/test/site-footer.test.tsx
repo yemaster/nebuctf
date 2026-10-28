@@ -291,6 +291,11 @@ test("footer groups information on the left, keeps local time on the right and l
               }),
             ),
           );
+          await settle(
+            () =>
+              !document.querySelector('[role="menu"]') &&
+              document.activeElement === menu,
+          );
           assert.ok(
             document.querySelector(
               'nav[aria-label="常驻工具"] a[href="/terminal"]',
