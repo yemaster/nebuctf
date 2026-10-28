@@ -4,6 +4,7 @@ import React, { act } from "react";
 import { JSDOM } from "jsdom";
 import {
   cityFacilities,
+  cityLayout,
   activeEngagements,
   SpectatorEvents,
   type SpectatorEvent,
@@ -42,10 +43,14 @@ const question = (i: number) => ({
 test("city facilities stay fixed across solve updates and are bounded and collision-free", () => {
   const questions = Array.from({ length: 200 }, (_, i) => question(i));
   const a = cityFacilities(questions);
+  const positions = (items: ReturnType<typeof cityFacilities>) =>
+    items.map(({ solves, points, ...location }) => location);
   assert.deepEqual(
-    a,
-    cityFacilities(
-      [...questions].reverse().map((q) => ({ ...q, solves: q.solves + 10 })),
+    positions(a),
+    positions(
+      cityFacilities(
+        [...questions].reverse().map((q) => ({ ...q, solves: q.solves + 10 })),
+      ),
     ),
   );
   assert.equal(new Set(a.map((n) => `${n.x}:${n.z}`)).size, 200);
@@ -406,4 +411,71 @@ test("attack broadcasts expire and cannot reveal frozen, hidden or post-contest 
   ])
     assert.deepEqual(activeEngagements(hidden, now), []);
   assert.deepEqual(activeEngagements(data, now + 91000), []);
+});
+
+test("city districts group categories, aggregate part points and use full-challenge completion counts", () => {
+  const questions = Array.from({ length: 200 }, (_, i) => ({
+    ...question(i),
+    category: ["Web", "Pwn", "Crypto", "Reverse", "Misc", "Forensics"][i % 6]!,
+    points: 500,
+    challenge_solves: 3,
+  }));
+  const layout = cityLayout([
+    ...questions,
+    { ...questions[0]!, id: "second-part", points: 200, solves: 12 },
+  ]);
+  assert.equal(layout.facilities.length, 200);
+  assert.equal(layout.districts.length, 6);
+  assert.equal(layout.facilities.find((f) => f.id === "q-0")!.points, 700);
+  assert.equal(layout.facilities.find((f) => f.id === "q-0")!.solves, 3);
+  for (const f of layout.facilities) {
+    const d = layout.districts.find((d) => d.category === f.category)!;
+    const row = Math.floor(f.slot / f.grid),
+      col = f.slot % f.grid;
+    assert(
+      col >= d.col &&
+        col < d.col + d.width &&
+        row >= d.row &&
+        row < d.row + d.depth,
+    );
+  }
+  for (const d of layout.districts)
+    for (const e of layout.districts)
+      if (d !== e)
+        assert(
+          d.col + d.width <= e.col ||
+            e.col + e.width <= d.col ||
+            d.row + d.depth <= e.row ||
+            e.row + e.depth <= d.row,
+        );
+  assert.deepEqual(
+    layout,
+    cityLayout(
+      [
+        ...questions,
+        { ...questions[0]!, id: "second-part", points: 200, solves: 12 },
+      ].reverse(),
+    ),
+  );
+  const uneven = cityLayout(
+    Array.from({ length: 256 }, (_, i) => ({
+      ...question(i),
+      category: i < 129 ? "Web" : "Pwn",
+    })),
+  );
+  assert.equal(uneven.facilities.length, 256);
+  assert.equal(new Set(uneven.facilities.map((f) => f.slot)).size, 256);
+  const updated = cityFacilities(
+    questions.map((q) => ({
+      ...q,
+      title: q.title + " updated",
+      points: 50,
+      challenge_solves: 9,
+    })),
+  );
+  assert(
+    updated.every(
+      (f) => f.points === 50 && f.solves === 9 && f.title.endsWith(" updated"),
+    ),
+  );
 });

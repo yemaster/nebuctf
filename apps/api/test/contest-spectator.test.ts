@@ -8,7 +8,10 @@ import { sessionCookie } from "../src/auth.js";
 import { digest, flagHash } from "../src/security.js";
 import { registrationCodeHash } from "../src/contest-entry.js";
 import { creditSolve } from "../src/solve.js";
-import { readSpectatorEngagements } from "../src/contest-spectator.js";
+import {
+  readSpectatorEngagements,
+  readSpectatorSnapshot,
+} from "../src/contest-spectator.js";
 import { notifyContest } from "../src/activity-events.js";
 
 test(
@@ -710,6 +713,87 @@ test(
           ),
           [],
         );
+      },
+    );
+
+    await t.test(
+      "city metrics use effective points and count complete challenges once, respecting freeze",
+      async () => {
+        const scope = await contest(),
+          cid = await challenge(scope, "Multi facility"),
+          p1 = crypto.randomUUID(),
+          p2 = crypto.randomUUID();
+        await db.query(
+          "INSERT INTO registrations(contest_id,team_id) VALUES($1,$2)",
+          [scope, alice.team],
+        );
+        await db.query(
+          "UPDATE challenges SET dynamic_score=false WHERE id=$1",
+          [cid],
+        );
+        for (const [position, p] of [p1, p2].entries())
+          await db.query(
+            "INSERT INTO challenge_parts(id,challenge_id,title,position,flag_hash,initial_points,minimum_points) VALUES($1,$2,$3,$4,$5,100,100)",
+            [
+              p,
+              cid,
+              "Part " + position,
+              position,
+              flagHash("flag{city" + position + "}"),
+            ],
+          );
+        await db.query(
+          "UPDATE contest_challenges SET scoring=$3 WHERE contest_id=$1 AND challenge_id=$2",
+          [
+            scope,
+            cid,
+            JSON.stringify({
+              mode: "fixed",
+              points: { initial_points: 100, minimum_points: 100, decay: 20 },
+              parts: [
+                {
+                  id: p1,
+                  points: {
+                    initial_points: 250,
+                    minimum_points: 100,
+                    decay: 20,
+                  },
+                },
+              ],
+            }),
+          ],
+        );
+        const read = async () => {
+          const [c] = await db.query("SELECT * FROM contests WHERE id=$1", [
+            scope,
+          ]);
+          return readSpectatorSnapshot(db, c!);
+        };
+        await ok(`/challenges/${cid}/submit`, alice, {
+          scope,
+          flag: "flag{city0}",
+        });
+        const partial = await read();
+        assert.equal(partial.challenges.length, 2);
+        assert(partial.challenges.every((c) => c.challenge_solves === 0));
+        assert.equal(
+          partial.challenges.reduce((n, c) => n + c.points, 0),
+          350,
+        );
+        await ok(`/challenges/${cid}/submit`, alice, {
+          scope,
+          flag: "flag{city1}",
+        });
+        assert(
+          (await read()).challenges.every((c) => c.challenge_solves === 1),
+        );
+        await db.query(
+          "UPDATE contests SET freeze_at=now()-interval '1 minute' WHERE id=$1",
+          [scope],
+        );
+        const frozen = await read();
+        assert(frozen.frozen);
+        assert(frozen.challenges.every((c) => c.challenge_solves === 0));
       },
     );
 

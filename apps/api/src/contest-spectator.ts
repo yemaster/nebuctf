@@ -96,6 +96,19 @@ export async function readSpectatorSnapshot(db: DB, contest: Row, user?: User) {
       (SELECT count(*)::int FROM awd_attacks a JOIN awd_flags f ON f.flag_hash=a.flag_hash JOIN contest_rounds r ON r.id=f.round_id JOIN challenges c ON c.id=r.challenge_id JOIN contest_challenges cc ON cc.challenge_id=c.id AND cc.contest_id=r.contest_id JOIN ranked_registrations ar ON ar.contest_id=r.contest_id AND 't:'||ar.team_id=a.attacker_key JOIN ranked_registrations vr ON vr.contest_id=r.contest_id AND 't:'||vr.team_id=f.owner_key WHERE $4::boolean AND r.contest_id=$1 AND a.created_at<=$2 AND c.published AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=$2) AND ($3::uuid[] IS NULL OR c.id=ANY($3::uuid[]))) attacks`,
     [scope, cutoff, visible, board.started],
   );
+  const complete =
+    board.started && board.columns.length
+      ? await db.query(
+          `SELECT s.challenge_id,count(*)::int solves FROM solves s JOIN ranked_registrations r ON r.contest_id=$1::uuid AND 't:'||r.team_id=s.owner_key
+     WHERE s.scope=$1::text AND s.challenge_id=ANY($2::uuid[]) AND s.created_at<=$3 AND NOT s.contest_practice GROUP BY s.challenge_id`,
+          [
+            scope,
+            [...new Set(board.columns.map((c: Row) => c.challenge_id))],
+            cutoff,
+          ],
+        )
+      : [];
+  const completed = new Map(complete.map((c) => [c.challenge_id, c.solves]));
   const events = ([...activity.items, ...attacks] as Row[])
     .sort(
       (a, b) =>
@@ -136,6 +149,8 @@ export async function readSpectatorSnapshot(db: DB, contest: Row, user?: User) {
       part_title: c.part_title,
       category: c.category,
       solves: c.solves,
+      points: c.points,
+      challenge_solves: completed.get(c.challenge_id) ?? 0,
     })),
     events,
     groups: await db.query(

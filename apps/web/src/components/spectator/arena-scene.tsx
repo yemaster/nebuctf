@@ -8,6 +8,9 @@ import { MonitorOff } from "lucide-react";
 import { Button } from "../ui/button";
 import {
   SpectatorEvents,
+  cityLayout,
+  cityPosition,
+  type CityDistrict,
   type SpectatorData,
   type CityFacility,
 } from "@/lib/spectator";
@@ -24,6 +27,7 @@ type Props = {
 export default function ArenaScene(props: Props) {
   const host = useRef<HTMLDivElement>(null),
     labels = useRef<HTMLDivElement>(null),
+    regionLabels = useRef<HTMLDivElement>(null),
     state = useRef(props);
   const engine = useRef<{ update: () => void } | null>(null),
     [failed, setFailed] = useState(false),
@@ -94,7 +98,8 @@ export default function ArenaScene(props: Props) {
       frames = 0,
       width = 1,
       height = 1;
-    let facilities: CityFacility[] = [];
+    let facilities: CityFacility[] = [],
+      districts: CityDistrict[] = [];
     const renderSoon = () => {
       if (!frame && !disposed && !lost && !document.hidden)
         frame = requestAnimationFrame(render);
@@ -102,6 +107,7 @@ export default function ArenaScene(props: Props) {
     const update = () => {
       const s = state.current;
       facilities = city.setChallenges(s.data.challenges);
+      districts = cityLayout(s.data.challenges).districts;
       city.setFocus(s.focus);
       const fresh = ledger.ingest(s.data.events, s.live);
       if (!s.paused && !s.reduced && !s.data.frozen)
@@ -137,7 +143,50 @@ export default function ArenaScene(props: Props) {
       const children = Array.from(
         labels.current?.children ?? [],
       ) as HTMLElement[];
-      const used: { x: number; y: number }[] = [];
+      const used: {
+        left: number;
+        right: number;
+        top: number;
+        bottom: number;
+      }[] = [];
+      const regionNodes = Array.from(
+        regionLabels.current?.children ?? [],
+      ) as HTMLElement[];
+      for (let i = 0; i < regionNodes.length; i++) {
+        const region = districts[i],
+          node = regionNodes[i]!;
+        if (!region) {
+          node.hidden = true;
+          continue;
+        }
+        const edge = cityPosition(
+          region.col,
+          region.row + region.depth - 1,
+          region.grid,
+        );
+        projection.set(region.x, 0.5, edge.z + 2).project(camera);
+        const x = ((projection.x + 1) * width) / 2,
+          y = ((1 - projection.y) * height) / 2;
+        node.hidden =
+          projection.z > 1 ||
+          projection.z < -1 ||
+          x < 55 ||
+          x > width - 55 ||
+          y < 70 ||
+          y > height - 65;
+        if (node.hidden) continue;
+        if (node.textContent !== region.category)
+          node.textContent = region.category;
+        node.style.transform = `translate(-50%,-50%) translate(${x}px,${y}px)`;
+        const half = Math.max(42, region.category.length * 5 + 16);
+        used.push({
+          left: x - half,
+          right: x + half,
+          top: y - 18,
+          bottom: y + 18,
+        });
+      }
+      let visibleLabels = 0;
       const candidates = facilities
         .map((f) => ({
           f,
@@ -150,8 +199,22 @@ export default function ArenaScene(props: Props) {
               ? 1
               : a.d - b.d,
         );
-      for (const { f } of candidates) {
-        if (used.length >= children.length) break;
+      const categoryTurns = new Map<string, number>();
+      const balanced = candidates
+        .map((candidate) => {
+          const turn = categoryTurns.get(candidate.f.category) ?? 0;
+          categoryTurns.set(candidate.f.category, turn + 1);
+          return { ...candidate, turn };
+        })
+        .sort((a, b) =>
+          a.f.id === state.current.focus
+            ? -1
+            : b.f.id === state.current.focus
+              ? 1
+              : a.turn - b.turn || a.d - b.d,
+        );
+      for (const { f } of balanced) {
+        if (visibleLabels >= children.length) break;
         projection.copy(city.anchors.get(f.id)!).project(camera);
         const x = ((projection.x + 1) * width) / 2,
           y = ((1 - projection.y) * height) / 2;
@@ -161,18 +224,41 @@ export default function ArenaScene(props: Props) {
           x < 80 ||
           x > width - 80 ||
           y < 100 ||
-          y > height - 105 ||
-          used.some((p) => Math.abs(p.x - x) < 155 && Math.abs(p.y - y) < 42)
+          y > height - 105
         )
           continue;
-        const label = children[used.length]!;
+        const lift = [0, 30, 60].find(
+          (offset) =>
+            y - offset > 100 &&
+            !used.some(
+              (p) =>
+                x + 84 > p.left &&
+                x - 84 < p.right &&
+                y - offset + 5 > p.top &&
+                y - offset - 49 < p.bottom,
+            ),
+        );
+        if (lift === undefined) continue;
+        const label = children[visibleLabels++]!;
         label.hidden = false;
-        if (label.textContent !== f.title) label.textContent = f.title;
+        const title = label.children[0]!,
+          stats = label.children[1]!,
+          text = `${f.solves} 解出  /  ${f.points} 分`;
+        if (title.textContent !== f.title) title.textContent = f.title;
+        if (stats.textContent !== text) stats.textContent = text;
+        (label.children[2] as HTMLElement).style.height = `${lift}px`;
+        label.dataset.challenge = f.id;
+        label.dataset.category = f.category;
         label.dataset.focus = String(f.id === state.current.focus);
-        label.style.transform = `translate(-50%,-100%) translate(${x}px,${y}px)`;
-        used.push({ x, y });
+        label.style.transform = `translate(-50%,-100%) translate(${x}px,${y - lift}px)`;
+        used.push({
+          left: x - 80,
+          right: x + 80,
+          top: y - lift - 44,
+          bottom: y - lift,
+        });
       }
-      for (let i = used.length; i < children.length; i++)
+      for (let i = visibleLabels; i < children.length; i++)
         children[i]!.hidden = true;
     };
     function render(time: number) {
@@ -269,6 +355,21 @@ export default function ArenaScene(props: Props) {
       />
       {!failed && (
         <div
+          ref={regionLabels}
+          className="pointer-events-none absolute inset-0"
+          aria-hidden
+        >
+          {Array.from({ length: 6 }, (_, i) => (
+            <div
+              key={i}
+              hidden
+              className="absolute left-0 top-0 border-b border-cyan-300/40 bg-slate-950/70 px-4 py-1 font-mono text-base font-medium tracking-widest text-cyan-200"
+            />
+          ))}
+        </div>
+      )}
+      {!failed && (
+        <div
           ref={labels}
           className="pointer-events-none absolute inset-0"
           aria-hidden
@@ -277,8 +378,12 @@ export default function ArenaScene(props: Props) {
             <div
               key={i}
               hidden
-              className="absolute left-0 top-0 max-w-40 truncate rounded bg-slate-950/85 px-2.5 py-1 text-xs text-cyan-100 shadow-sm data-[focus=true]:bg-cyan-950 data-[focus=true]:text-white"
-            />
+              className="absolute left-0 top-0 w-40 rounded bg-slate-950/85 px-2.5 py-1.5 text-xs text-cyan-100 data-[focus=true]:bg-cyan-950 data-[focus=true]:text-white"
+            >
+              <div className="truncate font-medium" />
+              <div className="mt-0.5 font-mono text-[11px] tabular-nums text-cyan-200/65" />
+              <span className="absolute left-1/2 top-full w-px bg-cyan-200/30" />
+            </div>
           ))}
         </div>
       )}

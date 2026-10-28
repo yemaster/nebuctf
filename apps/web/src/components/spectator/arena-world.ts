@@ -1,6 +1,7 @@
 import * as T from "three";
 import {
-  cityFacilities,
+  cityLayout,
+  cityPosition,
   cityHash,
   type CityFacility,
   type SpectatorData,
@@ -255,11 +256,14 @@ export function createArenaWorld() {
     }
   };
   const setChallenges = (challenges: SpectatorData["challenges"]) => {
-    const next = cityFacilities(challenges),
-      key = next.map((n) => `${n.id}:${n.category}`).join("|");
+    const layout = cityLayout(challenges),
+      next = layout.facilities,
+      key = next
+        .map((n) => `${n.id}:${n.category}:${n.slot}:${n.grid}`)
+        .join("|");
+    facilities = next;
     if (key === signature) return facilities;
     signature = key;
-    facilities = next;
     anchors.clear();
     clearDistrict();
     facilityBatches.clear();
@@ -276,11 +280,45 @@ export function createArenaWorld() {
       ry = 0,
       rx = 0,
     ) => add(facilityBatches, g, m, x, y, z, sx, sy, sz, ry, rx);
-    for (let slot = 0; slot < 256; slot++) {
-      const col = slot % 16,
-        row = Math.floor(slot / 16),
-        x = (Math.floor(col / 2) - 3.5) * 12 + (col % 2 ? 2.7 : -2.7),
-        z = (Math.floor(row / 2) - 3.5) * 12 + (row % 2 ? 2.7 : -2.7);
+    for (const region of layout.districts) {
+      const first = cityPosition(region.col, region.row, layout.grid),
+        last = cityPosition(
+          region.col + region.width - 1,
+          region.row + region.depth - 1,
+          layout.grid,
+        );
+      const w = last.x - first.x + 5,
+        d = last.z - first.z + 5;
+      put(box, glass, region.x, 0.12, region.z, w, 0.08, d);
+      for (const side of [-1, 1]) {
+        put(
+          box,
+          blue,
+          region.x + (side * w) / 2,
+          0.18,
+          region.z,
+          0.06,
+          0.04,
+          d,
+        );
+        put(
+          box,
+          blue,
+          region.x,
+          0.18,
+          region.z + (side * d) / 2,
+          w,
+          0.04,
+          0.06,
+        );
+      }
+    }
+    for (let slot = 0; slot < layout.grid * layout.grid; slot++) {
+      const { x, z } = cityPosition(
+        slot % layout.grid,
+        Math.floor(slot / layout.grid),
+        layout.grid,
+      );
       const facility = bySlot.get(slot),
         seed = cityHash(`block-${slot}`);
       if (!facility) {
