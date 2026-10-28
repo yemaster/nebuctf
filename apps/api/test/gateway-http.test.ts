@@ -83,7 +83,12 @@ test(
         req.on("timeout", () => req.destroy(Error("timeout")));
         req.end(body);
       });
-    assert.equal(await send("/large", Buffer.alloc(21 * 1024 * 1024, 65)), 413);
+    // Cross the limit by one byte so the client has no pending upload after
+    // the gateway responds and closes the connection (EPIPE on macOS).
+    assert.equal(
+      await send("/large", Buffer.alloc(20 * 1024 * 1024 + 1, 65)),
+      413,
+    );
     assert.equal(await send("/disconnect"), 502);
     assert.equal(await send("/healthy", Buffer.from("ok")), 204);
   },
