@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import React, { act } from "react";
 import { JSDOM } from "jsdom";
 
-test("footer panels load on demand, respect contest access and keep personal resources scoped", async (t) => {
+test("footer groups information on the left, keeps local time on the right and links to the current team", async (t) => {
   const dom = new JSDOM("<!doctype html><div id='root'></div>", {
     url: "http://localhost/",
     pretendToBeVisual: true,
@@ -105,7 +105,12 @@ test("footer panels load on demand, respect contest access and keep personal res
     teams: 0,
     registered,
     registration: registered
-      ? { team_name: "ALPHA", group_name: "公开组", status: "accepted" }
+      ? {
+          team_id: "team-a",
+          team_name: "ALPHA",
+          group_name: "公开组",
+          status: "accepted",
+        }
       : null,
   });
   async function mount(
@@ -119,11 +124,21 @@ test("footer panels load on demand, respect contest access and keep personal res
       },
     });
     if (cup) cache.setQueryData(["/contests/cup"], cup);
+    cache.setQueryData(["/site"], {
+      name: "NebuCTF",
+      footer_text: "教学平台",
+      footer_link_label: "文档",
+      footer_link_url: "https://example.com/docs",
+    });
     root = createRoot(document.getElementById("root")!);
     await act(async () =>
       root!.render(
         <QueryClientProvider client={cache}>
-          <MemoryRouter>
+          <MemoryRouter
+            initialEntries={[
+              cup ? "/contests/cup/challenges?challenge=one#part-two" : "/",
+            ]}
+          >
             <SiteFooter
               user={authenticated ? user : null}
               contestId={cup?.id}
@@ -167,6 +182,19 @@ test("footer panels load on demand, respect contest access and keep personal res
         await mount(false);
         try {
           assert.deepEqual(requests, []);
+          const left = document.querySelector(
+            'nav[aria-label="底部信息与链接"]',
+          )!;
+          const right = document.querySelector('nav[aria-label="常驻工具"]')!;
+          assert(left.textContent!.includes("教学平台"));
+          assert(left.querySelector('a[href="https://example.com/docs"]'));
+          assert(left.querySelector('button[aria-label="平台概况"]'));
+          assert(right.querySelector('[aria-label^="本地时间"]'));
+          assert.equal(
+            right.querySelectorAll("button,a").length,
+            0,
+            "guests only see local time on the right",
+          );
           assert.equal(
             document.querySelector('button[aria-label="我的环境"]'),
             null,
@@ -205,10 +233,31 @@ test("footer panels load on demand, respect contest access and keep personal res
         await mount(true, contest(false));
         try {
           assert.deepEqual(requests, []);
+          assert.equal(
+            document.querySelector('button[aria-label="平台概况"]'),
+            null,
+          );
           assert.ok(
             document.querySelector(
-              'nav[aria-label="常驻工具"] button[aria-label="平台概况"]',
+              'nav[aria-label="常驻工具"] [aria-label^="本地时间"]',
             ),
+          );
+          assert.equal(
+            document.querySelectorAll('button[aria-label="比赛信息"]').length,
+            1,
+          );
+          assert.ok(
+            document.querySelector(
+              'button[aria-label="比赛信息"] [aria-label^="赛程剩余"]',
+            ),
+          );
+          assert.equal(
+            document.querySelector("footer")!.textContent!.includes("进行中"),
+            false,
+          );
+          assert.equal(
+            document.querySelector('a[aria-label^="管理战队"]'),
+            null,
           );
           assert.equal(
             document.querySelector('button[aria-label="我的环境"]'),
@@ -270,6 +319,24 @@ test("footer panels load on demand, respect contest access and keep personal res
         await mount(true, contest(true));
         try {
           assert.deepEqual(requests, []);
+          const team = document.querySelector(
+            'nav[aria-label="底部信息与链接"] a[aria-label="管理战队 ALPHA"]',
+          );
+          assert.ok(team);
+          const target = new URL(
+            team.getAttribute("href")!,
+            "http://localhost",
+          );
+          assert.equal(target.pathname, "/team");
+          assert.equal(target.searchParams.get("team"), "team-a");
+          assert.equal(
+            target.searchParams.get("next"),
+            "/contests/cup/challenges?challenge=one#part-two",
+          );
+          const tools = document.querySelector('nav[aria-label="常驻工具"]')!;
+          assert.equal(tools.querySelectorAll("a,button").length, 1);
+          assert(tools.querySelector('a[href="/terminal"]'));
+          assert(tools.querySelector('[aria-label^="本地时间"]'));
           await click("我的环境");
           await settle(() => value("运行靶机") === "1");
           assert.deepEqual(requests, ["/api/instances?scope=cup&owned=true"]);

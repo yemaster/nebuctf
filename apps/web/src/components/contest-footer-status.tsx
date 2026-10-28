@@ -46,7 +46,7 @@ export function ContestFooterStatus({
   const frozen =
     !ended && contest.freeze_at && Date.parse(contest.freeze_at) <= now;
   return (
-    <div
+    <span
       className="flex shrink-0 items-center gap-3 whitespace-nowrap tabular-nums"
       aria-label="比赛进度"
     >
@@ -112,6 +112,6 @@ export function ContestFooterStatus({
           <span className="hidden md:inline">已封榜</span>
         </span>
       )}
-    </div>
+    </span>
   );
 }

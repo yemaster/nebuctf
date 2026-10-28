@@ -17,7 +17,7 @@ import {
 import { useAPI } from "@/lib/api";
 import { useContestCapabilities } from "@/lib/contest-access";
 import type { Contest, Instance, User } from "@/lib/types";
-import { contestStatus, date } from "@/lib/utils";
+import { date } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import {
@@ -206,7 +206,13 @@ function ResourceSummary({ scope, href }: { scope: string; href: string }) {
   );
 }
 
-function ContestSummary({ contest }: { contest: Contest }) {
+function ContestSummary({
+  contest,
+  receivedAt,
+}: {
+  contest: Contest;
+  receivedAt: number;
+}) {
   const [open, setOpen] = useState(false);
   const timing = useAPI<{ phases: Phase[] }>(
     `/contests/${contest.id}/timing`,
@@ -232,10 +238,7 @@ function ContestSummary({ contest }: { contest: Contest }) {
       open={open}
       onOpenChange={setOpen}
       trigger={
-        <>
-          <Trophy className="size-3.5" />
-          <span className="hidden sm:inline">{contestStatus(contest)}</span>
-        </>
+        <ContestFooterStatus contest={contest} receivedAt={receivedAt} />
       }
     >
       <p className="mb-4 break-words font-medium">{contest.title}</p>
@@ -275,46 +278,36 @@ function ContestSummary({ contest }: { contest: Contest }) {
   );
 }
 
-function FooterClock({ contest }: { contest?: Contest }) {
+function FooterClock() {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
     const refresh = () => {
+      clearTimeout(timer);
       if (!document.hidden) setNow(Date.now());
+      timer = setTimeout(refresh, 60000 - (Date.now() % 60000));
     };
     refresh();
-    const timer = setInterval(refresh, contest ? 1000 : 60000);
     document.addEventListener("visibilitychange", refresh);
     return () => {
-      clearInterval(timer);
+      clearTimeout(timer);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [contest?.starts_at, contest?.ends_at]);
-  const starts = Date.parse(contest?.starts_at ?? ""),
-    ends = Date.parse(contest?.ends_at ?? "");
-  const target = now < starts ? starts : ends;
-  const countdown = Number.isFinite(target) && now < target;
-  const seconds = countdown ? Math.max(0, Math.ceil((target - now) / 1000)) : 0;
-  const label = countdown ? (now < starts ? "距开赛" : "赛程剩余") : "本地时间";
-  const value = countdown
-    ? `${seconds >= 86400 ? `${Math.floor(seconds / 86400)}天 ` : ""}${[Math.floor(seconds / 3600) % 24, Math.floor(seconds / 60) % 60, seconds % 60].map((value) => String(value).padStart(2, "0")).join(":")}`
-    : new Date(now).toLocaleTimeString("zh-CN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
+  }, []);
+  const value = new Date(now).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
   return (
     <span
       className="flex items-center gap-1.5 whitespace-nowrap tabular-nums"
-      aria-label={`${label} ${value}`}
-      title={
-        countdown
-          ? `${label}，截止 ${date(new Date(target).toISOString())}`
-          : "设备本地时间"
-      }
+      aria-label={`本地时间 ${value}`}
+      title="设备本地时间"
     >
       <Clock3 className="size-3.5" />
-      <span className="hidden md:inline">{label}</span>
-      <span>{value}</span>
+      <span className="hidden md:inline">本地时间</span>
+      <time dateTime={new Date(now).toISOString()}>{value}</time>
     </span>
   );
 }
@@ -327,13 +320,13 @@ export function SiteFooter({
   user: User | null;
 }) {
   const site = useSiteSettings(false).data ?? defaultSite;
-  const { pathname } = useLocation();
+  const { pathname, search, hash } = useLocation();
   const practiceResources = /^\/(challenges|instances|problemsets)(\/|$)/.test(
     pathname,
   );
   // The header owns this query. The footer observes it without another fetch.
   const contest = useAPI<Contest>(`/contests/${contestId}`, false);
-  const current = contest.error ? undefined : contest.data;
+  const current = contestId && !contest.error ? contest.data : undefined;
   const access = useContestCapabilities(current, user, contest.dataUpdatedAt);
   const announcements = contestId
     ? `/contests/${contestId}/announcements`
@@ -366,12 +359,12 @@ export function SiteFooter({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className={control} aria-label="页脚导航">
-          {contestId ? "比赛导航" : "信息"}
+          链接
           <ChevronDown className="size-3" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align={contestId ? "start" : "end"}
+        align="start"
         side="top"
         sideOffset={8}
         className="w-48"
@@ -405,16 +398,49 @@ export function SiteFooter({
       </DropdownMenuContent>
     </DropdownMenu>
   );
+  const registration = user ? current?.registration : undefined;
+  const teamPath = registration?.team_id
+    ? `/team?${new URLSearchParams({ team: registration.team_id, next: pathname + search + hash })}`
+    : undefined;
   return (
     <footer
       aria-label="平台状态栏"
       className="h-9 shrink-0 bg-card text-xs text-muted-foreground"
     >
-      <div className="mx-auto flex h-full max-w-[1680px] items-center gap-3 px-3 sm:px-6 lg:px-10">
+      <div className="mx-auto flex h-full max-w-[1680px] items-center gap-4 px-3 sm:px-6 lg:px-10">
         <nav
-          aria-label="当前页面"
-          className="flex min-w-0 items-center gap-1 sm:gap-2"
+          aria-label="底部信息与链接"
+          className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2"
         >
+          <span
+            className="mr-1 min-w-0 max-w-48 truncate"
+            title={site.footer_text || site.name}
+          >
+            {site.footer_text || `${site.name} © ${new Date().getFullYear()}`}
+          </span>
+          {site.footer_link_url && site.footer_link_label && (
+            <Button variant="ghost" className={`${control} max-w-36`} asChild>
+              <a
+                href={site.footer_link_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={site.footer_link_label}
+              >
+                <span className="truncate">{site.footer_link_label}</span>
+              </a>
+            </Button>
+          )}
+          {contestId ? (
+            current && (
+              <ContestSummary
+                key={contestId}
+                contest={current}
+                receivedAt={contest.dataUpdatedAt}
+              />
+            )
+          ) : (
+            <PlatformSummary />
+          )}
           {user && (contestId ? access.instances : practiceResources) && (
             <ResourceSummary
               key={`${user.id}:${contestId ?? "practice"}`}
@@ -424,30 +450,27 @@ export function SiteFooter({
               }
             />
           )}
-          {contestId && (
-            <>
-              {current && <ContestSummary key={contestId} contest={current} />}
-              {navigation}
-              {current?.registration?.team_name && (
-                <span
-                  className="hidden max-w-48 truncate lg:block"
-                  title={current.registration.group_name ?? undefined}
-                >
-                  {current.registration.team_name}
-                </span>
-              )}
-              {current && (
-                <ContestFooterStatus
-                  contest={current}
-                  receivedAt={contest.dataUpdatedAt}
-                />
-              )}
-            </>
+          {navigation}
+          {teamPath && registration?.team_name && (
+            <Button
+              variant="ghost"
+              className={`${control} min-w-0 max-w-44`}
+              asChild
+            >
+              <Link
+                to={teamPath}
+                aria-label={`管理战队 ${registration.team_name}`}
+                title={`管理战队 ${registration.team_name}`}
+              >
+                <Users className="size-3.5" />
+                <span className="truncate">{registration.team_name}</span>
+              </Link>
+            </Button>
           )}
         </nav>
         <nav
           aria-label="常驻工具"
-          className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2"
+          className="ml-auto flex shrink-0 items-center gap-3"
         >
           {user && (
             <Button variant="ghost" className={control} asChild>
@@ -457,25 +480,7 @@ export function SiteFooter({
               </Link>
             </Button>
           )}
-          <PlatformSummary />
-          {!contestId && navigation}
-          <span
-            className="hidden max-w-40 truncate xl:block"
-            title={site.footer_text || site.name}
-          >
-            {site.footer_text || `${site.name} © ${new Date().getFullYear()}`}
-          </span>
-          {site.footer_link_url && site.footer_link_label && (
-            <a
-              className="hidden max-w-32 truncate hover:text-foreground 2xl:block"
-              href={site.footer_link_url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {site.footer_link_label}
-            </a>
-          )}
-          {!contestId && <FooterClock />}
+          <FooterClock />
         </nav>
       </div>
     </footer>
