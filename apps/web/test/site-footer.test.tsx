@@ -186,14 +186,15 @@ test("footer groups information on the left, keeps local time on the right and l
             'nav[aria-label="底部信息与链接"]',
           )!;
           const right = document.querySelector('nav[aria-label="常驻工具"]')!;
-          assert(left.textContent!.includes("教学平台"));
+          assert(!left.textContent!.includes("教学平台"));
+          assert.equal(right.lastElementChild?.textContent, "教学平台");
           assert(left.querySelector('a[href="https://example.com/docs"]'));
           assert(left.querySelector('button[aria-label="平台概况"]'));
           assert(right.querySelector('[aria-label^="本地时间"]'));
           assert.equal(
             right.querySelectorAll("button,a").length,
             0,
-            "guests only see local time on the right",
+            "guests have no action buttons on the right",
           );
           assert.equal(
             document.querySelector('button[aria-label="我的环境"]'),

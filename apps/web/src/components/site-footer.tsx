@@ -9,6 +9,7 @@ import {
   Flag,
   GitBranch,
   ChevronDown,
+  Menu,
   Terminal,
   Server,
   Trophy,
@@ -360,8 +361,9 @@ export function SiteFooter({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className={control} aria-label="页脚导航">
+          {contestId && <Menu className="size-3.5" />}
           {contestId ? "比赛菜单" : "链接"}
-          <ChevronDown className="size-3" />
+          {!contestId && <ChevronDown className="size-3" />}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -413,12 +415,6 @@ export function SiteFooter({
           aria-label="底部信息与链接"
           className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2"
         >
-          <span
-            className="mr-1 min-w-0 max-w-48 truncate"
-            title={site.footer_text || site.name}
-          >
-            {site.footer_text || `${site.name} © ${new Date().getFullYear()}`}
-          </span>
           {site.footer_link_url && site.footer_link_label && (
             <Button variant="ghost" className={`${control} max-w-36`} asChild>
               <a
@@ -491,6 +487,12 @@ export function SiteFooter({
             </Button>
           )}
           <FooterClock />
+          <span
+            className="max-w-48 truncate"
+            title={site.footer_text || site.name}
+          >
+            {site.footer_text || `${site.name} © ${new Date().getFullYear()}`}
+          </span>
         </nav>
       </div>
     </footer>
