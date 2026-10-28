@@ -63,6 +63,21 @@ export function createArenaWorld() {
       color: new T.Color("#2877c8").multiplyScalar(1.1),
     }),
   );
+  const districtEdge = material(
+    new T.MeshBasicMaterial({
+      color: new T.Color("#3b82f6").multiplyScalar(1.6),
+    }),
+  );
+  const districtWall = material(
+    new T.MeshBasicMaterial({
+      color: "#3b82f6",
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false,
+    }),
+  );
+  districtEdge.name = "district-outline";
+  districtWall.name = "district-wall";
   const amber = material(
     new T.MeshBasicMaterial({
       color: new T.Color("#ffba65").multiplyScalar(2),
@@ -137,6 +152,7 @@ export function createArenaWorld() {
   const meshes = (batches: Map<string, Batch>, target: T.Group) => {
     for (const b of batches.values()) {
       const mesh = new T.InstancedMesh(b.geo, b.mat, b.matrices.length);
+      mesh.name = b.mat.name;
       b.matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
       mesh.computeBoundingSphere();
       target.add(mesh);
@@ -291,26 +307,61 @@ export function createArenaWorld() {
         d = last.z - first.z + 5;
       put(box, glass, region.x, 0.12, region.z, w, 0.08, d);
       for (const side of [-1, 1]) {
+        // A continuous low blue enclosure reads as one district above the
+        // pavement. Both outlines and translucent walls stay instanced.
+        for (const y of [0.35, 1.7]) {
+          put(
+            box,
+            districtEdge,
+            region.x + (side * w) / 2,
+            y,
+            region.z,
+            0.18,
+            0.12,
+            d + 0.18,
+          );
+          put(
+            box,
+            districtEdge,
+            region.x,
+            y,
+            region.z + (side * d) / 2,
+            w + 0.18,
+            0.12,
+            0.18,
+          );
+        }
         put(
           box,
-          blue,
+          districtWall,
           region.x + (side * w) / 2,
-          0.18,
+          1,
           region.z,
           0.06,
-          0.04,
+          1.3,
           d,
         );
         put(
           box,
-          blue,
+          districtWall,
           region.x,
-          0.18,
+          1,
           region.z + (side * d) / 2,
           w,
-          0.04,
+          1.3,
           0.06,
         );
+        for (const end of [-1, 1])
+          put(
+            box,
+            districtEdge,
+            region.x + (side * w) / 2,
+            1,
+            region.z + (end * d) / 2,
+            0.25,
+            1.5,
+            0.25,
+          );
       }
     }
     for (let slot = 0; slot < layout.grid * layout.grid; slot++) {

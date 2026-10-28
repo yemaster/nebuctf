@@ -182,6 +182,9 @@ function Spectator({ scope }: { scope: string }) {
             paused={paused}
             reduced={reduced}
           />
+          <span className="pointer-events-none absolute bottom-3 right-4 select-none font-mono text-xs text-slate-400/55">
+            NebuCTF © {new Date().getFullYear()}
+          </span>
         </section>
       </div>
     </div>

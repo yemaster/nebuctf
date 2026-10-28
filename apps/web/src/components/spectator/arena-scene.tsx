@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as T from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
@@ -25,14 +25,21 @@ type Props = {
   focus: string | null;
 };
 export default function ArenaScene(props: Props) {
+  const activeDistricts = useMemo(
+    () =>
+      cityLayout(props.data.challenges).districts.filter(
+        (region) => region.count > 0,
+      ),
+    [props.data.challenges],
+  );
   const host = useRef<HTMLDivElement>(null),
     labels = useRef<HTMLDivElement>(null),
     regionLabels = useRef<HTMLDivElement>(null),
-    state = useRef(props);
+    state = useRef({ ...props, districts: activeDistricts });
   const engine = useRef<{ update: () => void } | null>(null),
     [failed, setFailed] = useState(false),
     [retry, setRetry] = useState(0);
-  state.current = props;
+  state.current = { ...props, districts: activeDistricts };
   useEffect(() => {
     engine.current?.update();
   }, [props.data, props.live, props.paused, props.reduced, props.focus]);
@@ -107,7 +114,7 @@ export default function ArenaScene(props: Props) {
     const update = () => {
       const s = state.current;
       facilities = city.setChallenges(s.data.challenges);
-      districts = cityLayout(s.data.challenges).districts;
+      districts = s.districts;
       city.setFocus(s.focus);
       const fresh = ledger.ingest(s.data.events, s.live);
       if (!s.paused && !s.reduced && !s.data.frozen)
@@ -164,7 +171,7 @@ export default function ArenaScene(props: Props) {
           region.row + region.depth - 1,
           region.grid,
         );
-        projection.set(region.x, 0.5, edge.z + 2).project(camera);
+        projection.set(region.x, 1.8, edge.z + 2).project(camera);
         const x = ((projection.x + 1) * width) / 2,
           y = ((1 - projection.y) * height) / 2;
         node.hidden =
@@ -359,12 +366,15 @@ export default function ArenaScene(props: Props) {
           className="pointer-events-none absolute inset-0"
           aria-hidden
         >
-          {Array.from({ length: 6 }, (_, i) => (
+          {activeDistricts.map((region) => (
             <div
-              key={i}
+              key={region.category}
+              data-district={region.category}
               hidden
-              className="absolute left-0 top-0 border-b border-cyan-300/40 bg-slate-950/70 px-4 py-1 font-mono text-base font-medium tracking-widest text-cyan-200"
-            />
+              className="absolute left-0 top-0 border-b border-blue-400/60 bg-slate-950/80 px-4 py-1 font-mono text-base font-medium tracking-widest text-blue-200"
+            >
+              {region.category}
+            </div>
           ))}
         </div>
       )}

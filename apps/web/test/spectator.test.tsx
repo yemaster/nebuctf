@@ -347,6 +347,8 @@ test("city buffers and attack effects remain bounded and are released", async ()
       await import("../src/components/spectator/arena-effects");
   const world = createArenaWorld();
   world.setChallenges([]);
+  assert.equal(world.group.getObjectByName("district-outline"), undefined);
+  assert.equal(world.group.getObjectByName("district-wall"), undefined);
   let buildings = 0;
   world.group.traverse((o) => {
     if (o instanceof T.InstancedMesh) buildings += o.count;
@@ -381,6 +383,9 @@ test("city buffers and attack effects remain bounded and are released", async ()
   assert.equal(effects.count, 0);
   assert.equal(world.group.children.length, children);
   effects.dispose();
+  world.setChallenges([]);
+  assert.equal(world.group.getObjectByName("district-outline"), undefined);
+  assert.equal(world.group.getObjectByName("district-wall"), undefined);
   world.dispose();
   assert.equal(world.group.children.length, 0);
   assert.equal(world.anchors.size, 0);
@@ -414,6 +419,14 @@ test("attack broadcasts expire and cannot reveal frozen, hidden or post-contest 
 });
 
 test("city districts group categories, aggregate part points and use full-challenge completion counts", () => {
+  assert.deepEqual(cityLayout([]).districts, []);
+  assert.deepEqual(
+    cityLayout([
+      { ...question(0), category: "Web" },
+      { ...question(1), category: "Pwn" },
+    ]).districts.map((region) => region.category),
+    ["Web", "Pwn"],
+  );
   const questions = Array.from({ length: 200 }, (_, i) => ({
     ...question(i),
     category: ["Web", "Pwn", "Crypto", "Reverse", "Misc", "Forensics"][i % 6]!,
