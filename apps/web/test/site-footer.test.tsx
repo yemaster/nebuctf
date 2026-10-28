@@ -217,8 +217,42 @@ test("footer panels load on demand, respect contest access and keep personal res
             document.querySelector('a[href="/announcements"]'),
             null,
           );
+          const menu = document.querySelector('button[aria-label="页脚导航"]')!;
+          await act(async () =>
+            menu.dispatchEvent(
+              new dom.window.KeyboardEvent("keydown", {
+                key: "Enter",
+                bubbles: true,
+              }),
+            ),
+          );
           assert.ok(
             document.querySelector('a[href="/contests/cup/announcements"]'),
+          );
+          assert.equal(
+            document.querySelector('a[href="/announcements"]'),
+            null,
+          );
+          await act(async () =>
+            document
+              .querySelector('[role="menu"]')!
+              .dispatchEvent(
+                new dom.window.KeyboardEvent("keydown", {
+                  key: "Escape",
+                  bubbles: true,
+                }),
+              ),
+          );
+          assert.ok(
+            document.querySelector(
+              'nav[aria-label="底部工具"] a[href="/terminal"]',
+            ),
+          );
+          assert.equal(
+            document
+              .querySelector('nav[aria-label="底部工具"] a[href="/terminal"]')
+              ?.getAttribute("target"),
+            "_blank",
           );
           assert.ok(document.querySelector('[aria-label^="赛程剩余"]'));
           await click("比赛信息");

@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { useRef, type ReactNode } from "react";
 import {
   Pagination as PaginationRoot,
@@ -106,6 +107,7 @@ export function Pagination({
   pageSize = 24,
   disabled = false,
   alwaysShow = false,
+  compact = false,
 }: {
   page: number;
   setPage: (n: number) => void;
@@ -114,6 +116,7 @@ export function Pagination({
   pageSize?: number;
   disabled?: boolean;
   alwaysShow?: boolean;
+  compact?: boolean;
 }) {
   const jump = useRef<HTMLInputElement>(null);
   const pages = total == null ? null : Math.max(1, Math.ceil(total / pageSize));
@@ -133,15 +136,23 @@ export function Pagination({
       ).sort((a, b) => a - b)
     : [page];
   return (
-    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+    <div
+      className={cn(
+        "mt-5 flex flex-wrap items-center justify-between gap-3 text-muted-foreground",
+        compact ? "text-xs gap-2" : "text-sm",
+      )}
+    >
       <span>{total == null ? `第 ${page} 页` : `共 ${total} 条`}</span>
       <PaginationRoot className="mx-0 w-auto" aria-label="分页">
-        <PaginationContent>
+        <PaginationContent className={compact ? "gap-0.5" : undefined}>
           <PaginationItem>
             <Button
               type="button"
               variant="ghost"
               size="icon"
+              className={
+                compact ? "size-7 text-xs [&_svg]:size-3.5" : undefined
+              }
               aria-label="上一页"
               disabled={disabled || page === 1}
               onClick={() => setPage(page - 1)}
@@ -151,10 +162,17 @@ export function Pagination({
           </PaginationItem>
           {numbers.map((n, i) => (
             <PaginationItem key={n} className="flex items-center">
-              {i > 0 && n > numbers[i - 1]! + 1 && <PaginationEllipsis />}
+              {i > 0 && n > numbers[i - 1]! + 1 && (
+                <PaginationEllipsis
+                  className={compact ? "size-5 [&_svg]:size-3" : undefined}
+                />
+              )}
               <Button
                 type="button"
                 size="icon"
+                className={
+                  compact ? "size-7 text-xs [&_svg]:size-3.5" : undefined
+                }
                 variant={n === page ? "outline" : "ghost"}
                 aria-label={`第 ${n} 页`}
                 aria-current={n === page ? "page" : undefined}
@@ -170,6 +188,9 @@ export function Pagination({
               type="button"
               variant="ghost"
               size="icon"
+              className={
+                compact ? "size-7 text-xs [&_svg]:size-3.5" : undefined
+              }
               aria-label="下一页"
               disabled={disabled || !hasMore}
               onClick={() => setPage(page + 1)}
@@ -186,7 +207,7 @@ export function Pagination({
             key={page}
             aria-label="跳转页码"
             type="number"
-            className="w-20"
+            className={compact ? "h-7 w-14 text-xs" : "w-20"}
             min={1}
             max={pages}
             defaultValue={page}
@@ -202,6 +223,7 @@ export function Pagination({
             type="button"
             variant="ghost"
             disabled={disabled}
+            className={compact ? "h-7 px-2 text-xs" : undefined}
             onClick={go}
           >
             跳转

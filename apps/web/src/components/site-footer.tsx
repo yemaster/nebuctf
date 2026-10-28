@@ -8,7 +8,8 @@ import {
   Code2,
   Flag,
   GitBranch,
-  MoreHorizontal,
+  ChevronDown,
+  Terminal,
   Server,
   Trophy,
   Users,
@@ -17,6 +18,7 @@ import { useAPI } from "@/lib/api";
 import { useContestCapabilities } from "@/lib/contest-access";
 import type { Contest, Instance, User } from "@/lib/types";
 import { contestStatus, date } from "@/lib/utils";
+import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import {
@@ -143,7 +145,13 @@ function ResourceSummary({ scope, href }: { scope: string; href: string }) {
   );
   const rows = resources.data?.items.filter((row) => !row.shared) ?? [];
   const running = rows.filter(
-    (row) => row.status === "running" && row.kind !== "dynamic_attachment",
+    (row) =>
+      row.status === "running" &&
+      row.kind !== "dynamic_attachment" &&
+      row.kind !== "terminal",
+  ).length;
+  const terminals = rows.filter(
+    (row) => row.kind === "terminal" && row.status === "running",
   ).length;
   const ready = rows.filter(
     (row) => row.status === "ready" && row.kind === "dynamic_attachment",
@@ -178,6 +186,7 @@ function ResourceSummary({ scope, href }: { scope: string; href: string }) {
         <dl className="grid gap-3 text-sm">
           {[
             ["运行靶机", running],
+            ...(terminals ? [["终端", terminals]] : []),
             ["就绪附件", ready],
             ["处理中", pending],
             ["创建失败", failed],
@@ -377,58 +386,41 @@ export function SiteFooter({
             {site.footer_link_label}
           </a>
         )}
-        {contestId ? (
-          current && <ContestSummary key={contestId} contest={current} />
-        ) : (
-          <PlatformSummary />
-        )}
-        {user && (!contestId || access.instances) && (
-          <ResourceSummary
-            key={`${user.id}:${contestId ?? "practice"}`}
-            scope={contestId ?? "practice"}
-            href={contestId ? `/contests/${contestId}/instances` : "/instances"}
-          />
-        )}
-        {current?.registration?.team_name && (
-          <span
-            className="hidden min-w-0 max-w-56 truncate lg:block"
-            title={[
-              current.registration.team_name,
-              current.registration.group_name,
-            ]
-              .filter(Boolean)
-              .join(" / ")}
-          >
-            {current.registration.team_name}
-            {current.registration.group_name && (
-              <span className="ml-3">{current.registration.group_name}</span>
-            )}
-          </span>
-        )}
-        <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
-          {current ? (
-            <ContestFooterStatus
-              contest={current}
-              receivedAt={contest.dataUpdatedAt}
+        <nav aria-label="底部工具" className="flex shrink-0 items-center gap-1">
+          {user && (!contestId || access.instances) && (
+            <ResourceSummary
+              key={`${user.id}:${contestId ?? "practice"}`}
+              scope={contestId ?? "practice"}
+              href={
+                contestId ? `/contests/${contestId}/instances` : "/instances"
+              }
             />
-          ) : (
-            !contestId && <FooterClock />
           )}
-          <Button
-            variant="ghost"
-            className={`${control} hidden sm:inline-flex`}
-            asChild
-          >
-            <Link to={announcements}>公告</Link>
-          </Button>
+          {user && (
+            <Button variant="ghost" className={control} asChild>
+              <Link to="/terminal" target="_blank" rel="noopener noreferrer">
+                <Terminal className="size-3.5" />
+                终端
+              </Link>
+            </Button>
+          )}
+        </nav>
+        <Separator orientation="vertical" className="!h-4" />
+        <nav aria-label="底部信息" className="flex shrink-0 items-center gap-1">
+          {contestId ? (
+            current && <ContestSummary key={contestId} contest={current} />
+          ) : (
+            <PlatformSummary />
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className={control} aria-label="页脚导航">
-                <MoreHorizontal className="size-4" />
+                信息
+                <ChevronDown className="size-3" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
-              align="end"
+              align="start"
               side="top"
               sideOffset={8}
               className="w-48"
@@ -461,6 +453,32 @@ export function SiteFooter({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+        </nav>
+        {current?.registration?.team_name && (
+          <span
+            className="hidden min-w-0 max-w-56 truncate lg:block"
+            title={[
+              current.registration.team_name,
+              current.registration.group_name,
+            ]
+              .filter(Boolean)
+              .join(" / ")}
+          >
+            {current.registration.team_name}
+            {current.registration.group_name && (
+              <span className="ml-3">{current.registration.group_name}</span>
+            )}
+          </span>
+        )}
+        <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
+          {current ? (
+            <ContestFooterStatus
+              contest={current}
+              receivedAt={contest.dataUpdatedAt}
+            />
+          ) : (
+            !contestId && <FooterClock />
+          )}
         </div>
       </div>
     </footer>

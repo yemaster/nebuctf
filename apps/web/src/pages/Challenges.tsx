@@ -464,6 +464,7 @@ function ChallengeBrowser({
       {scope === "practice" && (
         <div className="shrink-0 border-t px-4 pb-4">
           <Pagination
+            compact
             page={page}
             setPage={setPage}
             hasMore={page * pageSize < (total ?? 0)}
