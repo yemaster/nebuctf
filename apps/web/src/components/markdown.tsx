@@ -1,9 +1,13 @@
-import { Children, isValidElement, type ReactNode } from "react";
+import { Children, isValidElement, memo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CodeBlock } from "./code-block";
 
-export function Markdown({ children }: { children: string }) {
+export const Markdown = memo(function Markdown({
+  children,
+}: {
+  children: string;
+}) {
   return (
     <div className="markdown min-w-0 break-words text-sm leading-7">
       <ReactMarkdown
@@ -31,4 +35,4 @@ export function Markdown({ children }: { children: string }) {
       </ReactMarkdown>
     </div>
   );
-}
+});

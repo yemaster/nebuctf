@@ -1,6 +1,4 @@
-import { ContentImport } from "./admin/ContentImport";
-import { ContestManagement } from "./ContestManagement";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Routes,
@@ -32,7 +30,7 @@ import {
 import { useUser } from "@/App";
 import { cn } from "@/lib/utils";
 import { StatusPage } from "@/components/status-page";
-import { PageTitle } from "@/components/shared";
+import { Loading, PageTitle } from "@/components/shared";
 import {
   SidebarProvider,
   Sidebar,
@@ -55,26 +53,72 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { ChallengeAdmin, ChallengeEditor } from "./admin/Challenges";
-import { ImagesAdmin } from "./admin/Images";
-import { ContestAdmin, ContestEditor } from "./admin/Contests";
-import {
-  AnnouncementAdmin,
-  AnnouncementEditor,
-  ResourceAdmin,
-  UserAdmin,
-  LogAdmin,
-} from "./admin/Operations";
-import { ProblemSetAdmin, ProblemSetEditor } from "./ProblemSets";
-import {
-  ArticleAdmin,
-  ArticleEditor,
-  TreeAdmin,
-  TreeEditor,
-} from "./LearningAdmin";
-import { AdminOverview } from "./admin/Overview";
-import { SystemSettings } from "./admin/SystemSettings";
-import { AIRoutesAdmin, AIRouteEditor } from "./admin/AIRoutes";
+const ContentImport = lazy(() =>
+  import("./admin/ContentImport").then((m) => ({ default: m.ContentImport })),
+);
+const ContestManagement = lazy(() =>
+  import("./ContestManagement").then((m) => ({ default: m.ContestManagement })),
+);
+const ChallengeAdmin = lazy(() =>
+  import("./admin/Challenges").then((m) => ({ default: m.ChallengeAdmin })),
+);
+const ChallengeEditor = lazy(() =>
+  import("./admin/Challenges").then((m) => ({ default: m.ChallengeEditor })),
+);
+const ImagesAdmin = lazy(() =>
+  import("./admin/Images").then((m) => ({ default: m.ImagesAdmin })),
+);
+const ContestAdmin = lazy(() =>
+  import("./admin/Contests").then((m) => ({ default: m.ContestAdmin })),
+);
+const ContestEditor = lazy(() =>
+  import("./admin/Contests").then((m) => ({ default: m.ContestEditor })),
+);
+const AnnouncementAdmin = lazy(() =>
+  import("./admin/Operations").then((m) => ({ default: m.AnnouncementAdmin })),
+);
+const AnnouncementEditor = lazy(() =>
+  import("./admin/Operations").then((m) => ({ default: m.AnnouncementEditor })),
+);
+const ResourceAdmin = lazy(() =>
+  import("./admin/Operations").then((m) => ({ default: m.ResourceAdmin })),
+);
+const UserAdmin = lazy(() =>
+  import("./admin/Operations").then((m) => ({ default: m.UserAdmin })),
+);
+const LogAdmin = lazy(() =>
+  import("./admin/Operations").then((m) => ({ default: m.LogAdmin })),
+);
+const ProblemSetAdmin = lazy(() =>
+  import("./ProblemSets").then((m) => ({ default: m.ProblemSetAdmin })),
+);
+const ProblemSetEditor = lazy(() =>
+  import("./ProblemSets").then((m) => ({ default: m.ProblemSetEditor })),
+);
+const ArticleAdmin = lazy(() =>
+  import("./LearningAdmin").then((m) => ({ default: m.ArticleAdmin })),
+);
+const ArticleEditor = lazy(() =>
+  import("./LearningAdmin").then((m) => ({ default: m.ArticleEditor })),
+);
+const TreeAdmin = lazy(() =>
+  import("./LearningAdmin").then((m) => ({ default: m.TreeAdmin })),
+);
+const TreeEditor = lazy(() =>
+  import("./LearningAdmin").then((m) => ({ default: m.TreeEditor })),
+);
+const AdminOverview = lazy(() =>
+  import("./admin/Overview").then((m) => ({ default: m.AdminOverview })),
+);
+const SystemSettings = lazy(() =>
+  import("./admin/SystemSettings").then((m) => ({ default: m.SystemSettings })),
+);
+const AIRoutesAdmin = lazy(() =>
+  import("./admin/AIRoutes").then((m) => ({ default: m.AIRoutesAdmin })),
+);
+const AIRouteEditor = lazy(() =>
+  import("./admin/AIRoutes").then((m) => ({ default: m.AIRouteEditor })),
+);
 const groups = [
   {
     title: "基础",
@@ -246,83 +290,91 @@ function AdminLayout() {
             key={location.pathname}
             className="mx-auto w-full max-w-[1600px] motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150"
           >
-            <Routes>
-              <Route index element={<Navigate to="overview" replace />} />
-              <Route path="overview" element={<AdminOverview />} />
-              <Route
-                path="settings"
-                element={<SystemSettings section="site" />}
-              />
-              <Route
-                path="containers"
-                element={<SystemSettings section="containers" />}
-              />
-              <Route path="mail" element={<SystemSettings section="mail" />} />
-              <Route path="ai" element={<AIRoutesAdmin />} />
-              <Route path="ai/new" element={<AIRouteEditor />} />
-              <Route path="ai/:id/edit" element={<AIRouteEditor />} />
-              <Route path="challenges" element={<ChallengeAdmin />} />
-              <Route path="images" element={<ImagesAdmin />} />
-              <Route
-                path="challenges/import"
-                element={<ContentImport kind="challenge" />}
-              />
-              <Route path="challenges/new" element={<ChallengeEditor />} />
-              <Route path="challenges/:id/edit" element={<ChallengeEditor />} />
-              <Route path="contests" element={<ContestAdmin />} />
-              <Route
-                path="contests/:id/manage/*"
-                element={<ContestManagement />}
-              />
-              <Route
-                path="contests/import"
-                element={<ContentImport kind="contest" />}
-              />
-              <Route path="contests/new" element={<ContestEditor />} />
-              <Route path="contests/:id/edit" element={<ContestEditor />} />
-              <Route path="problemsets" element={<ProblemSetAdmin />} />
-              <Route path="problemsets/new" element={<ProblemSetEditor />} />
-              <Route
-                path="problemsets/:id/edit"
-                element={<ProblemSetEditor />}
-              />
-              <Route path="articles" element={<ArticleAdmin />} />
-              <Route path="articles/new" element={<ArticleEditor />} />
-              <Route path="articles/:id/edit" element={<ArticleEditor />} />
-              <Route path="learning" element={<TreeAdmin />} />
-              <Route path="learning/new" element={<TreeEditor />} />
-              <Route path="learning/:id/edit" element={<TreeEditor />} />
-              <Route path="announcements" element={<AnnouncementAdmin />} />
-              <Route
-                path="announcements/new"
-                element={<AnnouncementEditor />}
-              />
-              <Route
-                path="announcements/:id/edit"
-                element={<AnnouncementEditor />}
-              />
-              <Route
-                path="resources"
-                element={
-                  <>
-                    <PageTitle>资源</PageTitle>
-                    <ResourceAdmin />
-                  </>
-                }
-              />
-              <Route
-                path="users"
-                element={
-                  <>
-                    <PageTitle>用户</PageTitle>
-                    <UserAdmin />
-                  </>
-                }
-              />
-              <Route path="submissions" element={<LogAdmin />} />
-              <Route path="audit" element={<LogAdmin audit />} />
-              <Route path="*" element={<StatusPage status={404} />} />
-            </Routes>
+            <Suspense fallback={<Loading fullPage />}>
+              <Routes>
+                <Route index element={<Navigate to="overview" replace />} />
+                <Route path="overview" element={<AdminOverview />} />
+                <Route
+                  path="settings"
+                  element={<SystemSettings section="site" />}
+                />
+                <Route
+                  path="containers"
+                  element={<SystemSettings section="containers" />}
+                />
+                <Route
+                  path="mail"
+                  element={<SystemSettings section="mail" />}
+                />
+                <Route path="ai" element={<AIRoutesAdmin />} />
+                <Route path="ai/new" element={<AIRouteEditor />} />
+                <Route path="ai/:id/edit" element={<AIRouteEditor />} />
+                <Route path="challenges" element={<ChallengeAdmin />} />
+                <Route path="images" element={<ImagesAdmin />} />
+                <Route
+                  path="challenges/import"
+                  element={<ContentImport kind="challenge" />}
+                />
+                <Route path="challenges/new" element={<ChallengeEditor />} />
+                <Route
+                  path="challenges/:id/edit"
+                  element={<ChallengeEditor />}
+                />
+                <Route path="contests" element={<ContestAdmin />} />
+                <Route
+                  path="contests/:id/manage/*"
+                  element={<ContestManagement />}
+                />
+                <Route
+                  path="contests/import"
+                  element={<ContentImport kind="contest" />}
+                />
+                <Route path="contests/new" element={<ContestEditor />} />
+                <Route path="contests/:id/edit" element={<ContestEditor />} />
+                <Route path="problemsets" element={<ProblemSetAdmin />} />
+                <Route path="problemsets/new" element={<ProblemSetEditor />} />
+                <Route
+                  path="problemsets/:id/edit"
+                  element={<ProblemSetEditor />}
+                />
+                <Route path="articles" element={<ArticleAdmin />} />
+                <Route path="articles/new" element={<ArticleEditor />} />
+                <Route path="articles/:id/edit" element={<ArticleEditor />} />
+                <Route path="learning" element={<TreeAdmin />} />
+                <Route path="learning/new" element={<TreeEditor />} />
+                <Route path="learning/:id/edit" element={<TreeEditor />} />
+                <Route path="announcements" element={<AnnouncementAdmin />} />
+                <Route
+                  path="announcements/new"
+                  element={<AnnouncementEditor />}
+                />
+                <Route
+                  path="announcements/:id/edit"
+                  element={<AnnouncementEditor />}
+                />
+                <Route
+                  path="resources"
+                  element={
+                    <>
+                      <PageTitle>资源</PageTitle>
+                      <ResourceAdmin />
+                    </>
+                  }
+                />
+                <Route
+                  path="users"
+                  element={
+                    <>
+                      <PageTitle>用户</PageTitle>
+                      <UserAdmin />
+                    </>
+                  }
+                />
+                <Route path="submissions" element={<LogAdmin />} />
+                <Route path="audit" element={<LogAdmin audit />} />
+                <Route path="*" element={<StatusPage status={404} />} />
+              </Routes>
+            </Suspense>
           </div>
         </div>
       </div>

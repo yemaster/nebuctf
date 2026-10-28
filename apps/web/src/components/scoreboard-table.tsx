@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { Check, Minus } from "lucide-react";
 import type { Score, ScoreCell, ScoreColumn } from "@/lib/types";
 import {
@@ -126,7 +126,7 @@ const identity =
   "sticky left-0 z-10 w-44 min-w-44 max-w-44 px-3 sm:w-72 sm:min-w-72 sm:max-w-72";
 const scoreColumn =
   "w-24 min-w-24 px-3 text-right tabular-nums sm:sticky sm:left-72 sm:z-10";
-export function ScoreboardTable({
+export const ScoreboardTable = memo(function ScoreboardTable({
   rows,
   columns,
   competition,
@@ -360,4 +360,4 @@ export function ScoreboardTable({
       </div>
     </TooltipProvider>
   );
-}
+});

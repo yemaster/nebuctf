@@ -12,6 +12,8 @@ for (const route of [
   "src/pages/Auth.tsx",
   "src/pages/Contests.tsx",
   "src/pages/Challenges.tsx",
+  "src/pages/Admin.tsx",
+  "src/pages/admin/Operations.tsx",
 ]) {
   const seen = new Set(),
     files = new Set();
@@ -37,6 +39,7 @@ for (const route of [
       );
   assert(routeKey, `Missing route bundle: ${route}`);
   visit(routeKey);
+  if (route.startsWith("src/pages/admin/")) visit("src/pages/Admin.tsx");
   let decoded = 0,
     encoded = 0;
   for (const name of files) {

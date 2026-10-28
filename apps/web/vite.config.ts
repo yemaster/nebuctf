@@ -73,11 +73,6 @@ export default defineConfig({
           if (/\/node_modules\/(react-markdown|remark-gfm)\//.test(id))
             return "markdown";
           if (
-            id.includes("/node_modules/@radix-ui/") ||
-            id.includes("/node_modules/radix-ui/")
-          )
-            return "radix";
-          if (
             /\/node_modules\/(react|react-dom|scheduler|react-router|react-router-dom|@tanstack|lucide-react|clsx|tailwind-merge|class-variance-authority|sonner|@babel)\//.test(
               id,
             )
