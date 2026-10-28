@@ -137,6 +137,7 @@ services:
   web:
     build: { context: ., target: web }
     ports: ["${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8080}:8080"]
+    volumes: [web-assets:/var/cache/nebuctf]
     networks:
       platform: { ipv4_address: 172.30.80.10 }
     depends_on: { api: { condition: service_healthy } }
@@ -156,3 +157,4 @@ networks:
 volumes:
   postgres:
   files:
+  web-assets:

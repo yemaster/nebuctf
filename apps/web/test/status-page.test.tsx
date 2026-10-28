@@ -32,6 +32,10 @@ test("error pages recover through browser history and safe direct-link fallbacks
 
   function Content() {
     const location = useLocation();
+    if (location.pathname.endsWith("/old-chunk"))
+      throw new TypeError(
+        "Failed to fetch dynamically imported module: /assets/old.js",
+      );
     if (location.pathname.endsWith("/broken"))
       throw Error("test render failure");
     if (location.pathname.endsWith("/unavailable"))
@@ -83,6 +87,17 @@ test("error pages recover through browser history and safe direct-link fallbacks
   }
 
   try {
+    await t.test(
+      "missing deployment chunks are reported as resource failures, not server errors",
+      async () => {
+        await mount("/old-chunk");
+        assert.match(host.textContent!, /页面资源未能加载/);
+        assert.match(host.textContent!, /503/);
+        assert.doesNotMatch(host.textContent!, /500/);
+        await click("返回上一页");
+        await expectPath("/");
+      },
+    );
     await t.test(
       "returning from a render failure restores the filtered admin list",
       async () => {

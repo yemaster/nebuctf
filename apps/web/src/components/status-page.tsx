@@ -115,28 +115,41 @@ export function StatusPage({
   );
 }
 
+export function isAssetLoadError(error: unknown) {
+  return (
+    error instanceof Error &&
+    /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|loading chunk [\w-]+ failed|unable to preload css/i.test(
+      error.message,
+    )
+  );
+}
+
 // A route failure keeps the global navigation available and never exposes a stack trace.
 class RouteErrorBoundary extends Component<
   { children: ReactNode; resetKey: string },
-  { failed: boolean; resetKey: string }
+  { failed: boolean; assetError: boolean; resetKey: string }
 > {
-  state = { failed: false, resetKey: this.props.resetKey };
+  state = { failed: false, assetError: false, resetKey: this.props.resetKey };
   static getDerivedStateFromProps(
     props: { resetKey: string },
     state: { resetKey: string },
   ) {
     return props.resetKey === state.resetKey
       ? null
-      : { failed: false, resetKey: props.resetKey };
+      : { failed: false, assetError: false, resetKey: props.resetKey };
   }
-  static getDerivedStateFromError() {
-    return { failed: true };
+  static getDerivedStateFromError(error: unknown) {
+    return { failed: true, assetError: isAssetLoadError(error) };
   }
   render() {
     return this.state.failed ? (
       <StatusPage
-        status={500}
-        message="页面载入失败"
+        status={this.state.assetError ? 503 : 500}
+        message={
+          this.state.assetError
+            ? "页面资源未能加载，请刷新重试"
+            : "页面载入失败"
+        }
         retry={() => window.location.reload()}
       />
     ) : (

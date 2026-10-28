@@ -30,4 +30,8 @@ CMD ["node", "dist/main.js"]
 FROM nginxinc/nginx-unprivileged:1.28-alpine AS web
 COPY --chown=nginx:nginx deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --chown=nginx:nginx --from=build /app/apps/web/dist /usr/share/nginx/html
+USER root
+RUN mkdir -p /var/cache/nebuctf/assets && chown -R nginx:nginx /var/cache/nebuctf
+COPY --chmod=755 deploy/40-asset-archive.sh /docker-entrypoint.d/40-asset-archive.sh
+USER nginx
 EXPOSE 8080
