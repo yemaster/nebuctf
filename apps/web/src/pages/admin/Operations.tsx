@@ -227,7 +227,7 @@ export function ResourceAdmin() {
   const data = useAPI<{
     total: number;
     usage: { instances: number; cpu: number; memory: number };
-    limits: { instances: number; cpu: number; memory: number };
+    limits: { instances: number | null; cpu: number; memory: number };
     items: Instance[];
   }>(`/admin/resources?page=${page}`, true, 5000);
   const stop = useAction((id: string) => api(`/instances/${id}/stop`, "POST"));
@@ -258,7 +258,10 @@ export function ResourceAdmin() {
             <p className="mt-3 text-2xl font-semibold">
               {data.data?.usage[f.key as "cpu"] ?? "—"}{" "}
               <span className="text-sm font-normal text-muted-foreground">
-                / {data.data?.limits[f.key as "cpu"] ?? "—"} {f.unit}
+                /{" "}
+                {data.data?.limits[f.key as "cpu"] ??
+                  (f.key === "instances" ? "不限" : "—")}{" "}
+                {f.unit}
               </span>
             </p>
           </div>

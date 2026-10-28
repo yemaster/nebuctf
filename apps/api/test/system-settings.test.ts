@@ -408,6 +408,7 @@ test(
         config.MAX_OWNER_INSTANCES = 1;
         await ok("/admin/settings/containers", {
           ...defaults.containers,
+          max_owner_instances: 1,
           auto_destroy: true,
         });
         const question = async (title: string) => {

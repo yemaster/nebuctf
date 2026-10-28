@@ -40,6 +40,15 @@ export const containerPolicyInput = z
     renew_limit: z.number().int().min(0).max(100),
     renew_seconds: z.number().int().min(60).max(86400),
     auto_destroy: z.boolean(),
+    max_instances: z.number().int().min(1).max(100000).nullable().optional(),
+    max_owner_instances: z
+      .number()
+      .int()
+      .min(1)
+      .max(10000)
+      .nullable()
+      .optional(),
+    destroy_on_solve: z.boolean().optional(),
   })
   .strict();
 export const mailInput = z
@@ -86,6 +95,9 @@ export const defaults = {
     renew_limit: 7,
     renew_seconds: 1800,
     auto_destroy: false,
+    max_instances: config.MAX_INSTANCES as number | null,
+    max_owner_instances: config.MAX_OWNER_INSTANCES as number | null,
+    destroy_on_solve: false,
   },
   mail: {
     require_verification: false,
@@ -108,7 +120,16 @@ export async function getSetting<K extends keyof Settings>(
     "SELECT value FROM system_settings WHERE key=$1",
     [key],
   );
-  return { ...defaults[key], ...row?.value };
+  return {
+    ...defaults[key],
+    ...(key === "containers"
+      ? {
+          max_instances: config.MAX_INSTANCES,
+          max_owner_instances: config.MAX_OWNER_INSTANCES,
+        }
+      : {}),
+    ...row?.value,
+  };
 }
 export async function saveSetting(db: DB, key: keyof Settings, value: unknown) {
   await db.query(

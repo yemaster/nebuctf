@@ -47,7 +47,14 @@ export function systemAdminRoutes(app: FastifyInstance, db: DB) {
       let value: unknown;
       if (section === "site") value = siteInput.parse(req.body);
       else if (section === "containers")
-        value = containerPolicyInput.parse(req.body);
+        value = {
+          ...(
+            await tx.query(
+              "SELECT value FROM system_settings WHERE key='containers'",
+            )
+          )[0]?.value,
+          ...containerPolicyInput.parse(req.body),
+        };
       else {
         const { password, clear_password, ...data } = mailInput.parse(req.body),
           previous = await getSetting(tx, "mail");
@@ -158,7 +165,7 @@ export function systemAdminRoutes(app: FastifyInstance, db: DB) {
         ...usage,
         states,
         limits: {
-          n: config.MAX_INSTANCES,
+          n: (await getSetting(db, "containers")).max_instances,
           cpu: config.MAX_CPU,
           memory: config.MAX_MEMORY,
         },

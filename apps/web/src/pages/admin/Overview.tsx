@@ -30,7 +30,7 @@ type OverviewData = {
     n: number;
     cpu: number;
     memory: number;
-    limits: { n: number; cpu: number; memory: number };
+    limits: { n: number | null; cpu: number; memory: number };
     states: { resource_type: string; status: string; count: number }[];
   };
   failures: { id: string; title: string; error: string; updated_at: string }[];
@@ -216,14 +216,18 @@ export function AdminOverview() {
                   <div className="flex justify-between gap-4 text-sm">
                     <span>{label}</span>
                     <span className="tabular-nums text-muted-foreground">
-                      {data.resources[key]} / {data.resources.limits[key]}
+                      {data.resources[key]} /{" "}
+                      {data.resources.limits[key] ?? "不限"}
                       {unit}
                     </span>
                   </div>
                   <Progress
                     value={Math.min(
                       100,
-                      (data.resources[key] / data.resources.limits[key]) * 100,
+                      data.resources.limits[key] == null
+                        ? 0
+                        : (data.resources[key] / data.resources.limits[key]!) *
+                            100,
                     )}
                     aria-label={label}
                   />

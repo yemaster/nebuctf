@@ -137,7 +137,11 @@ export function InstanceRow({
     : stop.isPending || stopping
       ? "正在释放环境"
       : i.status === "queued"
-        ? "正在排队"
+        ? i.queue_blocked
+          ? "等待资源回收"
+          : i.queue_ahead == null
+            ? "正在排队"
+            : `排队中，前方 ${i.queue_ahead} 个任务`
         : attachment
           ? "正在生成专属附件"
           : "正在启动靶机";

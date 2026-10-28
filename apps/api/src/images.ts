@@ -1,3 +1,4 @@
+import { getSetting } from "./settings.js";
 import { flagEnvironmentSpec } from "./flag-environment.js";
 import { resourceUsage } from "./resource-usage.js";
 import { resourceChallenge } from "./challenge-model.js";
@@ -168,12 +169,14 @@ export function imageRoutes(app: FastifyInstance, db: DB) {
         [imageKey(spec.image)],
       );
       if (!image?.present) fail(409, "镜像尚未就绪，请先拉取镜像");
-      const usage = await resourceUsage(tx, owner);
+      const usage = await resourceUsage(tx, owner),
+        policy = await getSetting(tx, "containers");
       if (
-        usage!.n >= config.MAX_INSTANCES ||
+        (policy.max_instances !== null && usage!.n >= policy.max_instances) ||
         usage!.cpu + spec.cpu > config.MAX_CPU ||
         usage!.memory + spec.memory > config.MAX_MEMORY ||
-        usage!.owned >= config.MAX_OWNER_INSTANCES
+        (policy.max_owner_instances !== null &&
+          usage!.owned >= policy.max_owner_instances)
       )
         fail(409, "测试环境资源额度不足", {
           label: "管理资源",

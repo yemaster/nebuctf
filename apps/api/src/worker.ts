@@ -1,3 +1,4 @@
+import { queuePriority, queueReady } from "./resource-queue.js";
 import { recordIssuedFlags } from "./contest-monitor.js";
 import { flagEnvironment } from "./flag-environment.js";
 import { DockerEngine, readArtifact } from "./docker.js";
@@ -263,7 +264,7 @@ export class Worker {
     for (let slot = 0; slot < free; slot++) {
       const i = await this.db.transaction(async (tx) => {
         const [row] = await tx.query(
-          "SELECT * FROM instances WHERE (status='queued' OR (status='starting' AND updated_at<now()-interval '2 minutes')) AND id<>ALL($1::uuid[]) AND NOT EXISTS(SELECT 1 FROM instances previous WHERE previous.id::text IN (SELECT jsonb_array_elements_text(coalesce(instances.spec->'replace_ids','[]'::jsonb))) AND previous.status NOT IN ('stopped','failed')) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1",
+          `SELECT i.* FROM instances i WHERE (i.status='queued' OR (i.status='starting' AND i.updated_at<now()-interval '2 minutes')) AND i.id<>ALL($1::uuid[]) AND ${queueReady("i")} ORDER BY ${queuePriority("i")},i.created_at,i.id FOR UPDATE OF i SKIP LOCKED LIMIT 1`,
           [[...this.jobs.keys()]],
         );
         if (row)

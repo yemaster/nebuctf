@@ -1,3 +1,4 @@
+import { getSetting } from "./settings.js";
 import { hintDefinitions } from "./hint-rules.js";
 import {
   publicContest,
@@ -790,7 +791,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
       total: count!.total,
       page: p.page,
       limits: {
-        instances: config.MAX_INSTANCES,
+        instances: (await getSetting(db, "containers")).max_instances,
         cpu: config.MAX_CPU,
         memory: config.MAX_MEMORY,
       },

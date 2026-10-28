@@ -1,3 +1,4 @@
+import { getSetting } from "./settings.js";
 import { submissionUsage, requireSubmissionSlot } from "./submission-policy.js";
 import { notifyContest } from "./activity-events.js";
 import { requirePermission } from "./group-permissions.js";
@@ -71,10 +72,12 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
                 : `/contests/${active.scope}/challenges?challenge=${active.challenge_id}`,
           });
         const profile = resourceProfiles(current).container!;
+        const policy = await getSetting(tx, "containers");
         const usage = await resourceUsage(tx, owner),
           pc = current.patch_config;
         if (
-          usage.n + 2 > config.MAX_INSTANCES ||
+          (policy.max_instances !== null &&
+            usage.n + 2 > policy.max_instances) ||
           usage.cpu + Math.max(500, profile.cpu + pc.cpu) > config.MAX_CPU ||
           usage.memory + Math.max(256, profile.memory + pc.memory) >
             config.MAX_MEMORY

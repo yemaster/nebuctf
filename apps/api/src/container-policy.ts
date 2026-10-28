@@ -19,10 +19,12 @@ export async function allocationPlan(
   ]);
   let removed = 0;
   const fits = () =>
-    usage.n + 1 <= config.MAX_INSTANCES &&
+    (policy.max_instances === null || usage.n + 1 <= policy.max_instances) &&
     usage.cpu + c.cpu <= config.MAX_CPU &&
     usage.memory + c.memory <= config.MAX_MEMORY &&
-    (owner === "shared" || usage.owned + 1 <= config.MAX_OWNER_INSTANCES) &&
+    (owner === "shared" ||
+      policy.max_owner_instances === null ||
+      usage.owned + 1 <= policy.max_owner_instances) &&
     (!quota ||
       ((quota.team_limit === null ||
         quota.team_used - removed + 1 <= quota.team_limit) &&
@@ -52,7 +54,8 @@ export async function allocationPlan(
   if (quota?.blocked) fail(409, quota.blocked.message, quota.blocked.action);
   return fail(
     409,
-    usage.owned + removed >= config.MAX_OWNER_INSTANCES
+    policy.max_owner_instances !== null &&
+      usage.owned + removed >= policy.max_owner_instances
       ? "已达到个人或战队环境数量上限"
       : "资源池已满，请稍后重试",
     {

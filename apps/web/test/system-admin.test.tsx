@@ -75,6 +75,9 @@ test(
         renew_limit: 7,
         renew_seconds: 1800,
         auto_destroy: false,
+        max_instances: 64,
+        max_owner_instances: 2,
+        destroy_on_solve: false,
       },
       mail: {
         require_verification: false,
@@ -275,6 +278,9 @@ test(
           renew_limit: 3,
           renew_seconds: 600,
           auto_destroy: true,
+          max_instances: 64,
+          max_owner_instances: 2,
+          destroy_on_solve: false,
         });
       },
     );

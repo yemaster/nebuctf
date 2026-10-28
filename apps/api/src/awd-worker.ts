@@ -1,3 +1,4 @@
+import { getSetting } from "./settings.js";
 import { contestResourcePolicy } from "./contest-resource-limits.js";
 import { permissionSQL } from "./group-permissions.js";
 import { notifyContest } from "./activity-events.js";
@@ -93,10 +94,12 @@ export class AwdWorker {
         `SELECT r.team_id,t.captain_id FROM ranked_registrations r JOIN teams t ON t.id=r.team_id LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id=$1 AND ${permissionSQL("g", "$2::uuid", "view")} AND ${permissionSQL("g", "$2::uuid", "resources")} AND NOT EXISTS(SELECT 1 FROM instances i WHERE i.challenge_id=$2 AND i.scope=$1::text AND i.owner_key='t:'||r.team_id AND (i.status=ANY($3::text[]) OR (i.status='failed' AND i.updated_at>now()-interval '60 seconds'))) ORDER BY r.created_at`,
         [link.contest_id, link.challenge_id, activeStatuses],
       );
-      const usage = await resourceUsage(tx);
+      const usage = await resourceUsage(tx),
+        policy = await getSetting(tx, "containers");
       for (const team of teams) {
         if (
-          usage!.n + 2 > config.MAX_INSTANCES ||
+          (policy.max_instances !== null &&
+            usage!.n + 2 > policy.max_instances) ||
           usage!.cpu + profile.cpu + 250 > config.MAX_CPU ||
           usage!.memory + profile.memory + 128 > config.MAX_MEMORY
         )

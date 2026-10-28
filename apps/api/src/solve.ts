@@ -1,3 +1,4 @@
+import { getSetting } from "./settings.js";
 import { notifyContest } from "./activity-events.js";
 import { isContestPractice } from "./contest-practice.js";
 import type { DB, Row } from "./db.js";
@@ -65,6 +66,17 @@ export async function creditSolve(
       [crypto.randomUUID(), challenge.id, scope, owner, user, practice],
     );
     if (!parts.length) already = !rows.length;
+    if (
+      rows.length &&
+      challenge.challenge_type !== "awd" &&
+      challenge.contest_scoring?.mode !== "round" &&
+      (await getSetting(db, "containers")).destroy_on_solve
+    ) {
+      await db.query(
+        "UPDATE instances SET status='stopping',updated_at=now() WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3 AND owner_key<>'shared' AND resource_type='container' AND NOT coalesce((spec->>'awd')::boolean,false) AND status IN ('queued','starting','running')",
+        [challenge.id, scope, owner],
+      );
+    }
   }
   if (!already) await notifyContest(db, scope);
   return {

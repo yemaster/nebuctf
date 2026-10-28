@@ -74,6 +74,13 @@ function SettingsForm({
   section: Section;
   data: Record<string, any>;
 }) {
+  const [destroyOnSolve, setDestroyOnSolve] = useState(!!data.destroy_on_solve);
+  const [unlimitedOwner, setUnlimitedOwner] = useState(
+    data.max_owner_instances === null,
+  );
+  const [unlimitedGlobal, setUnlimitedGlobal] = useState(
+    data.max_instances === null,
+  );
   const [autoDestroy, setAutoDestroy] = useState(!!data.auto_destroy),
     [verification, setVerification] = useState(!!data.require_verification),
     [security, setSecurity] = useState(data.security ?? "starttls"),
@@ -112,6 +119,13 @@ function SettingsForm({
                       renew_limit: Number(f.get("renew_limit")),
                       renew_seconds: Number(f.get("renew_seconds")) * 60,
                       auto_destroy: autoDestroy,
+                      destroy_on_solve: destroyOnSolve,
+                      max_owner_instances: unlimitedOwner
+                        ? null
+                        : Number(f.get("max_owner_instances")),
+                      max_instances: unlimitedGlobal
+                        ? null
+                        : Number(f.get("max_instances")),
                     }
                   : {
                       require_verification: verification,
@@ -172,6 +186,55 @@ function SettingsForm({
             </>
           ) : section === "containers" ? (
             <>
+              <Group title="数量限制">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Field label="单人 / 战队上限">
+                    <div className="flex items-center gap-4">
+                      <Input
+                        name="max_owner_instances"
+                        aria-label="单人 / 战队上限"
+                        type="number"
+                        min={1}
+                        max={10000}
+                        required={!unlimitedOwner}
+                        disabled={unlimitedOwner}
+                        defaultValue={data.max_owner_instances ?? 2}
+                      />
+                      <span className="shrink-0">
+                        <ToggleField
+                          label="单人不限"
+                          checked={unlimitedOwner}
+                          onChange={setUnlimitedOwner}
+                        />
+                      </span>
+                    </div>
+                  </Field>
+                  <Field label="全局上限">
+                    <div className="flex items-center gap-4">
+                      <Input
+                        name="max_instances"
+                        aria-label="全局上限"
+                        type="number"
+                        min={1}
+                        max={100000}
+                        required={!unlimitedGlobal}
+                        disabled={unlimitedGlobal}
+                        defaultValue={data.max_instances ?? 64}
+                      />
+                      <span className="shrink-0">
+                        <ToggleField
+                          label="全局不限"
+                          checked={unlimitedGlobal}
+                          onChange={setUnlimitedGlobal}
+                        />
+                      </span>
+                    </div>
+                  </Field>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  练习按个人、比赛按战队计算。包含排队任务与附件环境；CPU、内存和比赛配额仍生效。
+                </p>
+              </Group>
               <Group title="时长与续期">
                 <div className="grid gap-5 sm:grid-cols-3">
                   <Field label="默认时长（分钟）">
@@ -209,7 +272,14 @@ function SettingsForm({
                   新建独立靶机生效。题目可覆盖默认时长，续期不超过比赛截止时间。
                 </p>
               </Group>
-              <Group title="数量达到上限时">
+              <Group title="自动回收">
+                <ToggleField
+                  label="完成解题后销毁靶机"
+                  checked={destroyOnSolve}
+                  onChange={setDestroyOnSolve}
+                >
+                  全部小题解答后回收独立靶机。公共环境、AWD 和多轮计分环境除外。
+                </ToggleField>
                 <ToggleField
                   label="自动销毁旧实例"
                   checked={autoDestroy}
