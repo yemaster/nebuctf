@@ -29,7 +29,7 @@ type Stage = {
   owner: string;
   directory: string;
   expires: number;
-  manifest: ContentManifest;
+  manifest: ContentManifest | null;
   files: Map<string, ArchiveFile>;
   busy: boolean;
   result?: Awaited<ReturnType<typeof importContent>>;
@@ -139,10 +139,10 @@ export function contentTransferRoutes(app: FastifyInstance, db: DB) {
       .parse(req.query);
     await rate(db, `content-import:${user.id}`, 10, 60);
     await sweep();
+    const pending = [...stages.values()].filter((stage) => !stage.result);
     if (
-      stages.size >= 4 ||
-      [...stages.values()].filter((s) => s.owner === user.id && !s.result)
-        .length >= 2
+      pending.length + working >= 4 ||
+      pending.filter((stage) => stage.owner === user.id).length >= 2
     )
       fail(429, "待导入文件包过多，请先完成或取消已有导入");
     claim();
@@ -207,11 +207,19 @@ export function contentTransferRoutes(app: FastifyInstance, db: DB) {
       const result = await importContent(
         db,
         user.id,
-        stage.manifest,
+        stage.manifest!,
         stage.files,
         options,
       );
       stage.result = result;
+      stage.manifest = null;
+      // Keep only small idempotency receipts; completed imports never occupy a
+      // preview slot or retain answer definitions in memory.
+      if (stages.size > 128)
+        for (const [id, previous] of stages) {
+          if (stages.size <= 128) break;
+          if (previous.result && id !== token) stages.delete(id);
+        }
       await rm(stage.directory, { recursive: true, force: true }).catch(
         (error) => app.log.error(error, "completed import cleanup failed"),
       );

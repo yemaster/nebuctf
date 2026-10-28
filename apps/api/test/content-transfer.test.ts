@@ -463,6 +463,24 @@ test(
         await writeFile(zip, r.rawPayload);
         const unpacked = await unpackContent(zip, dir),
           m = contentManifest.parse(unpacked.data);
+        // Completed imports must release preview capacity while retaining a small retry receipt.
+        for (let i = 0; i < 5; i++) {
+          const request = multipart(r.rawPayload);
+          const preview = await app.inject({
+            method: "POST",
+            url: "/api/admin/transfers/preview?kind=challenge",
+            ...request,
+            headers: { ...request.headers, ...headers(other) },
+          });
+          assert.equal(preview.statusCode, 200, preview.body);
+          const committed = await app.inject({
+            method: "POST",
+            url: `/api/admin/transfers/${preview.json().token}/commit`,
+            headers: headers(other),
+            payload: { title: "连续导入 " + i },
+          });
+          assert.equal(committed.statusCode, 200, committed.body);
+        }
         const imported = await importContent(db, admin.id, m, unpacked.files, {
           title: "静态副本",
           flags: {},
