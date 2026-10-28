@@ -1,3 +1,4 @@
+import { pageNavigationLabel } from "@/lib/page-title";
 import { useSiteSettings, defaultSite } from "@/lib/site-settings";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
@@ -361,7 +362,7 @@ export function SiteFooter({
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className={control} aria-label="页脚导航">
           <Menu className="size-3.5" />
-          {contestId ? "比赛菜单" : "菜单"}
+          {pageNavigationLabel(pathname, search)}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

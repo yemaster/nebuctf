@@ -118,6 +118,21 @@ export function pageTitle(
   return pages[path] ?? "页面不存在";
 }
 
+// Short route labels keep the footer useful without repeating resource titles.
+export function pageNavigationLabel(pathname: string, search: string) {
+  const path = pathname.replace(/\/$/, "") || "/";
+  const [, area, id, section, sub, managed] = path.split("/");
+  if (area === "challenges") return "练习";
+  if (area === "terminal") return "终端";
+  if (area === "contests" && id)
+    return section === "manage"
+      ? (management[sub ?? "teams"] ?? "比赛管理")
+      : (competition[section ?? ""] ?? "概览");
+  if (area === "admin" && id === "contests" && sub === "manage")
+    return management[managed ?? "teams"] ?? "比赛管理";
+  return pageTitle(path, search, () => undefined);
+}
+
 export function useDocumentTitle(siteName: string) {
   const { pathname, search } = useLocation();
   const cache = useQueryClient();

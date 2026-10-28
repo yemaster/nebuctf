@@ -339,7 +339,7 @@ test("footer groups information on the left, keeps local time on the right and l
             ),
           ];
           const menu = document.querySelector('button[aria-label="页脚导航"]')!;
-          assert.equal(menu.textContent?.trim(), "比赛菜单");
+          assert.equal(menu.textContent?.trim(), "赛题");
           assert.equal(
             footerActions.indexOf(menu),
             footerActions.indexOf(
