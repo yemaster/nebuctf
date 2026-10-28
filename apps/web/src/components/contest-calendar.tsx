@@ -35,7 +35,7 @@ function ContestDay(props: DayProps) {
           data-days={bar.length}
           aria-hidden="true"
           className={cn(
-            "pointer-events-none absolute z-20 h-[3px]",
+            "pointer-events-none absolute z-20 h-[3px] saturate-50 brightness-75",
             bar.color,
             bar.starts && "rounded-l-full",
             bar.ends && "rounded-r-full",
