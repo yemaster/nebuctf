@@ -4,13 +4,16 @@ export type ContestCalendarDay = {
   count: number;
   contests?: CalendarContest[];
 };
+// GZCTF uses Mantine shade 4 in light timelines and shade 9 in dark timelines.
+// Reuse its cool color families; custom gray stays visible on either surface.
+// Source: GZTimeWalker/GZCTF, ClientApp/src/pages/games/Index.tsx (7e61deef).
 const colors = [
-  "bg-sky-400",
-  "bg-violet-400",
-  "bg-amber-400",
-  "bg-teal-400",
-  "bg-rose-400",
-  "bg-indigo-400",
+  "bg-[#4dabf7] dark:bg-[#1864ab]",
+  "bg-[#9775fa] dark:bg-[#5f3dc4]",
+  "bg-[#38d9a9] dark:bg-[#087f5b]",
+  "bg-[#748ffc] dark:bg-[#364fc7]",
+  "bg-[#da77f2] dark:bg-[#862e9c]",
+  "bg-[#7a7a7a] dark:bg-[#b3b3b3]",
 ];
 export const calendarDayKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
