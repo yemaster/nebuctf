@@ -218,11 +218,15 @@ export function TerminalPage() {
             ? instance?.queue_ahead
               ? `排队中，前方 ${instance.queue_ahead} 个任务`
               : "正在启动"
-            : stopping
+            : stopping || action.variables === "stop"
               ? "正在销毁"
-              : "正在续期"
+              : action.variables === "start"
+                ? "正在启动"
+                : "正在续期"
         }
-        completeLabel={stopping ? "已销毁" : "已完成"}
+        completeLabel={
+          stopping || action.variables === "stop" ? "已销毁" : "已完成"
+        }
         idle={running ? <Lifetime instance={instance!} /> : undefined}
       />
       {(running || creating) && (
