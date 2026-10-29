@@ -952,3 +952,8 @@ OperationProgress 支持在退场后显示有效期内容，同一资源始终�
 已部署到 huawei-sh，功能提交 `2a4aff1`、`b2a61fd`，数据库迁移为 30。通过真实 PostgreSQL 与 Nginx 验证私密比赛报名、字段版本冲突、分组覆盖全局审核、成员资料隔离、摘要/详情区分、行内审核、Logo 权限与 256×256 WebP 输出，以及欢迎消息变量、多个按钮和投递去重。欢迎设置仅在隔离事务中供测试投递使用，提交前恢复原值，正式配置保持不变；临时用户、会话、战队、比赛、消息、审计和文件均已清理。
 
 公网首页、登录、注册、题库、比赛页及页面标题正常，日历和历史资源访问通过。120 个公网 JS/CSS 文件共 5,159,949 字节与本地构建逐字节一致。仅重建并更新 API/Web，数据库、Worker、Gateway 容器 ID 保持不变。备份 `/var/backups/nebuctf/before-onboarding-20261029-f4d7df2.dump` 和回退镜像 `nebuctf-platform:before-onboarding-20261029`、`nebuctf-web:before-onboarding-20261029` 已保留。使用本地 yemaster 身份分类提交，未推送 GitHub。
+
+
+## 2026-10-29：后台侧栏标题精简
+
+移除侧栏顶部重复的「管理中心」标题及其整行空间，直接从「基础」分组开始；面包屑和页面标题保持原有导航用途。后台既有 10 项测试、生产构建、类型检查及依赖预算通过；桌面亮暗主题截图、折叠与展开、菜单跳转通过。已部署到 huawei-sh，功能提交 `f0510f6`，仅更新 Web，API/数据库/Worker/Gateway 容器 ID 均未变化。健康检查、Nginx 配置、公开页面和历史资源通过，120 个公网 JS/CSS 共 5,159,713 字节与本地构建一致。保留回退镜像 `nebuctf-web:before-admin-title-20261029`；未推送 GitHub。
