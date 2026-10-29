@@ -36,7 +36,6 @@ import { PageLoadingBoundary } from "@/components/loading-transition";
 import {
   SidebarProvider,
   Sidebar,
-  SidebarHeader,
   SidebarContent,
   SidebarGroup,
   SidebarGroupLabel,
@@ -199,18 +198,6 @@ function AdminLayout() {
   return (
     <>
       <Sidebar collapsible="icon" className="absolute h-full">
-        <SidebarHeader className="p-4">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild size="lg">
-                <Link to="/admin/overview">
-                  <ShieldCheck />
-                  <span className="font-semibold">管理中心</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarHeader>
         <SidebarContent>
           <nav aria-label="管理导航">
             {groups.map((group) => (
