@@ -22,12 +22,14 @@ const pages: Record<string, string> = {
   "/login": "登录",
   "/register": "注册",
   "/account": "我的账户",
+  "/messages": "消息中心",
 };
 const admin: Record<string, string> = {
   overview: "概览",
   settings: "系统配置",
   containers: "容器策略",
   mail: "邮件策略",
+  messages: "系统消息",
   ai: "AI 转发",
   challenges: "题目",
   contests: "比赛",

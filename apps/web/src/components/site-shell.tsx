@@ -1,9 +1,11 @@
 import { UserAvatar } from "./user-avatar";
+import { MessageBell } from "./message-bell";
 import { useSiteSettings, defaultSite } from "@/lib/site-settings";
 import { Link, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   BookOpen,
+  Bell,
   ChevronDown,
   GitBranch,
   LogOut,
@@ -54,6 +56,7 @@ const secondary = [
   { to: "/library", name: "知识库" },
 ];
 const account = [
+  { to: "/messages", name: "消息中心", icon: Bell },
   { to: "/team", name: "我的战队", icon: Users },
   { to: "/instances", name: "我的靶机", icon: Server },
   { to: "/account", name: "账户设置", icon: UserRound },
@@ -304,6 +307,7 @@ export function SiteHeader({
         </nav>
         <div className="relative ml-auto flex h-full shrink-0 items-stretch gap-1">
           <ThemeSettings />
+          {user && <MessageBell key={user.id} user={user.id} />}
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

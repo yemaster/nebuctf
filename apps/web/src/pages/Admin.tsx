@@ -25,6 +25,7 @@ import {
   Settings,
   Timer,
   Mail,
+  Bell,
   Waypoints,
 } from "lucide-react";
 import { useUser } from "@/App";
@@ -120,6 +121,12 @@ const AIRoutesAdmin = lazy(() =>
 const AIRouteEditor = lazy(() =>
   import("./admin/AIRoutes").then((m) => ({ default: m.AIRouteEditor })),
 );
+const MessagesAdmin = lazy(() =>
+  import("./admin/Messages").then((m) => ({ default: m.MessagesAdmin })),
+);
+const MessageComposer = lazy(() =>
+  import("./admin/Messages").then((m) => ({ default: m.MessageComposer })),
+);
 const groups = [
   {
     title: "基础",
@@ -128,6 +135,7 @@ const groups = [
       { path: "settings", title: "系统配置", icon: Settings },
       { path: "containers", title: "容器策略", icon: Timer },
       { path: "mail", title: "邮件策略", icon: Mail },
+      { path: "messages", title: "系统消息", icon: Bell },
       { path: "ai", title: "AI 转发", icon: Waypoints },
     ],
   },
@@ -308,6 +316,8 @@ function AdminLayout() {
                     path="mail"
                     element={<SystemSettings section="mail" />}
                   />
+                  <Route path="messages" element={<MessagesAdmin />} />
+                  <Route path="messages/new" element={<MessageComposer />} />
                   <Route path="ai" element={<AIRoutesAdmin />} />
                   <Route path="ai/new" element={<AIRouteEditor />} />
                   <Route path="ai/:id/edit" element={<AIRouteEditor />} />

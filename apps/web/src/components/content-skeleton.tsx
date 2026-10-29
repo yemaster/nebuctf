@@ -15,6 +15,7 @@ export type SkeletonKind =
   | "directory"
   | "scoreboard"
   | "ranking"
+  | "messages"
   | "announcements"
   | "cards"
   | "article"
@@ -49,6 +50,7 @@ export type SkeletonKind =
 export function pageSkeleton(path: string, search = ""): SkeletonKind {
   const params = new URLSearchParams(search);
   if (path === "/") return "home";
+  if (path === "/messages") return "messages";
   if (path === "/challenges")
     return params.has("challenge") || params.has("problemset")
       ? params.get("challenge") === "objective"
@@ -524,6 +526,28 @@ function Body({ kind }: { kind: SkeletonKind }) {
             <Skeleton className="h-5 w-20" />
             <Skeleton className="h-9 w-52" />
           </div>
+        </>
+      );
+    case "messages":
+      return (
+        <>
+          <Heading />
+          <Panel>
+            <Filters />
+            <div className="divide-y">
+              {repeat(10, () => (
+                <div className="flex items-center gap-4 py-3">
+                  <Skeleton className="size-5 shrink-0" />
+                  <div className="flex-1 space-y-3">
+                    <Skeleton className="h-4 w-52 max-w-full" />
+                    <Skeleton className="h-4 w-2/3" />
+                  </div>
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-8 w-16" />
+                </div>
+              ))}
+            </div>
+          </Panel>
         </>
       );
     case "scoreboard":

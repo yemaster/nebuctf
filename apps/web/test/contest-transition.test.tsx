@@ -826,6 +826,8 @@ test("contest navigation handles shared snapshots, fallbacks and unregistered de
         // announcement list with the page error before the assertion runs.
         globalThis.fetch = (async (input: string) => {
           const url = new URL(input, "http://localhost");
+          if (url.pathname === "/api/notifications/summary")
+            return Response.json({ unread: 0, revision: null });
           if (url.pathname === "/api/contests/calendar")
             return Response.json({ days: [] });
           if (url.pathname === "/api/contests")

@@ -1,4 +1,7 @@
 import { useDocumentTitle } from "./lib/page-title";
+const Messages = lazy(() =>
+  import("./pages/Messages").then((m) => ({ default: m.Messages })),
+);
 import { useSiteSettings } from "@/lib/site-settings";
 const ContestSpectator = lazy(() =>
   import("./pages/ContestSpectator").then((m) => ({
@@ -281,6 +284,7 @@ function AppShell() {
                             element={<ContestDetail />}
                           />
                           <Route path="/scoreboard" element={<Scoreboard />} />
+                          <Route path="/messages" element={<Messages />} />
                           <Route path="/library" element={<Library />} />
                           <Route
                             path="/library/:slug"
