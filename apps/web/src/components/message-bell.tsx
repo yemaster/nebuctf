@@ -32,3 +32,30 @@ export function MessageBell({ user }: { user: string }) {
     </Button>
   );
 }
+
+export function MessageMenuItem({ user }: { user: string }) {
+  const summary = useInboxSummary(user);
+  const unread = summary.data?.unread ?? 0;
+  return (
+    <>
+      <span className="relative inline-flex">
+        <Bell className="size-4" />
+        {unread > 0 && (
+          <span
+            aria-hidden="true"
+            className="absolute -right-1 -top-1 size-2 rounded-full bg-primary ring-2 ring-popover"
+          />
+        )}
+      </span>
+      <span>消息中心</span>
+      {unread > 0 && (
+        <Badge
+          className="ml-auto bg-primary text-primary-foreground"
+          aria-label={`${unread} 条未读`}
+        >
+          {unread > 99 ? "99+" : unread}
+        </Badge>
+      )}
+    </>
+  );
+}

@@ -2,7 +2,7 @@ import { ContestTiming } from "@/components/contest-timing";
 const Scoreboard = lazy(() =>
   import("./Scoreboard").then((m) => ({ default: m.Scoreboard })),
 );
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { lazy, useState, type ReactNode } from "react";
 import { ArrowRight, MonitorPlay } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -115,6 +115,7 @@ export function Contests() {
   );
 }
 export function ContestDetail() {
+  const navigate = useNavigate();
   const { id } = useParams(),
     user = useUser(),
     [open, setOpen] = useState(false),
@@ -274,6 +275,10 @@ export function ContestDetail() {
                       (c.registration_mode === "teams" && !captained.length)
                     }
                     onClick={() => {
+                      if (c.registration_form?.length) {
+                        navigate(`/contests/${id}/register`);
+                        return;
+                      }
                       setTeam(captained[0]?.id ?? "");
                       setGroup(
                         c.groups.find((g) => g.joinable !== false)?.id ?? "",
@@ -293,6 +298,13 @@ export function ContestDetail() {
                             : "战队报名"}
                   </Button>
                 )}
+                {c.registration?.is_captain &&
+                  (c.registration.has_form ||
+                    !!c.registration_form?.length) && (
+                    <Button asChild variant="secondary">
+                      <Link to={`/contests/${id}/register`}>报名资料</Link>
+                    </Button>
+                  )}
                 {access.scoreboard && (
                   <Button variant="secondary" asChild>
                     <Link to={`/contests/${id}/scoreboard`}>排行榜</Link>

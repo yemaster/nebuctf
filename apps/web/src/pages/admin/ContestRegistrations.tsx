@@ -1,3 +1,4 @@
+import { TeamAvatar } from "@/components/team-avatar";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -283,9 +284,15 @@ export function Registrations() {
                           <ChevronRight
                             className={`shrink-0 motion-safe:transition-transform ${expanded === r.team_id ? "rotate-90" : ""}`}
                           />
+                          <TeamAvatar logoId={r.logo_id} className="size-7" />
                           <span className="min-w-0 break-all">{r.name}</span>
                         </Button>
                       </CollapsibleTrigger>
+                      {!!r.form_fields && (
+                        <Badge variant="secondary">
+                          资料 {r.form_fields} 项
+                        </Badge>
+                      )}
                       {r.practice_only && (
                         <Badge variant="secondary">赛后练习</Badge>
                       )}

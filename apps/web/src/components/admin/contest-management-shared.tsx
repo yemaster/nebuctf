@@ -13,6 +13,10 @@ export const integrityStatuses = {
 };
 export type ReviewStatus = keyof typeof statuses;
 export type Registration = {
+  logo_id?: string | null;
+  form_fields?: number;
+  form_snapshot?: import("@/lib/registration-form").RegistrationField[];
+  form_answers?: import("@/lib/registration-form").RegistrationAnswers;
   practice_only?: boolean;
   team_id: string;
   name: string;

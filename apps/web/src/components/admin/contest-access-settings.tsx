@@ -110,6 +110,7 @@ export function ContestAccessSettings({
               type="password"
               autoComplete="new-password"
               name="registration_code"
+              defaultValue={contest?.registration_code}
               minLength={6}
               maxLength={128}
               disabled={mode !== "invite"}
@@ -133,10 +134,10 @@ export function ContestAccessSettings({
         </h2>
         <div className="divide-y rounded-lg bg-muted/40 px-4">
           <label className="flex items-center justify-between gap-4 py-4 text-sm">
-            所有报名均需审核
+            报名免审核
             <Switch
-              name="require_review"
-              defaultChecked={contest?.require_review}
+              name="auto_approve"
+              defaultChecked={!contest?.require_review}
             />
           </label>
           <label className="flex items-center justify-between gap-4 py-4 text-sm">

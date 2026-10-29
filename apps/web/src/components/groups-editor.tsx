@@ -1,3 +1,4 @@
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import {
   useEffect,
   useImperativeHandle,
@@ -184,6 +185,14 @@ export function GroupsEditor({
           <input type="hidden" name="group_description" value={g.description} />
           <input
             type="hidden"
+            name="group_review_mode"
+            value={
+              g.review_mode ??
+              (g.permissions?.require_review ? "required" : "inherit")
+            }
+          />
+          <input
+            type="hidden"
             name="group_permissions"
             value={JSON.stringify({
               ...defaultGroupPermissions,
@@ -315,6 +324,34 @@ export function GroupsEditor({
               {issue.message}
             </p>
           )}
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-medium">报名审核</legend>
+            <RadioGroup
+              className="flex flex-wrap gap-5"
+              value={
+                active.review_mode ??
+                (permissions.require_review ? "required" : "inherit")
+              }
+              onValueChange={(v) =>
+                update({
+                  ...active,
+                  review_mode: v as "inherit" | "auto" | "required",
+                  permissions: { ...permissions, require_review: false },
+                })
+              }
+            >
+              {[
+                ["inherit", "跟随比赛"],
+                ["auto", "免审核"],
+                ["required", "需要审核"],
+              ].map(([v, l]) => (
+                <label key={v} className="flex items-center gap-2 text-sm">
+                  <RadioGroupItem value={v!} />
+                  {l}
+                </label>
+              ))}
+            </RadioGroup>
+          </fieldset>
           <fieldset className="min-w-0 space-y-4">
             <legend className="mb-4 text-sm font-medium">默认权限</legend>
             {started && (
@@ -323,23 +360,23 @@ export function GroupsEditor({
               </p>
             )}
             <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
-              {(
-                Object.keys(permissionLabels) as (keyof GroupPermissions)[]
-              ).map((key) => (
-                <label key={key} className="flex items-center gap-2 text-sm">
-                  <Switch
-                    checked={permissions[key]}
-                    disabled={started && scoringPermissions.has(key)}
-                    onCheckedChange={(yes) =>
-                      update({
-                        ...active,
-                        permissions: { ...permissions, [key]: !!yes },
-                      })
-                    }
-                  />
-                  {permissionLabels[key]}
-                </label>
-              ))}
+              {(Object.keys(permissionLabels) as (keyof GroupPermissions)[])
+                .filter((key) => key !== "require_review")
+                .map((key) => (
+                  <label key={key} className="flex items-center gap-2 text-sm">
+                    <Switch
+                      checked={permissions[key]}
+                      disabled={started && scoringPermissions.has(key)}
+                      onCheckedChange={(yes) =>
+                        update({
+                          ...active,
+                          permissions: { ...permissions, [key]: !!yes },
+                        })
+                      }
+                    />
+                    {permissionLabels[key]}
+                  </label>
+                ))}
             </div>
           </fieldset>
           <Collapsible
@@ -446,7 +483,13 @@ export function GroupsEditor({
                       >
                         {p.join ? "开放报名" : "报名关闭"}
                       </Badge>
-                      <Badge>{p.require_review ? "需审核" : "免审核"}</Badge>
+                      <Badge>
+                        {g.review_mode === "auto"
+                          ? "免审核"
+                          : g.review_mode === "required" || p.require_review
+                            ? "需审核"
+                            : "跟随比赛审核"}
+                      </Badge>
                       <Badge>{p.rank_overall ? "全局排名" : "组内排名"}</Badge>
                       {!p.score && <Badge>不计分</Badge>}
                     </div>
@@ -595,6 +638,7 @@ export function readGroups(f: FormData, challengeIds: string[] = []) {
   return f.getAll("group_name").map((name, i) => ({
     id: f.getAll("group_id")[i] || undefined,
     name,
+    review_mode: f.getAll("group_review_mode")[i] || "inherit",
     description: f.getAll("group_description")[i],
     permissions: JSON.parse(String(f.getAll("group_permissions")[i] ?? "{}")),
     challenge_permissions: Object.fromEntries(

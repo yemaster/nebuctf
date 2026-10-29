@@ -93,6 +93,7 @@ export interface Challenge {
   ttl: number;
 }
 export interface ContestGroup {
+  review_mode?: "inherit" | "auto" | "required";
   id: string;
   name: string;
   description: string;
@@ -111,6 +112,8 @@ export interface ContestGroup {
   rank_overall?: boolean;
 }
 export interface Contest {
+  registration_code?: string;
+  registration_form?: import("./registration-form").RegistrationField[];
   submission_limits?: import("./submission-limits").SubmissionLimits;
   submission_overrides?: import("./submission-limits").SubmissionOverride[];
   hint_policy?: import("./hints").HintPolicy;
@@ -153,6 +156,7 @@ export interface Contest {
   poster_id: string | null;
   groups: ContestGroup[];
   registration: {
+    has_form?: boolean;
     team_id: string;
     practice_only?: boolean;
     group_id: string | null;
@@ -207,12 +211,14 @@ export interface Submission {
   scope: string;
 }
 export interface Team {
+  logo_id?: string | null;
   id: string;
   name: string;
   captain_id: string;
   members: Pick<User, "id" | "username" | "avatar_id">[];
 }
 export interface Score {
+  logo_id?: string | null;
   avatar_id?: string | null;
   hint_cost?: number;
   id: string;
@@ -364,6 +370,7 @@ export interface ProblemSet {
   challenges: { id: string; title: string }[];
 }
 export interface TeamSummary {
+  logo_id?: string | null;
   id: string;
   name: string;
   captain_id: string;

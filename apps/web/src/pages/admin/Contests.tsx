@@ -238,7 +238,7 @@ export function ContestEditor() {
           key={id ?? "new"}
           contest={data.data ?? null}
           pending={save.isPending}
-          save={(body) => save.mutate(body)}
+          save={(body) => save.mutateAsync(body)}
         />
       )}
     </>

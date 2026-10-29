@@ -289,7 +289,10 @@ test(
               .querySelector("button")!;
           assert.equal(host().querySelectorAll('[role="switch"]').length, 0);
           await click(host().querySelector('[aria-label="配置组别 体验组"]')!);
-          assert.equal(host().querySelectorAll('[role="switch"]').length, 9);
+          assert.equal(host().querySelectorAll('[role="switch"]').length, 8);
+          assert.equal(host().querySelectorAll('[role="radio"]').length, 3);
+          await click(host().querySelector('[role="radio"][value="auto"]')!);
+          assert.equal(values().review_mode, "auto");
           assert.equal(values().permissions.score, false);
           await click(toggle("查看赛题"));
           assert.equal(values().permissions.view, false);
@@ -587,7 +590,7 @@ test(
           );
           await click(toggle("spectator_scoreboard"));
           await click(toggle("practice_mode"));
-          await click(toggle("require_review"));
+          await click(toggle("auto_approve"));
           await click(host().querySelector('[role="radio"][value="invite"]')!);
           await tab("基本信息");
           await click(button("保存比赛"));

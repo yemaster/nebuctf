@@ -1,4 +1,9 @@
 import { useDocumentTitle } from "./lib/page-title";
+const ContestRegistration = lazy(() =>
+  import("./pages/ContestRegistration").then((m) => ({
+    default: m.ContestRegistration,
+  })),
+);
 const Messages = lazy(() =>
   import("./pages/Messages").then((m) => ({ default: m.Messages })),
 );
@@ -285,6 +290,10 @@ function AppShell() {
                           />
                           <Route path="/scoreboard" element={<Scoreboard />} />
                           <Route path="/messages" element={<Messages />} />
+                          <Route
+                            path="/contests/:id/register"
+                            element={<ContestRegistration />}
+                          />
                           <Route path="/library" element={<Library />} />
                           <Route
                             path="/library/:slug"

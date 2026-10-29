@@ -434,7 +434,15 @@ function MessageView({
         )}
       </ScrollArea>
       {message && !data.error && (
-        <SheetFooter className="flex-row justify-start gap-2 border-t p-6">
+        <SheetFooter className="flex-row flex-wrap justify-start gap-2 border-t p-6">
+          {message.actions?.map((action, i) => (
+            <Button key={i} asChild variant={i === 0 ? "default" : "outline"}>
+              <Link to={action.href} onClick={close}>
+                <ArrowUpRight />
+                {action.label}
+              </Link>
+            </Button>
+          ))}
           {message.href && (
             <Button asChild>
               <Link to={message.href} onClick={close}>

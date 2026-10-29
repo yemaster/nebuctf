@@ -1,3 +1,6 @@
+import { useUser } from "@/App";
+import { readDraft, writeDraft, clearDraft } from "@/lib/use-draft";
+import { RegistrationFormEditor } from "./registration-form-editor";
 import { ContestSubmissionLimits } from "./contest-submission-limits";
 import {
   validSubmissionLimit,
@@ -20,7 +23,7 @@ import { ContestQuestions, type QuestionIssue } from "./contest-questions";
 import { PhaseEditor } from "./phase-editor";
 import { validateContestQuestions } from "@/lib/contest-editor";
 import type { ContestQuestion } from "@/lib/competition";
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { Contest } from "@/lib/types";
 import { Button } from "../ui/button";
 import { Input, Textarea } from "../ui/input";
@@ -36,14 +39,28 @@ import { ConfigPanel, focusInvalidField } from "./config-tabs";
 import { inputDate } from "./shared";
 import { Alert, AlertTitle } from "../ui/alert";
 export function ContestForm({
-  contest: c,
+  contest: saved,
   pending,
   save,
 }: {
   contest: Contest | null;
   pending: boolean;
-  save: (body: Record<string, unknown>) => void;
+  save: (body: Record<string, unknown>) => Promise<unknown>;
 }) {
+  const user = useUser();
+  const draftKey = `contest-editor:${user?.id ?? "admin"}:${saved?.id ?? "new"}`;
+  const [restored, setRestored] = useState<Contest | null>(() =>
+    user ? readDraft(draftKey, null) : null,
+  );
+  const c = restored ?? saved;
+  const formRef = useRef<HTMLFormElement>(null),
+    dirty = useRef(false);
+  const [formVersion, setFormVersion] = useState(0),
+    [draftSaved, setDraftSaved] = useState<boolean | null>(null);
+  const [registrationIssue, setRegistrationIssue] = useState("");
+  const [registrationFields, setRegistrationFields] = useState(
+    c?.registration_form ?? [],
+  );
   const [params] = useSearchParams();
   const [section, setSection] = useState(
     params.get("section") === "writeup" ? "writeup" : "content",
@@ -83,12 +100,85 @@ export function ContestForm({
   const [scheduleIssue, setScheduleIssue] = useState("");
   const groupsEditor = useRef<GroupsEditorHandle>(null);
   const started = !!c && Date.parse(c.starts_at) <= Date.now();
+  useLayoutEffect(() => {
+    if (!user?.id || !dirty.current || pending || !formRef.current) return;
+    const f = new FormData(formRef.current);
+    const time = (key: string) => {
+      const v = String(f.get(key) ?? "");
+      return v && Number.isFinite(Date.parse(v))
+        ? new Date(v).toISOString()
+        : null;
+    };
+    const snapshot = {
+      ...c,
+      title: String(f.get("title") ?? ""),
+      description: String(f.get("description") ?? ""),
+      starts_at: time("starts_at"),
+      ends_at: time("ends_at"),
+      freeze_at: time("freeze_at"),
+      registration_opens_at: time("registration_opens_at"),
+      registration_closes_at: time("registration_closes_at"),
+      team_limit: Number(f.get("team_limit")),
+      round_duration: Number(f.get("round_duration") ?? 300),
+      published: f.has("published"),
+      require_review: !f.has("auto_approve"),
+      practice_mode: f.has("practice_mode"),
+      spectator_enabled: f.has("spectator_enabled"),
+      spectator_scoreboard: f.has("spectator_scoreboard"),
+      registration_mode: String(f.get("registration_mode")),
+      registration_code: String(f.get("registration_code") ?? ""),
+      visibility: String(f.get("visibility")),
+      registration_team_ids: allowedTeams,
+      challenge_ids: selected,
+      challenge_settings: settings,
+      submission_limits: submissionLimits,
+      submission_overrides: submissionOverrides,
+      hint_policy: hintPolicy,
+      hint_overrides: hintOverrides,
+      writeup,
+      timing,
+      groups: readGroups(f, selected),
+      registration_form: registrationFields,
+      resource_limits: Object.fromEntries(
+        [
+          "containers_per_team",
+          "attachments_per_team",
+          "containers_total",
+          "attachments_total",
+        ].map((k) => [k, f.get(k) === "" ? null : Number(f.get(k))]),
+      ),
+    };
+    setDraftSaved(writeDraft(draftKey, snapshot));
+  }, [
+    formVersion,
+    pending,
+    allowedTeams,
+    selected,
+    settings,
+    submissionLimits,
+    submissionOverrides,
+    hintPolicy,
+    hintOverrides,
+    writeup,
+    timing,
+    registrationFields,
+  ]);
+
   return (
     <form
+      ref={formRef}
+      onChangeCapture={() => {
+        dirty.current = true;
+        setFormVersion((v) => v + 1);
+      }}
+      onClickCapture={() => {
+        dirty.current = true;
+        setFormVersion((v) => v + 1);
+      }}
       id="contest-form"
       className="space-y-6"
       noValidate
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         if (pending) return;
         const f = new FormData(e.currentTarget);
@@ -140,6 +230,25 @@ export function ContestForm({
           setSection("registration");
           return;
         }
+        const invalidField = registrationFields.find(
+          (f) =>
+            !f.label.trim() ||
+            (["select", "multi"].includes(f.type) &&
+              (f.options.length < 2 ||
+                f.options.some((o) => !o.trim()) ||
+                new Set(f.options.map((o) => o.trim())).size !==
+                  f.options.length)),
+        );
+        if (invalidField) {
+          setRegistrationIssue(
+            invalidField.label
+              ? `${invalidField.label}：请填写至少两个不重复的选项`
+              : "请填写字段名称",
+          );
+          setSection("form");
+          return;
+        }
+        setRegistrationIssue("");
         if (focusInvalidField(e.currentTarget, setSection)) return;
         const registrationOpen = f.get("registration_opens_at")
           ? new Date(String(f.get("registration_opens_at"))).toISOString()
@@ -159,58 +268,89 @@ export function ContestForm({
           setSection("timing");
           return;
         }
-        save({
-          title: f.get("title"),
-          description: f.get("description"),
-          starts_at: new Date(String(f.get("starts_at"))).toISOString(),
-          ends_at: new Date(String(f.get("ends_at"))).toISOString(),
-          freeze_at: f.get("freeze_at")
-            ? new Date(String(f.get("freeze_at"))).toISOString()
-            : null,
-          team_limit: Number(f.get("team_limit")),
-          published: f.has("published"),
-          require_review: f.has("require_review"),
-          practice_mode: f.has("practice_mode"),
-          spectator_enabled: f.has("spectator_enabled"),
-          spectator_scoreboard: f.has("spectator_scoreboard"),
-          visibility: f.get("visibility"),
-          resource_limits: Object.fromEntries(
-            [
-              "containers_per_team",
-              "attachments_per_team",
-              "containers_total",
-              "attachments_total",
-            ].map((key) => [
-              key,
-              f.get(key) === "" ? null : Number(f.get(key)),
-            ]),
-          ),
-          registration_mode: f.get("registration_mode"),
-          registration_opens_at: registrationOpen,
-          registration_closes_at: registrationClose,
-          registration_code: f.get("registration_code") ?? "",
-          registration_team_ids: allowedTeams,
-          challenge_ids: selected,
-          challenge_settings: settings.filter((s) =>
-            selected.includes(s.challenge_id),
-          ),
-          timing,
-          submission_limits: submissionLimits,
-          submission_overrides: submissionOverrides.filter((v) =>
-            selected.includes(v.challenge_id),
-          ),
-          hint_policy: hintPolicy,
-          hint_overrides: hintOverrides.filter((h) =>
-            selected.includes(h.challenge_id),
-          ),
-          round_duration: Number(
-            f.get("round_duration") ?? c?.round_duration ?? 300,
-          ),
-          writeup,
-          groups: readGroups(f, selected),
-        });
+        try {
+          await save({
+            title: f.get("title"),
+            description: f.get("description"),
+            starts_at: new Date(String(f.get("starts_at"))).toISOString(),
+            ends_at: new Date(String(f.get("ends_at"))).toISOString(),
+            freeze_at: f.get("freeze_at")
+              ? new Date(String(f.get("freeze_at"))).toISOString()
+              : null,
+            team_limit: Number(f.get("team_limit")),
+            published: f.has("published"),
+            require_review: !f.has("auto_approve"),
+            registration_form: registrationFields,
+            practice_mode: f.has("practice_mode"),
+            spectator_enabled: f.has("spectator_enabled"),
+            spectator_scoreboard: f.has("spectator_scoreboard"),
+            visibility: f.get("visibility"),
+            resource_limits: Object.fromEntries(
+              [
+                "containers_per_team",
+                "attachments_per_team",
+                "containers_total",
+                "attachments_total",
+              ].map((key) => [
+                key,
+                f.get(key) === "" ? null : Number(f.get(key)),
+              ]),
+            ),
+            registration_mode: f.get("registration_mode"),
+            registration_opens_at: registrationOpen,
+            registration_closes_at: registrationClose,
+            registration_code: f.get("registration_code") ?? "",
+            registration_team_ids: allowedTeams,
+            challenge_ids: selected,
+            challenge_settings: settings.filter((s) =>
+              selected.includes(s.challenge_id),
+            ),
+            timing,
+            submission_limits: submissionLimits,
+            submission_overrides: submissionOverrides.filter((v) =>
+              selected.includes(v.challenge_id),
+            ),
+            hint_policy: hintPolicy,
+            hint_overrides: hintOverrides.filter((h) =>
+              selected.includes(h.challenge_id),
+            ),
+            round_duration: Number(
+              f.get("round_duration") ?? c?.round_duration ?? 300,
+            ),
+            writeup,
+            groups: readGroups(f, selected),
+          });
+          dirty.current = false;
+          clearDraft(draftKey);
+          setDraftSaved(null);
+          setRestored(null);
+        } catch {
+          /* Keep the draft and let the existing save action present the error. */
+        }
       }}
     >
+      {(restored || draftSaved !== null) && (
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span>
+            {draftSaved === false
+              ? "浏览器无法保存草稿，请及时保存比赛"
+              : restored
+                ? "已恢复未保存的草稿"
+                : "草稿已保存"}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              clearDraft(draftKey);
+              window.location.reload();
+            }}
+          >
+            丢弃草稿
+          </Button>
+        </div>
+      )}
       <Tabs
         value={section}
         onValueChange={setSection}
@@ -227,6 +367,7 @@ export function ContestForm({
             <TabsTrigger value="resources">资源限制</TabsTrigger>
             <TabsTrigger value="access">访问与报名</TabsTrigger>
             <TabsTrigger value="registration">报名分组</TabsTrigger>
+            <TabsTrigger value="form">报名表单</TabsTrigger>
           </TabsList>
         </div>
         <ConfigPanel value="content" active={section}>
@@ -414,6 +555,17 @@ export function ContestForm({
             />
           </fieldset>
         </ConfigPanel>
+        <ConfigPanel value="form" active={section}>
+          {registrationIssue && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>{registrationIssue}</AlertTitle>
+            </Alert>
+          )}
+          <RegistrationFormEditor
+            value={registrationFields}
+            onChange={setRegistrationFields}
+          />
+        </ConfigPanel>
         <ConfigPanel value="resources" active={section}>
           <fieldset disabled={pending}>
             <legend className="sr-only">资源限制</legend>
@@ -438,7 +590,7 @@ export function ContestForm({
           />
         </ConfigPanel>
       </Tabs>
-      <div className="flex justify-end">
+      <div className="flex justify-start">
         <Button type="submit" disabled={pending}>
           {pending ? "保存中" : "保存比赛"}
         </Button>

@@ -55,6 +55,10 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+const WelcomeMessage = lazy(() =>
+  import("./admin/WelcomeMessage").then((m) => ({ default: m.WelcomeMessage })),
+);
+
 const ContentImport = lazy(() =>
   import("./admin/ContentImport").then((m) => ({ default: m.ContentImport })),
 );
@@ -318,6 +322,7 @@ function AdminLayout() {
                   />
                   <Route path="messages" element={<MessagesAdmin />} />
                   <Route path="messages/new" element={<MessageComposer />} />
+                  <Route path="messages/welcome" element={<WelcomeMessage />} />
                   <Route path="ai" element={<AIRoutesAdmin />} />
                   <Route path="ai/new" element={<AIRouteEditor />} />
                   <Route path="ai/:id/edit" element={<AIRouteEditor />} />

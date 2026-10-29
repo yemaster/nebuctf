@@ -1,3 +1,4 @@
+import { TeamAvatar } from "./team-avatar";
 import { memo, useMemo, useRef, useState } from "react";
 import { Check, Minus } from "lucide-react";
 import type { Score, ScoreCell, ScoreColumn } from "@/lib/types";
@@ -298,6 +299,9 @@ export const ScoreboardTable = memo(function ScoreboardTable({
                           </span>
                         )}
                       </span>
+                      {row.logo_id && (
+                        <TeamAvatar logoId={row.logo_id} className="size-8" />
+                      )}
                       <span className="min-w-0 flex-1">
                         <span className="block truncate" title={row.name}>
                           {row.name}

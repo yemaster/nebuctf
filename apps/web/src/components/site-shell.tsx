@@ -1,5 +1,5 @@
 import { UserAvatar } from "./user-avatar";
-import { MessageBell } from "./message-bell";
+import { MessageBell, MessageMenuItem } from "./message-bell";
 import { useSiteSettings, defaultSite } from "@/lib/site-settings";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -350,8 +350,14 @@ export function SiteHeader({
                 {account.map((item) => (
                   <DropdownMenuItem asChild key={item.to}>
                     <Link to={item.to}>
-                      <item.icon />
-                      {item.name}
+                      {item.to === "/messages" ? (
+                        <MessageMenuItem user={user.id} />
+                      ) : (
+                        <>
+                          <item.icon />
+                          {item.name}
+                        </>
+                      )}
                     </Link>
                   </DropdownMenuItem>
                 ))}

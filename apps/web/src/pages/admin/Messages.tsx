@@ -77,6 +77,11 @@ export function MessagesAdmin() {
         search={params.get("q") ?? ""}
         onSearch={(value) => filter("q", value)}
       />
+      <div className="mb-4">
+        <Button asChild variant="outline">
+          <Link to="/admin/messages/welcome">注册欢迎消息</Link>
+        </Button>
+      </div>
       <Table
         headers={[
           "消息",

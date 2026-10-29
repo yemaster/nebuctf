@@ -50,6 +50,7 @@ const competition: Record<string, string> = {
   instances: "我的靶机",
   spectate: "观战",
   writeup: "WriteUp",
+  register: "比赛报名",
 };
 const management: Record<string, string> = {
   teams: "报名战队",
@@ -83,6 +84,7 @@ export function pageTitle(
   }
   if (area === "admin") {
     if (!id) return "管理中心";
+    if (id === "messages" && section === "welcome") return "注册欢迎消息";
     const label = admin[id];
     if (!label) return "页面不存在";
     if (section === "import") return `导入${label}`;

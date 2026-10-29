@@ -18,6 +18,7 @@ export type MessageDetail = Message & {
   href: string | null;
   action_label: string | null;
   sender: string | null;
+  actions?: { label: string; href: string }[];
 };
 export type InboxSummary = { unread: number; revision: string | null };
 export const messageKinds = {

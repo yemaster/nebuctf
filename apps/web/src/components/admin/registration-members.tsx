@@ -1,3 +1,4 @@
+import { RegistrationAnswersView } from "../registration-fields";
 import { UserAvatar } from "../user-avatar";
 import { useAPI } from "@/lib/api";
 import { date } from "@/lib/utils";
@@ -26,7 +27,10 @@ function ParticipationBadge({
   registration,
 }: {
   member: Registration["members"][number];
-  registration: Pick<Registration, "status" | "practice_only">;
+  registration: Pick<
+    Registration,
+    "status" | "practice_only" | "form_snapshot" | "form_answers"
+  >;
 }) {
   const status = registration.status;
   const label =
@@ -62,9 +66,72 @@ export function RegistrationMembers({
   registration,
 }: {
   members: Registration["members"];
-  registration: Pick<Registration, "status" | "practice_only">;
+  registration: Pick<
+    Registration,
+    "status" | "practice_only" | "form_snapshot" | "form_answers"
+  >;
 }) {
   if (!members.length) return <Empty>战队暂无成员</Empty>;
+  if (registration.form_snapshot?.length) {
+    const fields = registration.form_snapshot.filter(
+      (f) => f.scope === "member",
+    );
+    return (
+      <ItemGroup aria-label="战队成员" className="divide-y whitespace-normal">
+        {members.map((member) => (
+          <Item
+            key={member.id}
+            role="listitem"
+            className="grid gap-4 rounded-none border-0 border-b border-border/50 px-0 py-5 last:border-b-0"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <UserAvatar
+                name={member.username}
+                avatarId={member.avatar_id}
+                className="size-6"
+              />
+              <span className="font-medium">{member.username}</span>
+              {member.captain && <Badge variant="secondary">队长</Badge>}
+              {member.current_member === false && (
+                <Badge variant="secondary">已离队</Badge>
+              )}
+              {member.disabled && <Badge variant="destructive">已禁用</Badge>}
+              {member.role === "admin" && (
+                <Badge variant="secondary">管理员</Badge>
+              )}
+              <span className="ml-auto flex items-center gap-3">
+                <span className="text-xs text-muted-foreground">
+                  {member.email_verified_at ? "邮箱已验证" : "邮箱未验证"}
+                </span>
+                <ParticipationBadge
+                  member={member}
+                  registration={registration}
+                />
+              </span>
+            </div>
+            <dl className="flex flex-wrap gap-x-6 gap-y-2">
+              {[
+                ["账号邮箱", member.email],
+                ["姓名", member.real_name],
+                ["学号", member.student_number],
+                ["电话", member.phone],
+              ]
+                .filter(([, value]) => value)
+                .map(([label, value]) => (
+                  <MemberField key={label} label={label!} value={value!} />
+                ))}
+            </dl>
+            {fields.length > 0 && (
+              <RegistrationAnswersView
+                fields={fields}
+                values={registration.form_answers?.members[member.id] ?? {}}
+              />
+            )}
+          </Item>
+        ))}
+      </ItemGroup>
+    );
+  }
   return (
     <ItemGroup aria-label="战队成员" className="divide-y whitespace-normal">
       {members.map((member) => (
@@ -178,6 +245,20 @@ export function RegistrationMembersPanel({
       />
     );
   return data.data ? (
-    <RegistrationMembers members={data.data.members} registration={data.data} />
+    <div className="space-y-5">
+      {!!data.data.form_snapshot?.some((f) => f.scope === "team") && (
+        <section className="space-y-3 border-b pb-5">
+          <h3 className="font-medium">战队报名资料</h3>
+          <RegistrationAnswersView
+            fields={data.data.form_snapshot.filter((f) => f.scope === "team")}
+            values={data.data.form_answers?.team ?? {}}
+          />
+        </section>
+      )}
+      <RegistrationMembers
+        members={data.data.members}
+        registration={data.data}
+      />
+    </div>
   ) : null;
 }

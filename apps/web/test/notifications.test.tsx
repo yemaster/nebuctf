@@ -20,6 +20,7 @@ test("notification inbox, details, mutations and standalone administration", asy
   for (const [key, value] of Object.entries({
     window: dom.window,
     document: dom.window.document,
+    sessionStorage: dom.window.sessionStorage,
     HTMLElement: dom.window.HTMLElement,
     Element: dom.window.Element,
     Node: dom.window.Node,
@@ -73,11 +74,25 @@ test("notification inbox, details, mutations and standalone administration", asy
     admin = false,
     revision: string | null = null,
     posted: any;
+  let welcome = {
+    enabled: false,
+    title: "欢迎 {username}",
+    body: "欢迎来到 {site_name}",
+    actions: [{ label: "完善个人资料", href: "/account?section=profile" }],
+  };
   const writes: any[] = [];
   globalThis.fetch = (async (input: string, init?: RequestInit) => {
     const url = new URL(input, "http://localhost"),
       p = url.pathname.replace(/^\/api/, ""),
       body = init?.body ? JSON.parse(String(init.body)) : {};
+    if (p === "/admin/settings/welcome") {
+      if (init?.method === "PUT") {
+        welcome = body;
+        writes.push({ p, body });
+        return Response.json({ ok: true });
+      }
+      return Response.json(welcome);
+    }
     if (p === "/me")
       return Response.json({
         user: {
@@ -299,6 +314,53 @@ test("notification inbox, details, mutations and standalone administration", asy
         assert.equal(posted.audience, "users");
         assert.match(posted.request_id, /^[\da-f-]{36}$/i);
         assert.equal(document.querySelector('[role="dialog"]'), null);
+      },
+    );
+    await t.test(
+      "welcome message edits survive remount and clear the draft only after saving",
+      async () => {
+        admin = true;
+        await mount("/admin/messages/welcome");
+        await settle(() => !!host.querySelector("textarea"));
+        const input = host.querySelector(
+          'input[maxlength="120"]',
+        ) as HTMLInputElement;
+        await act(async () => {
+          Object.getOwnPropertyDescriptor(
+            dom.window.HTMLInputElement.prototype,
+            "value",
+          )!.set!.call(input, "欢迎加入竞赛平台");
+          input.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+        });
+        await click('button[role="switch"]');
+        await mount("/admin/messages/welcome");
+        await settle(() => !!host.querySelector("textarea"));
+        assert.equal(
+          (host.querySelector('input[maxlength="120"]') as HTMLInputElement)
+            .value,
+          "欢迎加入竞赛平台",
+        );
+        assert.equal(
+          host.querySelector('[role="switch"]')?.getAttribute("aria-checked"),
+          "true",
+        );
+        await act(async () =>
+          host.querySelector("form")!.dispatchEvent(
+            new dom.window.Event("submit", {
+              bubbles: true,
+              cancelable: true,
+            }),
+          ),
+        );
+        await settle(() =>
+          writes.some((w) => w.p === "/admin/settings/welcome"),
+        );
+        assert.equal(welcome.title, "欢迎加入竞赛平台");
+        assert.equal(welcome.actions[0]!.href, "/account?section=profile");
+        assert.equal(
+          dom.window.localStorage.getItem("nebuctf:form-draft:welcome:user"),
+          null,
+        );
       },
     );
   } finally {

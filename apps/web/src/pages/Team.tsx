@@ -1,3 +1,5 @@
+import { TeamAvatar } from "@/components/team-avatar";
+import { TeamLogoEditor } from "@/components/team-logo-editor";
 import { UserAvatar } from "@/components/user-avatar";
 import { useEffect, useState } from "react";
 import { Captcha } from "@/components/captcha";
@@ -114,7 +116,10 @@ function TeamDetail() {
         <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
           <section className="rounded-lg bg-card p-6">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-2xl font-semibold">{team.name}</h2>
+              <div className="flex min-w-0 items-center gap-4">
+                <TeamAvatar logoId={team.logo_id} className="size-14" />
+                <h2 className="truncate text-2xl font-semibold">{team.name}</h2>
+              </div>
               <span className="text-sm text-muted-foreground">
                 {team.members.length} 位成员
               </span>
@@ -145,6 +150,9 @@ function TeamDetail() {
           </section>
           <section className="h-fit space-y-6 rounded-lg bg-card p-6">
             <h2 className="font-medium">战队管理</h2>
+            {team.captain_id === user.id && (
+              <TeamLogoEditor team={team.id} hasLogo={!!team.logo_id} />
+            )}
             {team.captain_id === user.id ? (
               <Button
                 variant="secondary"
@@ -278,6 +286,7 @@ function TeamList() {
                 to={teamPath(team.id, next)}
                 className="group flex min-w-0 items-center gap-5 rounded-xl bg-card p-6 outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring sm:p-8"
               >
+                <TeamAvatar logoId={team.logo_id} className="size-16" />
                 <div className="min-w-0 flex-1 space-y-3">
                   <h2 className="truncate text-xl font-semibold">
                     {team.name}
