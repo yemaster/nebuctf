@@ -8,6 +8,8 @@
 | 参赛资料 | `GET/PUT /account/profile`，仅操作当前登录账户的姓名、学号、电话 |
 | 头像 | `POST/DELETE /account/avatar`；`GET /avatars/:id` 获取公开头像 |
 | 个人提交 | `GET /submissions?page=1&page_size=10&q=&result=all`，仅当前登录用户的提交记录 |
+| 消息中心 | `GET /notifications`、`/notifications/:id`、`/notifications/summary`；`PUT /notifications/:id`、`/notifications/read-all`；`WS /notifications/live` |
+| 系统消息管理 | `GET/POST /admin/notifications`；`DELETE /admin/notifications/:id` 撤回已发送消息 |
 | 安全验证 | `POST /captcha/challenge`；登录、注册、创建战队和加入战队必须提交一次性 HashPow 结果 |
 | 战队 | `GET /teams/mine`、`/team?team=UUID`；`POST /teams`、`/team/join`、`/team/leave`、`/team/invite`、`/team/captain` |
 | 题库 | `GET /challenges?scope=practice&category=Web&q=&page=1`；`GET /challenges/:id`；`POST /challenges/:id/submit` |
@@ -28,6 +30,14 @@ Flag 提交请求：`{ "flag": "flag{...}", "scope": "practice" }`，返回 `cor
 资源状态：queued → starting → running（容器）/ready（附件）；停止、到期、创建错误进入 stopping，清理成功后变为 stopped/failed。资源界面每 5 秒轮询，榜单每 15 秒轮询。
 
 分页：题库、文档、比赛、题单、题单内题目以及管理题目/资源/比赛/题单/文档/技能树/公告默认每页 24 条；个人提交与榜单 30，审计/用户/管理提交 50。管理列表接受 page 与 q，返回 items、total、page；资源没有搜索，用户/审计/管理提交沿用原接口。题目与比赛管理另接受 page_size（1–100），榜单接受 page_size（10–100）。比赛内题目目录保持完整。
+
+## 消息中心
+
+`GET /notifications` 使用 `page`、`q`、`kind=system|contest|reminder` 和 `state=all|unread|archived`，每页 10 条；返回摘要列表、总数和读取时间 `as_of`。详情仅允许收件人读取。`PUT /notifications/:id` 接受 `{read?, archived?}`；`PUT /notifications/read-all` 接受 `{before: as_of, kind?}`，不会将读取时间之后到达的新消息标记已读。
+
+`GET /notifications/summary` 与同源 WebSocket `/notifications/live` 返回当前用户的 `unread`、`revision`，WebSocket 额外包含 `type: "notifications"`；不广播消息正文或其他用户数据。连接鉴权、过期会话与停用账户检查、限流和心跳均由服务端执行。
+
+`POST /admin/notifications` 接受 `title`、`body`、`audience=users|contest|all`、`request_id`（UUID）和可选的 `href`、`action_label`；指定用户时传 `recipients` 用户名/邮箱数组（最多 100 项），指定比赛时传 `contest_id`。比赛广播只投递给审核通过的正式参赛队员；跳转只能使用站内路径。相同管理员和 `request_id` 重试不会重复发送。管理员历史列表同样每页 10 条，可搜索和撤回。自动通知、受众与提醒规则见 [消息中心](MESSAGES.md)。
 
 ## 登录
 
