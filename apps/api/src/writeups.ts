@@ -6,6 +6,7 @@ import { audit, type DB, type Row } from "./db.js";
 import { fail, rate } from "./security.js";
 import { id, page } from "./schemas.js";
 import { requireAccepted } from "./registrations.js";
+import { deliverNotification } from "./notifications.js";
 import { notifyContest } from "./activity-events.js";
 import { writeupInput, writeupWindow } from "./writeup-config.js";
 import {
@@ -285,6 +286,10 @@ export function writeupRoutes(app: FastifyInstance, db: DB) {
     if (input.status === "changes_requested" && !input.note)
       fail(400, "请填写修改意见");
     return db.transaction(async (tx) => {
+      const [previous] = await tx.query(
+        "SELECT status,review_note FROM contest_writeups WHERE contest_id=$1 AND team_id=$2 FOR UPDATE",
+        [cid, team],
+      );
       const [row] = await tx.query(
         "UPDATE contest_writeups SET status=$3,review_note=$4,reviewed_by=$5,reviewed_at=now(),updated_at=now() WHERE contest_id=$1 AND team_id=$2 AND version=$6 RETURNING name",
         [cid, team, input.status, input.note, user.id, input.version],
@@ -304,6 +309,29 @@ export function writeupRoutes(app: FastifyInstance, db: DB) {
         ],
       );
       await audit(tx, user.id, `writeup.${input.status}`, `${cid}:${team}`);
+      if (
+        previous?.status !== input.status ||
+        previous?.review_note !== input.note
+      ) {
+        const [contest] = await tx.query(
+          "SELECT title FROM contests WHERE id=$1",
+          [cid],
+        );
+        await deliverNotification(
+          tx,
+          {
+            kind: "contest",
+            title:
+              input.status === "accepted"
+                ? "WriteUp 审核通过"
+                : "WriteUp 需要修改",
+            body: `${contest!.title}\n${input.note || row!.name}`,
+            href: `/contests/${cid}/writeup`,
+            actionLabel: "查看 WriteUp",
+          },
+          { kind: "team", team, contest: cid },
+        );
+      }
       await notifyContest(tx, cid);
       return { ok: true };
     });

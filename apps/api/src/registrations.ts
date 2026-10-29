@@ -6,6 +6,7 @@ import { requireAdmin } from "./auth.js";
 import { id, page } from "./schemas.js";
 import { fail } from "./security.js";
 import { notifyContest } from "./activity-events.js";
+import { deliverNotification } from "./notifications.js";
 
 export const registrationStatus = z.enum([
   "pending",
@@ -179,6 +180,40 @@ export function registrationRoutes(app: FastifyInstance, db: DB) {
             "UPDATE instances SET status='stopping',updated_at=now() WHERE scope=$1 AND owner_key=$2 AND status IN ('queued','starting','running','ready')",
             [cid, "t:" + row.team_id],
           );
+        const group =
+          input.group_id === undefined ? row.group_id : input.group_id;
+        const note =
+          input.review_note ??
+          (input.status === undefined ? row.review_note : "");
+        if (
+          row.status !== status ||
+          row.group_id !== group ||
+          row.review_note !== note
+        ) {
+          const labels: Record<string, string> = {
+            accepted: "报名审核通过",
+            rejected: "报名审核未通过",
+            suspended: "参赛资格已暂停",
+            pending: "报名等待审核",
+          };
+          const [team] = await tx.query("SELECT name FROM teams WHERE id=$1", [
+            row.team_id,
+          ]);
+          await deliverNotification(
+            tx,
+            {
+              kind: "contest",
+              title:
+                row.status === status && row.group_id !== group
+                  ? "报名组别已调整"
+                  : labels[status]!,
+              body: `${contest!.title}\n战队：${team!.name}${note ? `\n${note}` : ""}`,
+              href: `/contests/${cid}`,
+              actionLabel: "查看报名",
+            },
+            { kind: "team", team: row.team_id, contest: cid },
+          );
+        }
         await audit(
           tx,
           admin.id,

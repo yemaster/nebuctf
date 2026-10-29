@@ -1,4 +1,6 @@
 import { avatarRoutes } from "./avatars.js";
+import { notificationRoutes } from "./notifications.js";
+import { notificationRealtimeRoutes } from "./notification-realtime.js";
 import { contentTransferRoutes } from "./content-transfer-routes.js";
 import { terminalRoutes } from "./terminal.js";
 import { contestSpectatorRoutes } from "./contest-spectator.js";
@@ -95,6 +97,8 @@ export async function buildApp(db: DB, logging = false) {
     });
   });
   await authRoutes(app, db);
+  notificationRoutes(app, db);
+  notificationRealtimeRoutes(app, db);
   profileRoutes(app, db);
   avatarRoutes(app, db);
   systemAdminRoutes(app, db);

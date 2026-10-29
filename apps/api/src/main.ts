@@ -2,6 +2,7 @@ import { openDB } from "./db.js";
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
 import { publishScheduledChallenges } from "./challenge-publication.js";
+import { publishNotificationReminders } from "./notifications.js";
 const db = await openDB(),
   app = await buildApp(db, true);
 const gc = setInterval(
@@ -26,12 +27,26 @@ const publish = () => {
 publish();
 const publisher = setInterval(publish, 2000);
 publisher.unref();
+let reminders: Promise<unknown> | undefined;
+const remind = () => {
+  if (reminders) return;
+  reminders = publishNotificationReminders(db)
+    .catch((err) => app.log.error(err))
+    .finally(() => {
+      reminders = undefined;
+    });
+};
+remind();
+const reminderTimer = setInterval(remind, 30000);
+reminderTimer.unref();
 for (const signal of ["SIGTERM", "SIGINT"])
   process.once(signal, async () => {
     clearInterval(gc);
     clearInterval(publisher);
+    clearInterval(reminderTimer);
     await app.close();
     await publication;
+    await reminders;
     await db.close();
     process.exit(0);
   });

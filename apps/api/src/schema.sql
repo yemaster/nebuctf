@@ -285,3 +285,11 @@ UPDATE announcements a SET created_by=(
   WHERE l.action='announcement.create' AND l.target=a.id::text ORDER BY l.created_at,l.id LIMIT 1
 ) WHERE a.created_by IS NULL AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=28);
 INSERT INTO schema_migrations(version) VALUES(28) ON CONFLICT DO NOTHING;
+CREATE TABLE IF NOT EXISTS notifications(id uuid PRIMARY KEY,kind text NOT NULL CHECK(kind IN ('system','contest','reminder')),title varchar(120) NOT NULL,body text NOT NULL CHECK(length(body)<=8000),href varchar(500),action_label varchar(30),sender_id uuid REFERENCES users(id) ON DELETE SET NULL,event_key text UNIQUE,audience text NOT NULL DEFAULT '自动通知',created_at timestamptz NOT NULL DEFAULT now(),withdrawn_at timestamptz);
+CREATE TABLE IF NOT EXISTS notification_recipients(notification_id uuid NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,read_at timestamptz,archived_at timestamptz,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(notification_id,user_id));
+CREATE INDEX IF NOT EXISTS notification_inbox ON notification_recipients(user_id,created_at DESC,notification_id DESC) WHERE archived_at IS NULL;
+CREATE INDEX IF NOT EXISTS notification_archive ON notification_recipients(user_id,created_at DESC,notification_id DESC) WHERE archived_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS notification_unread ON notification_recipients(user_id) WHERE read_at IS NULL AND archived_at IS NULL;
+CREATE INDEX IF NOT EXISTS notification_revision ON notification_recipients(user_id,updated_at DESC);
+CREATE INDEX IF NOT EXISTS notification_history ON notifications(created_at DESC,id DESC) WHERE sender_id IS NOT NULL AND kind='system';
+INSERT INTO schema_migrations(version) VALUES(29) ON CONFLICT DO NOTHING;

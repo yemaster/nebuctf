@@ -8,6 +8,7 @@ import {
   contestVisibilitySQL,
 } from "./contest-entry.js";
 import { registrationRoutes } from "./registrations.js";
+import { deliverNotification } from "./notifications.js";
 import { notifyContest } from "./activity-events.js";
 import { timingRoutes } from "./contest-timing.js";
 import { scoreboardRoutes } from "./scoreboard.js";
@@ -237,6 +238,33 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
         ],
       );
       if (!pending) await snapshotContestMembers(tx, cid, t!.id);
+      await deliverNotification(
+        tx,
+        {
+          kind: "contest",
+          title: pending ? "报名已提交" : "报名成功",
+          body: `${c!.title}\n战队：${t!.name}${pending ? "\n等待管理员审核。" : ""}`,
+          href: `/contests/${cid}`,
+          actionLabel: "查看报名",
+        },
+        { kind: "team", team: t!.id, contest: cid },
+      );
+      if (pending) {
+        const staff = await tx.query(
+          "SELECT id FROM users WHERE role='admin' AND NOT disabled",
+        );
+        await deliverNotification(
+          tx,
+          {
+            kind: "contest",
+            title: "新的报名申请",
+            body: `${c!.title}\n战队：${t!.name}`,
+            href: `/contests/${cid}/manage/teams?status=pending`,
+            actionLabel: "审核报名",
+          },
+          { kind: "users", ids: staff.map((u) => u.id) },
+        );
+      }
       await notifyContest(tx, cid);
       await audit(tx, u.id, "contest.register", cid);
       return { ok: true };
@@ -265,6 +293,17 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
         [cid, t!.id],
       );
       await audit(tx, u.id, "contest.unregister", cid);
+      await deliverNotification(
+        tx,
+        {
+          kind: "contest",
+          title: "报名已取消",
+          body: `${c!.title}\n战队：${t!.name}`,
+          href: `/contests/${cid}`,
+          actionLabel: "查看比赛",
+        },
+        { kind: "team", team: t!.id, contest: cid },
+      );
       await notifyContest(tx, cid);
       return { ok: true };
     });
