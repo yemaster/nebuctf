@@ -293,3 +293,13 @@ CREATE INDEX IF NOT EXISTS notification_unread ON notification_recipients(user_i
 CREATE INDEX IF NOT EXISTS notification_revision ON notification_recipients(user_id,updated_at DESC);
 CREATE INDEX IF NOT EXISTS notification_history ON notifications(created_at DESC,id DESC) WHERE sender_id IS NOT NULL AND kind='system';
 INSERT INTO schema_migrations(version) VALUES(29) ON CONFLICT DO NOTHING;
+
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS actions jsonb NOT NULL DEFAULT '[]';
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS logo_id uuid;
+ALTER TABLE contests ADD COLUMN IF NOT EXISTS registration_form jsonb NOT NULL DEFAULT '[]';
+ALTER TABLE contest_groups ADD COLUMN IF NOT EXISTS review_mode text NOT NULL DEFAULT 'inherit' CHECK(review_mode IN ('inherit','auto','required'));
+ALTER TABLE registrations ADD COLUMN IF NOT EXISTS form_snapshot jsonb NOT NULL DEFAULT '[]';
+ALTER TABLE registrations ADD COLUMN IF NOT EXISTS form_answers jsonb NOT NULL DEFAULT '{"team":{},"members":{}}';
+ALTER TABLE registrations ADD COLUMN IF NOT EXISTS submitted_members jsonb NOT NULL DEFAULT '[]';
+UPDATE contest_groups SET review_mode='required' WHERE coalesce((permissions->>'require_review')::boolean,false) AND review_mode='inherit' AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=30);
+INSERT INTO schema_migrations(version) VALUES(30) ON CONFLICT DO NOTHING;

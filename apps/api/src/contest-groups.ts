@@ -12,6 +12,7 @@ export async function saveContestGroups(
   input:
     | {
         id?: string;
+        review_mode?: "inherit" | "auto" | "required";
         name: string;
         description: string;
         permissions?: Partial<GroupPermissions>;
@@ -65,6 +66,13 @@ export async function saveContestGroups(
       fail(400, "单题权限只能配置本场比赛的赛题");
     const next = {
       ...g,
+      review_mode:
+        g.review_mode ??
+        (g.permissions?.require_review === undefined
+          ? (previous?.review_mode ?? "inherit")
+          : g.permissions.require_review
+            ? "required"
+            : "inherit"),
       permissions: { ...effectivePermissions(previous), ...g.permissions },
       challenge_permissions: Object.fromEntries(
         Object.entries(
@@ -72,6 +80,7 @@ export async function saveContestGroups(
         ).filter(([id]) => selected.some((c) => c.challenge_id === id)),
       ),
     };
+    next.permissions.require_review = next.review_mode === "required";
     if (started && previous) {
       if (
         (["rank_overall", "score", "blood", "dynamic"] as const).some(
@@ -100,7 +109,7 @@ export async function saveContestGroups(
   );
   for (const [i, g] of normalized.entries())
     await db.query(
-      "INSERT INTO contest_groups(id,contest_id,name,description,position,permissions,challenge_permissions) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO UPDATE SET name=$3,description=$4,position=$5,permissions=$6,challenge_permissions=$7",
+      "INSERT INTO contest_groups(id,contest_id,name,description,position,permissions,challenge_permissions,review_mode) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(id) DO UPDATE SET name=$3,description=$4,position=$5,permissions=$6,challenge_permissions=$7,review_mode=$8",
       [
         ids[i],
         contest,
@@ -109,6 +118,7 @@ export async function saveContestGroups(
         i,
         JSON.stringify(g.permissions),
         JSON.stringify(g.challenge_permissions),
+        g.review_mode,
       ],
     );
   await db.query(

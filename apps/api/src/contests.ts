@@ -1,3 +1,9 @@
+import {
+  registrationFormRoutes,
+  registrationAnswers,
+  validateRegistrationAnswers,
+  formRevision,
+} from "./registration-form.js";
 import { snapshotContestMembers } from "./writeup-config.js";
 import { isContestPractice } from "./contest-practice.js";
 import { readContestClock } from "./contest-clock.js";
@@ -23,6 +29,7 @@ import { fail, rate } from "./security.js";
 import { effectivePermissions } from "./group-permissions.js";
 export function contestRoutes(app: FastifyInstance, db: DB) {
   registrationRoutes(app, db);
+  registrationFormRoutes(app, db);
   contestActivityRoutes(app, db);
   timingRoutes(app, db);
   scoreboardRoutes(app, db);
@@ -113,7 +120,7 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
     );
     const [registration] = req.user
       ? await db.query(
-          "SELECT r.team_id,r.group_id,r.status,r.practice_only,r.review_note,r.reviewed_at,t.captain_id=$2 is_captain,t.name team_name,g.name group_name FROM registrations r JOIN teams t ON t.id=r.team_id JOIN memberships m ON m.team_id=t.id LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id=$1 AND m.user_id=$2 ORDER BY CASE WHEN r.status='accepted' THEN 0 WHEN r.status='suspended' THEN 1 WHEN r.status='pending' THEN 2 ELSE 3 END,r.created_at DESC LIMIT 1",
+          "SELECT jsonb_array_length(r.form_snapshot)>0 has_form,r.team_id,r.group_id,r.status,r.practice_only,r.review_note,r.reviewed_at,t.captain_id=$2 is_captain,t.name team_name,g.name group_name FROM registrations r JOIN teams t ON t.id=r.team_id JOIN memberships m ON m.team_id=t.id LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id=$1 AND m.user_id=$2 ORDER BY CASE WHEN r.status='accepted' THEN 0 WHEN r.status='suspended' THEN 1 WHEN r.status='pending' THEN 2 ELSE 3 END,r.created_at DESC LIMIT 1",
           [cid, req.user.id],
         )
       : [];
@@ -149,127 +156,164 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
         ).length,
       registration: registration ?? null,
       groups: await db.query(
-        "SELECT id,name,description,coalesce((permissions->>'join')::boolean,true) joinable,coalesce((permissions->>'rank_overall')::boolean,true) rank_overall,coalesce((permissions->>'require_review')::boolean,false) require_review FROM contest_groups WHERE contest_id=$1 ORDER BY position",
+        "SELECT id,name,description,review_mode,coalesce((permissions->>'join')::boolean,true) joinable,coalesce((permissions->>'rank_overall')::boolean,true) rank_overall,coalesce((permissions->>'require_review')::boolean,false) require_review FROM contest_groups WHERE contest_id=$1 ORDER BY position",
         [cid],
       ),
     };
   });
-  app.post("/api/contests/:id/register", async (req) => {
-    const u = requireUser(req),
-      cid = id.parse((req.params as any).id);
-    await rate(db, `contest-register:${u.id}`, 10, 60);
-    return db.transaction(async (tx) => {
-      await lock(tx);
-      const c = await contestAccess(tx, cid, u, false);
-      if (new Date(c!.ends_at).getTime() <= Date.now() && !isContestPractice(c))
-        fail(403, "比赛已经结束");
-      checkRegistrationWindow(c!);
-      const selection = z
-        .object({
-          team_id: id.optional(),
-          group_id: id.nullable().optional(),
-          invite_code: z.string().trim().max(128).optional(),
-        })
-        .parse(req.body ?? {});
-      const mine = await tx.query(
-        "SELECT team_id FROM memberships WHERE user_id=$1",
-        [u.id],
-      );
-      if (!mine.length)
-        fail(403, "请先创建或加入战队", {
-          label: "创建或加入战队",
-          href: "/team",
-        });
-      if (!selection.team_id && mine.length > 1) fail(400, "请选择参赛战队");
-      const t = await getTeam(tx, u.id, selection.team_id);
-      if (!t || t.captain_id !== u.id)
-        fail(403, "请由所选战队的队长报名", {
-          label: "查看我的战队",
-          href: "/team",
-        });
-      const groups = await tx.query(
-        "SELECT id,permissions FROM contest_groups WHERE contest_id=$1",
-        [cid],
-      );
-      checkRegistrationScope(c!, t!.id, selection.invite_code);
-      if (groups.length && !groups.some((g) => g.id === selection.group_id))
-        fail(400, "请选择有效组别");
-      if (!groups.length && selection.group_id) fail(400, "此比赛没有该组别");
-      if (
-        !effectivePermissions(groups.find((g) => g.id === selection.group_id))
-          .join
-      )
-        fail(403, "该组别已关闭报名，请选择其他组别");
-      const [previous] = await tx.query(
-        "SELECT status FROM registrations WHERE contest_id=$1 AND team_id=$2",
-        [cid, t!.id],
-      );
-      if (previous && previous.status !== "rejected")
-        fail(
-          409,
-          previous.status === "suspended" ? "参赛资格已暂停" : "战队已经报名",
+  app.post(
+    "/api/contests/:id/register",
+    { bodyLimit: 1024 * 1024 },
+    async (req) => {
+      const u = requireUser(req),
+        cid = id.parse((req.params as any).id);
+      await rate(db, `contest-register:${u.id}`, 10, 60);
+      return db.transaction(async (tx) => {
+        await lock(tx);
+        const c = await contestAccess(tx, cid, u, false);
+        if (
+          new Date(c!.ends_at).getTime() <= Date.now() &&
+          !isContestPractice(c)
+        )
+          fail(403, "比赛已经结束");
+        checkRegistrationWindow(c!);
+        const selection = z
+          .object({
+            team_id: id.optional(),
+            group_id: id.nullable().optional(),
+            invite_code: z.string().trim().max(128).optional(),
+            form_answers: registrationAnswers,
+            form_revision: z.string().max(64).optional(),
+          })
+          .parse(req.body ?? {});
+        const mine = await tx.query(
+          "SELECT team_id FROM memberships WHERE user_id=$1",
+          [u.id],
         );
-      const overlap = await tx.query(
-        "SELECT 1 FROM memberships a JOIN memberships b ON a.user_id=b.user_id JOIN registrations r ON r.team_id=b.team_id WHERE a.team_id=$1 AND r.contest_id=$2 AND r.status IN ('pending','accepted','suspended') LIMIT 1",
-        [t!.id, cid],
-      );
-      if (overlap.length)
-        fail(409, "战队中有成员已报名此比赛", {
-          label: "查看战队成员",
-          href: `/team?team=${t!.id}`,
-        });
-      const [n] = await tx.query(
-        "SELECT count(*)::int n FROM memberships WHERE team_id=$1",
-        [t!.id],
-      );
-      if (n!.n > c!.team_limit) fail(409, "战队人数超过比赛限制");
-      const pending =
-        c!.require_review ||
-        effectivePermissions(groups.find((g) => g.id === selection.group_id))
-          .require_review;
-      await tx.query(
-        "INSERT INTO registrations(contest_id,team_id,group_id,status,accepted_at,practice_only) VALUES($1,$2,$3,$4,CASE WHEN $4='accepted' THEN now() ELSE NULL END,$5) ON CONFLICT(contest_id,team_id) DO UPDATE SET group_id=$3,status=$4,practice_only=$5,created_at=now(),review_note='',reviewed_at=NULL,reviewed_by=NULL,accepted_at=CASE WHEN $4='accepted' THEN now() ELSE NULL END",
-        [
-          cid,
-          t!.id,
-          selection.group_id ?? null,
-          pending ? "pending" : "accepted",
-          isContestPractice(c),
-        ],
-      );
-      if (!pending) await snapshotContestMembers(tx, cid, t!.id);
-      await deliverNotification(
-        tx,
-        {
-          kind: "contest",
-          title: pending ? "报名已提交" : "报名成功",
-          body: `${c!.title}\n战队：${t!.name}${pending ? "\n等待管理员审核。" : ""}`,
-          href: `/contests/${cid}`,
-          actionLabel: "查看报名",
-        },
-        { kind: "team", team: t!.id, contest: cid },
-      );
-      if (pending) {
-        const staff = await tx.query(
-          "SELECT id FROM users WHERE role='admin' AND NOT disabled",
+        if (!mine.length)
+          fail(403, "请先创建或加入战队", {
+            label: "创建或加入战队",
+            href: "/team",
+          });
+        if (!selection.team_id && mine.length > 1) fail(400, "请选择参赛战队");
+        const t = await getTeam(tx, u.id, selection.team_id);
+        if (!t || t.captain_id !== u.id)
+          fail(403, "请由所选战队的队长报名", {
+            label: "查看我的战队",
+            href: "/team",
+          });
+        const groups = await tx.query(
+          "SELECT id,permissions,review_mode FROM contest_groups WHERE contest_id=$1",
+          [cid],
         );
+        checkRegistrationScope(c!, t!.id, selection.invite_code);
+        if (groups.length && !groups.some((g) => g.id === selection.group_id))
+          fail(400, "请选择有效组别");
+        if (!groups.length && selection.group_id) fail(400, "此比赛没有该组别");
+        if (
+          !effectivePermissions(groups.find((g) => g.id === selection.group_id))
+            .join
+        )
+          fail(403, "该组别已关闭报名，请选择其他组别");
+        const [previous] = await tx.query(
+          "SELECT status FROM registrations WHERE contest_id=$1 AND team_id=$2",
+          [cid, t!.id],
+        );
+        if (previous && previous.status !== "rejected")
+          fail(
+            409,
+            previous.status === "suspended" ? "参赛资格已暂停" : "战队已经报名",
+          );
+        const overlap = await tx.query(
+          "SELECT 1 FROM memberships a JOIN memberships b ON a.user_id=b.user_id JOIN registrations r ON r.team_id=b.team_id WHERE a.team_id=$1 AND r.contest_id=$2 AND r.status IN ('pending','accepted','suspended') LIMIT 1",
+          [t!.id, cid],
+        );
+        if (overlap.length)
+          fail(409, "战队中有成员已报名此比赛", {
+            label: "查看战队成员",
+            href: `/team?team=${t!.id}`,
+          });
+        const [n] = await tx.query(
+          "SELECT count(*)::int n FROM memberships WHERE team_id=$1",
+          [t!.id],
+        );
+        if (n!.n > c!.team_limit) fail(409, "战队人数超过比赛限制");
+        const members = await tx.query(
+          "SELECT u.id,u.username,u.disabled FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.team_id=$1 ORDER BY u.id",
+          [t!.id],
+        );
+        if (members.some((m) => m.disabled)) fail(409, "战队中有已禁用的账号");
+        const fields = c!.registration_form ?? [];
+        if (fields.length && selection.form_revision !== formRevision(fields))
+          fail(409, "报名表单已更新，请刷新后重新核对", {
+            label: "填写报名资料",
+            href: `/contests/${cid}/register`,
+          });
+        validateRegistrationAnswers(fields, selection.form_answers, members);
+        const chosenGroup = groups.find((g) => g.id === selection.group_id);
+        const pending =
+          chosenGroup?.review_mode === "auto"
+            ? false
+            : chosenGroup?.review_mode === "required"
+              ? true
+              : c!.require_review ||
+                effectivePermissions(chosenGroup).require_review;
+        await tx.query(
+          "INSERT INTO registrations(contest_id,team_id,group_id,status,accepted_at,practice_only) VALUES($1,$2,$3,$4,CASE WHEN $4='accepted' THEN now() ELSE NULL END,$5) ON CONFLICT(contest_id,team_id) DO UPDATE SET group_id=$3,status=$4,practice_only=$5,created_at=now(),review_note='',reviewed_at=NULL,reviewed_by=NULL,accepted_at=CASE WHEN $4='accepted' THEN now() ELSE NULL END",
+          [
+            cid,
+            t!.id,
+            selection.group_id ?? null,
+            pending ? "pending" : "accepted",
+            isContestPractice(c),
+          ],
+        );
+        await tx.query(
+          "UPDATE registrations SET form_snapshot=$3,form_answers=$4,submitted_members=$5 WHERE contest_id=$1 AND team_id=$2",
+          [
+            cid,
+            t!.id,
+            JSON.stringify(fields),
+            JSON.stringify(selection.form_answers),
+            JSON.stringify(
+              members.map(({ id, username }) => ({ id, username })),
+            ),
+          ],
+        );
+        if (!pending) await snapshotContestMembers(tx, cid, t!.id);
         await deliverNotification(
           tx,
           {
             kind: "contest",
-            title: "新的报名申请",
-            body: `${c!.title}\n战队：${t!.name}`,
-            href: `/contests/${cid}/manage/teams?status=pending`,
-            actionLabel: "审核报名",
+            title: pending ? "报名已提交" : "报名成功",
+            body: `${c!.title}\n战队：${t!.name}${pending ? "\n等待管理员审核。" : ""}`,
+            href: `/contests/${cid}`,
+            actionLabel: "查看报名",
           },
-          { kind: "users", ids: staff.map((u) => u.id) },
+          { kind: "team", team: t!.id, contest: cid },
         );
-      }
-      await notifyContest(tx, cid);
-      await audit(tx, u.id, "contest.register", cid);
-      return { ok: true };
-    });
-  });
+        if (pending) {
+          const staff = await tx.query(
+            "SELECT id FROM users WHERE role='admin' AND NOT disabled",
+          );
+          await deliverNotification(
+            tx,
+            {
+              kind: "contest",
+              title: "新的报名申请",
+              body: `${c!.title}\n战队：${t!.name}`,
+              href: `/contests/${cid}/manage/teams?status=pending`,
+              actionLabel: "审核报名",
+            },
+            { kind: "users", ids: staff.map((u) => u.id) },
+          );
+        }
+        await notifyContest(tx, cid);
+        await audit(tx, u.id, "contest.register", cid);
+        return { ok: true };
+      });
+    },
+  );
   app.post("/api/contests/:id/unregister", async (req) => {
     const u = requireUser(req),
       cid = id.parse((req.params as any).id);

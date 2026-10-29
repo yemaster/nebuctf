@@ -417,6 +417,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
     app.route({
       method,
       url: `/api/admin/contests${method === "PUT" ? "/:id" : ""}`,
+      bodyLimit: 512 * 1024,
       handler: async (req) => {
         const u = requireAdmin(req),
           data = contestInput.parse(req.body),
@@ -578,6 +579,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
             fail(400, "指定的战队不存在");
           const {
             registration_code,
+            registration_form,
             challenge_ids,
             challenge_settings,
             groups,
@@ -592,6 +594,9 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
           } = data;
           const fields = {
             ...otherFields,
+            ...(registration_form
+              ? { registration_form: JSON.stringify(registration_form) }
+              : {}),
             ...(submission_limits
               ? { submission_limits: JSON.stringify(submission_limits) }
               : {}),

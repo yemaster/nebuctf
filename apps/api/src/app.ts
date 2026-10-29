@@ -1,3 +1,4 @@
+import { teamLogoRoutes } from "./team-logos.js";
 import { avatarRoutes } from "./avatars.js";
 import { notificationRoutes } from "./notifications.js";
 import { notificationRealtimeRoutes } from "./notification-realtime.js";
@@ -101,6 +102,7 @@ export async function buildApp(db: DB, logging = false) {
   notificationRealtimeRoutes(app, db);
   profileRoutes(app, db);
   avatarRoutes(app, db);
+  teamLogoRoutes(app, db);
   systemAdminRoutes(app, db);
   registrationMailRoutes(app, db);
   aiRoutes(app, db);

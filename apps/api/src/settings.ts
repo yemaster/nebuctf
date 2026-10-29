@@ -84,6 +84,12 @@ export const mailInput = z
   })
   .strict();
 export const defaults = {
+  welcome: {
+    enabled: false,
+    title: "欢迎加入 {site_name}",
+    body: "{username}，欢迎加入 {site_name}。",
+    actions: [{ label: "完善个人资料", href: "/account?section=profile" }],
+  },
   site: {
     name: "NebuCTF",
     footer_text: "",

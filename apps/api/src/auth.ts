@@ -1,3 +1,4 @@
+import { sendWelcome } from "./welcome-message.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { audit, lock, type DB } from "./db.js";
@@ -92,6 +93,7 @@ export async function authRoutes(app: FastifyInstance, db: DB) {
           verificationId ? new Date() : null,
         ],
       );
+      await sendWelcome(tx, { id: uid, username: data.username });
     });
     const t = token();
     await db.query(

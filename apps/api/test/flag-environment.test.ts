@@ -569,7 +569,7 @@ test("saved flag mappings follow part IDs through reorder, resources and real ju
         (
           await db.query("SELECT max(version) version FROM schema_migrations")
         )[0]!.version,
-        29,
+        30,
       );
     },
   );

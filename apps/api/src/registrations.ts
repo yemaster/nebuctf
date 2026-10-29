@@ -26,7 +26,7 @@ export function requireAccepted(status: string, scope: string) {
       { label: "查看报名状态", href: `/contests/${scope}` },
     );
 }
-const summary = `SELECT r.*,t.name,t.captain_id,u.username captain,(SELECT count(*)::int FROM memberships m WHERE m.team_id=t.id) member_count,g.name group_name FROM registrations r JOIN teams t ON t.id=r.team_id JOIN users u ON u.id=t.captain_id LEFT JOIN contest_groups g ON g.id=r.group_id`;
+const summary = `SELECT r.*,t.name,t.logo_id,t.captain_id,u.username captain,(SELECT count(*)::int FROM memberships m WHERE m.team_id=t.id) member_count,g.name group_name FROM registrations r JOIN teams t ON t.id=r.team_id JOIN users u ON u.id=t.captain_id LEFT JOIN contest_groups g ON g.id=r.group_id`;
 export function registrationRoutes(app: FastifyInstance, db: DB) {
   app.get("/api/admin/contests/:id/registrations", async (req) => {
     requireAdmin(req);
@@ -55,7 +55,7 @@ export function registrationRoutes(app: FastifyInstance, db: DB) {
         [cid],
       ),
       items: await db.query(
-        `${summary} WHERE ${where} ORDER BY r.created_at DESC,r.team_id LIMIT 10 OFFSET $5`,
+        `${summary.replace("r.*", "r.contest_id,r.team_id,r.group_id,r.status,r.created_at,r.practice_only,r.review_note,r.reviewed_at,r.reviewed_by,r.accepted_at,jsonb_array_length(r.form_snapshot) form_fields")} WHERE ${where} ORDER BY r.created_at DESC,r.team_id LIMIT 10 OFFSET $5`,
         [...params, (p.page - 1) * 10],
       ),
     };
@@ -75,6 +75,7 @@ export function registrationRoutes(app: FastifyInstance, db: DB) {
         `WITH roster AS (
           SELECT user_id FROM memberships WHERE team_id=$1
           UNION SELECT user_id FROM contest_members WHERE team_id=$1 AND contest_id=$2
+          UNION SELECT (m->>'id')::uuid FROM registrations r,jsonb_array_elements(r.submitted_members) m WHERE r.team_id=$1 AND r.contest_id=$2
         )
         SELECT u.id,u.username,u.avatar_id,u.email,u.disabled,u.created_at,u.role,
           u.real_name,u.student_number,u.phone,u.email_verified_at,
@@ -155,6 +156,23 @@ export function registrationRoutes(app: FastifyInstance, db: DB) {
           if (!members!.n || members!.n > contest!.team_limit)
             fail(409, "战队人数不符合比赛要求");
           if (members!.disabled) fail(409, "战队中有已禁用的账号");
+          if (
+            row.submitted_members?.length &&
+            row.form_snapshot?.some((f: any) => f.scope === "member")
+          ) {
+            const current = await tx.query(
+              "SELECT user_id FROM memberships WHERE team_id=$1",
+              [row.team_id],
+            );
+            if (
+              current.length !== row.submitted_members.length ||
+              current.some(
+                (m) =>
+                  !row.submitted_members.some((p: any) => p.id === m.user_id),
+              )
+            )
+              fail(409, "战队成员已变更，请退回后由队长重新提交报名资料");
+          }
           const overlap = await tx.query(
             "SELECT 1 FROM memberships a JOIN memberships b ON b.user_id=a.user_id JOIN registrations r ON r.team_id=b.team_id WHERE a.team_id=$1 AND r.contest_id=$2 AND r.team_id<>$1 AND r.status IN ('accepted','suspended') LIMIT 1",
             [row.team_id, cid],

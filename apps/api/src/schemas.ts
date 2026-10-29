@@ -1,3 +1,4 @@
+import { registrationFormInput } from "./registration-form-input.js";
 import {
   submissionLimitsInput,
   submissionOverridesInput,
@@ -210,6 +211,7 @@ export const challengeInput = z
   );
 export const contestInput = z
   .object({
+    registration_form: registrationFormInput.optional(),
     submission_limits: submissionLimitsInput.optional(),
     submission_overrides: submissionOverridesInput.optional(),
     hint_policy: hintPolicyInput.optional(),
@@ -248,6 +250,7 @@ export const contestInput = z
           id: id.optional(),
           name: z.string().trim().min(1).max(60),
           description: z.string().max(500).default(""),
+          review_mode: z.enum(["inherit", "auto", "required"]).optional(),
           permissions: groupPermissionInput.optional(),
           challenge_permissions: groupOverridesInput.optional(),
         }),

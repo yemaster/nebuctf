@@ -1,3 +1,4 @@
+import { messagePath } from "./message-actions.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireAdmin, requireUser } from "./auth.js";
@@ -16,6 +17,7 @@ type Notice = {
   body: string;
   href?: string;
   actionLabel?: string;
+  actions?: { label: string; href: string }[];
   sender?: string;
   eventKey?: string;
   audienceLabel?: string;
@@ -31,8 +33,8 @@ export async function deliverNotification(
   audience: Audience,
 ) {
   const [message] = await db.query(
-    `INSERT INTO notifications(id,kind,title,body,href,action_label,sender_id,event_key,audience)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    `INSERT INTO notifications(id,kind,title,body,href,action_label,sender_id,event_key,audience,actions)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
      ON CONFLICT(event_key) DO UPDATE SET event_key=excluded.event_key RETURNING id,withdrawn_at`,
     [
       crypto.randomUUID(),
@@ -44,6 +46,7 @@ export async function deliverNotification(
       notice.sender ?? null,
       notice.eventKey ?? null,
       notice.audienceLabel ?? "自动通知",
+      JSON.stringify(notice.actions ?? []),
     ],
   );
   if (message!.withdrawn_at) return { id: message!.id, recipients: 0 };
@@ -93,16 +96,7 @@ const inboxQuery = page.extend({
   kind: kind.optional(),
   state: z.enum(["all", "unread", "archived"]).default("all"),
 });
-const safePath = z
-  .string()
-  .trim()
-  .max(500)
-  .refine(
-    (value) =>
-      value === "" ||
-      (/^\/(?!\/)/.test(value) && !/[\\\u0000-\u0020]/.test(value)),
-    "请填写站内路径，例如 /contests",
-  );
+const safePath = messagePath;
 const composeInput = z
   .object({
     title: z.string().trim().min(1).max(120),
@@ -153,7 +147,7 @@ export function notificationRoutes(app: FastifyInstance, db: DB) {
     const user = requireUser(req),
       nid = id.parse((req.params as any).id);
     const [row] = await db.query(
-      `SELECT n.id,n.kind,n.title,n.body,n.href,n.action_label,n.created_at,r.read_at,r.archived_at,
+      `SELECT n.id,n.kind,n.title,n.body,n.href,n.action_label,n.actions,n.created_at,r.read_at,r.archived_at,
        u.username sender FROM notification_recipients r JOIN notifications n ON n.id=r.notification_id
        LEFT JOIN users u ON u.id=n.sender_id WHERE r.user_id=$1 AND n.id=$2 AND n.withdrawn_at IS NULL`,
       [user.id, nid],

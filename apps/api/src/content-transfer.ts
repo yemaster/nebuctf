@@ -568,6 +568,7 @@ export async function importContent(
               poster_mime: mime,
             },
             [
+              "registration_form",
               "timing",
               "writeup",
               "resource_limits",

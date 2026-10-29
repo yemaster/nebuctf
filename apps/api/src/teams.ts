@@ -36,7 +36,7 @@ export function teamRoutes(app: FastifyInstance, db: DB) {
       page: p.page,
       page_size: ids ? 500 : 10,
       items: await db.query(
-        `SELECT t.id,t.name,u.username captain,(SELECT count(*)::int FROM memberships m WHERE m.team_id=t.id) members FROM teams t JOIN users u ON u.id=t.captain_id WHERE ${where} ORDER BY t.name,t.id LIMIT $3 OFFSET $4`,
+        `SELECT t.id,t.name,t.logo_id,u.username captain,(SELECT count(*)::int FROM memberships m WHERE m.team_id=t.id) members FROM teams t JOIN users u ON u.id=t.captain_id WHERE ${where} ORDER BY t.name,t.id LIMIT $3 OFFSET $4`,
         [...args, ids ? 500 : 10, ids ? 0 : (p.page - 1) * 10],
       ),
     };
@@ -64,7 +64,7 @@ export function teamRoutes(app: FastifyInstance, db: DB) {
     const user = requireUser(req);
     return {
       items: await db.query(
-        "SELECT t.id,t.name,t.captain_id,(SELECT count(*)::int FROM memberships x WHERE x.team_id=t.id) members FROM teams t JOIN memberships m ON m.team_id=t.id WHERE m.user_id=$1 ORDER BY t.created_at,t.id",
+        "SELECT t.id,t.name,t.logo_id,t.captain_id,(SELECT count(*)::int FROM memberships x WHERE x.team_id=t.id) members FROM teams t JOIN memberships m ON m.team_id=t.id WHERE m.user_id=$1 ORDER BY t.created_at,t.id",
         [user.id],
       ),
     };
