@@ -11,6 +11,7 @@
 | 消息中心 | `GET /notifications`、`/notifications/:id`、`/notifications/summary`；`PUT /notifications/:id`、`/notifications/read-all`；`WS /notifications/live` |
 | 系统消息管理 | `GET/POST /admin/notifications`；`DELETE /admin/notifications/:id` 撤回已发送消息 |
 | 安全验证 | `POST /captcha/challenge`；登录、注册、创建战队和加入战队必须提交一次性 HashPow 结果 |
+| 战队 Logo | `POST/DELETE /teams/:id/logo`；`GET /team-logos/:id` 获取公开图片 |
 | 战队 | `GET /teams/mine`、`/team?team=UUID`；`POST /teams`、`/team/join`、`/team/leave`、`/team/invite`、`/team/captain` |
 | 题库 | `GET /challenges?scope=practice&category=Web&q=&page=1`；`GET /challenges/:id`；`POST /challenges/:id/submit` |
 | 题单 | `GET /problemsets?q=&page=1`、`/problemsets/:id?page=1`；`GET/POST /admin/problemsets`、`GET/PUT /admin/problemsets/:id` |
@@ -69,7 +70,7 @@ Flag 提交请求：`{ "flag": "flag{...}", "scope": "practice" }`，返回 `cor
 
 用户最多加入 20 支战队。`GET /teams/mine` 返回已加入战队列表；成员、邀请码、转让和退出操作通过 `team_id` 指定战队。未指定时保持原接口的默认战队行为。
 
-`POST /contests/:id/register` 接受 `{team_id, group_id?, invite_code?}`。仅队长可以报名；配置了组别的比赛必须选择组别。一个用户不能通过不同战队重复参加同一比赛。报名锁定成员直到比赛结束，开赛前队长可以取消。管理员比赛请求包含 `groups: [{id?, name, description, permissions?, challenge_permissions?}]`，首次报名后不允许增删组别。未传 groups 保留原配置。
+`POST /contests/:id/register` 接受 `{team_id, group_id?, invite_code?, form_revision?, form_answers?}`。仅队长可以报名；配置了组别的比赛必须选择组别。一个用户不能通过不同战队重复参加同一比赛。报名锁定成员直到比赛结束，开赛前队长可以取消。管理员比赛请求包含 `groups: [{id?, name, description, permissions?, challenge_permissions?, review_mode?}]`，首次报名后不允许增删组别。未传 groups 保留原配置。
 
 比赛详情返回数字 `teams`，按报名战队记录计数（含 0），与成员人数无关。还包含 `groups` 和当前用户所属的 `registration`（队名、组名、对应 id），榜单接受 `group=组别UUID` 筛选。榜单 `solves` 为完成整题数，`flags` 为通过计分项数；各组共享同一动态分值，仅将拥有 dynamic 权限的解出计入衰减。
 
@@ -266,7 +267,7 @@ WebSocket 按组复用快照，每次发布重新验证会话、报名与题目�
 
 ## 报名审核与管理员比赛监控
 
-比赛字段 `require_review` 默认 `false`。组别 `permissions.require_review` 默认 `false`；比赛或组别任一要求审核，新报名即为 `pending`。既有报名保持 `accepted`，调整开关不追溯修改状态。
+比赛字段 `require_review` 默认 `false`，后台以反向的「报名免审核」开关展示。组别 `review_mode` 为 `inherit`（跟随比赛）、`auto`（免审核）或 `required`（需要审核），显式的组别设置优先于比赛。迁移 30 将旧的 `permissions.require_review=true` 映射到 `required`；旧客户端继续兼容。需要审核时新报名为 `pending`，否则为 `accepted`；调整设置不追溯修改已有状态。
 
 - `GET /admin/contests/:id/registrations`：`page`、`q`、`status`、`group` 筛选，每页 10 条，返回 `total`、`page_size`、状态计数。
 - `GET /admin/contests/:id/registrations/:team`：报名详情和成员，仅管理员可查看成员邮箱。
@@ -508,3 +509,17 @@ POST 最多 200 题，单填空 500 字符、每题最多 10 个空位，总请�
 成功返回 `{ "avatar_id": "UUID" }`，`DELETE /account/avatar` 恢复默认并返回 `{ "avatar_id": null }`。接口只允许操作登录者自身，沿用 Origin/CSRF 检查；替换或删除后清理旧文件，失败保留原头像。`GET /avatars/:id` 不要求登录，返回 `image/webp`、ETag 和 immutable 缓存。头像文件使用服务器生成的 UUID，读取无需查询会话或用户数据库。用户身份及对应列表增加可空的 `avatar_id`。
 
 公告接口增加 `author: { id, username, avatar_id } | null`，不包含邮箱或参赛资料。创建接口根据登录管理员记录作者，不接受客户端指定创建人；编辑不改作者。导入文件包中的公告由执行导入的管理员创建，原站用户身份不随包迁移。
+
+
+## 注册欢迎消息、自定义报名资料与战队 Logo
+
+迁移版本 30；管理员操作均需管理员会话和同源 CSRF 请求头。
+
+- `GET/PUT /admin/settings/welcome`：`{enabled,title,body,actions:[{label,href}]}`。标题最多 120 字、正文 7000 字、按钮最多 3 个，按钮名称最多 30 字。支持 `{username}`、`{site_name}`；`href` 必须以单个 `/` 开头，拒绝外域、反斜线、控制字符和空白。读取消息详情返回 `actions`，旧消息仍兼容 `href/action_label`。
+- 比赛新建/修改的 `registration_form`：最多 20 项 `{id:UUID,label,type,scope,required,options}`。类型为 `text|textarea|email|phone|address|select|multi`，范围为 `team|member`。单选、多选需 2–30 个不重复选项；省略字段保留原表单，空数组清空配置。
+- `GET /contests/:id/registration-form?team=UUID`：仅当前队长可读取，且比赛须对其可见。返回字段、`revision`、当前成员和已提交快照 `saved`；只预填请求者本人的邮箱/手机号。新加入且不在提交名单的继任队长不可读取旧报名隐私。
+- `POST /contests/:id/register`：额外传 `form_revision` 和 `form_answers: {team:{字段UUID:答案},members:{成员UUID:{字段UUID:答案}}}`。多选答案为字符串数组，其余为字符串，单值最多 1000 字。拒绝未知字段、错误范围、非当前成员、无效选项和必填缺失；表单版本改变返回 409。无配置字段时旧请求体继续可用。
+- 管理报名列表增加 `form_fields` 和 `logo_id`，不预载答案；详情增加 `form_snapshot`、`form_answers`、`submitted_members`，保留原提交成员。存在成员字段且名单发生变化时，批准返回 409，须退回重报。比赛详情的本人报名增加 `has_form`，支持管理员后来清空字段后继续查看历史资料。
+- `POST /teams/:id/logo`：队长提交 multipart 图片，最大 5 MiB，处理为 256×256 WebP 后返回 `{logo_id}`；`DELETE` 移除。`GET /team-logos/:id` 公开读取，支持 ETag/304 和不可变缓存。战队摘要与比赛榜单条目包含 `logo_id`，更换后返回新的图片 UUID。只接受静态 PNG/JPEG/WebP，限制解码像素和并发处理。
+
+操作教程见 [报名表单与战队 Logo](REGISTRATION_FORMS.md)。
