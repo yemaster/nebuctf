@@ -447,6 +447,93 @@ test("scoreboard filters, matrix, details and pagination", async (t) => {
       },
     );
     await t.test(
+      "detail records paginate ten at a time, keep totals and clamp after a refresh",
+      async () => {
+        board = base;
+        await mount(`/contests/${cid}/scoreboard`);
+        await settle(() => !!document.querySelector('tr[data-self="true"]'));
+        await click(
+          document.querySelector('tr[data-self="true"]')!.children[1]!,
+        );
+        await settle(() => !!document.querySelector('[aria-label="解题记录"]'));
+        const path = `/scoreboard/${team}?scope=${cid}`;
+        const many = {
+          ...detail,
+          score: 2300,
+          flags: 23,
+          solves: 23,
+          categories: categories.map((c) =>
+            c.category === "Web" ? { ...c, score: 2300, flags: 23 } : c,
+          ),
+          columns: Array.from({ length: 23 }, (_, i) => ({
+            ...columns[0]!,
+            id: `unit-${i}`,
+            challenge_id: `challenge-${i}`,
+            title: `记录 ${i + 1}`,
+            part_title: null,
+          })),
+          cells: Array.from({ length: 23 }, (_, i) => ({
+            ...detail.cells[0]!,
+            unit_id: `unit-${i}`,
+            solved_at: new Date(Date.parse(now) + i * 1000).toISOString(),
+          })),
+        };
+        await act(async () => cache.setQueryData([path], many));
+        const section = () =>
+          document.querySelector('[aria-label="得分记录"]')!;
+        const records = () =>
+          section().querySelector('[aria-label="解题记录"]')!;
+        const control = (label: string) =>
+          section().querySelector<HTMLButtonElement>(
+            `[aria-label="${label}"]`,
+          )!;
+        await settle(() => records().children.length === 10);
+        assert.equal(records().children.length, 10);
+        assert.match(records().firstElementChild!.textContent!, /记录 23/);
+        assert.match(section().textContent!, /共 23 条/);
+        assert.equal(control("上一页").disabled, true);
+        const requestCount = requests.filter((p) => p === path).length;
+        await click(control("下一页"));
+        assert.equal(records().children.length, 10);
+        assert.match(records().firstElementChild!.textContent!, /记录 13/);
+        assert.equal(control("第 2 页").getAttribute("aria-current"), "page");
+        await click(control("下一页"));
+        assert.equal(records().children.length, 3);
+        assert.match(records().firstElementChild!.textContent!, /记录 3/);
+        assert.equal(control("下一页").disabled, true);
+        assert.equal(
+          requests.filter((p) => p === path).length,
+          requestCount,
+          "paging uses the loaded detail without reloading the sheet",
+        );
+        assert.match(
+          document.querySelector('[data-slot="sheet-header"]')!.textContent!,
+          /2,300/,
+        );
+        await act(async () =>
+          cache.setQueryData([path], {
+            ...many,
+            cells: many.cells.slice(0, 4),
+          }),
+        );
+        await settle(() => records().children.length === 4);
+        assert.equal(control("第 1 页").getAttribute("aria-current"), "page");
+        await act(async () => cache.setQueryData([path], many));
+        await settle(() => records().children.length === 10);
+        assert.equal(control("第 1 页").getAttribute("aria-current"), "page");
+        await click(control("第 2 页"));
+        await click(control("上一页"));
+        assert.match(records().firstElementChild!.textContent!, /记录 23/);
+        await act(async () =>
+          cache.setQueryData([path], { ...many, cells: [] }),
+        );
+        await settle(() => records().children.length === 0);
+        assert.match(section().textContent!, /暂无解题记录/);
+        assert.equal(section().querySelector('[aria-label="分页"]'), null);
+        await cleanup();
+      },
+    );
+    await t.test(
       "mixed headers merge by challenge id and span ordinary questions across the part row",
       async () => {
         board = {

@@ -25,7 +25,7 @@ import { Skeleton } from "./ui/skeleton";
 const loadRadar = () =>
   import("./score-radar").then((m) => ({ default: m.ScoreRadar }));
 const ScoreRadar = lazy(loadRadar);
-const PAGE_SIZE = 24;
+const PAGE_SIZE = 10;
 function strongest(categories: CategoryScore[]) {
   const maximum = Math.max(0, ...categories.map((c) => c.score));
   return maximum > 0
@@ -90,6 +90,7 @@ function DetailContent({
   const [memberId, setMemberId] = useState("");
   const [page, setPage] = useState(1);
   const [hintPage, setHintPage] = useState(1);
+  const recordsSection = useRef<HTMLElement>(null);
   const path = `/scoreboard/${row.id}?${query}`;
   const data = useQuery<ScoreDetail>({
     queryKey: [path],
@@ -116,6 +117,9 @@ function DetailContent({
     page,
     Math.max(1, Math.ceil(records.length / PAGE_SIZE)),
   );
+  useEffect(() => {
+    if (detail && page !== currentPage) setPage(currentPage);
+  }, [detail, page, currentPage]);
   useEffect(() => {
     if (detail && memberId && !selected) setMemberId("");
   }, [detail, memberId, selected]);
@@ -314,7 +318,11 @@ function DetailContent({
                 />
               </section>
             )}
-            <section className="space-y-3">
+            <section
+              ref={recordsSection}
+              aria-label="得分记录"
+              className="space-y-3"
+            >
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-medium">得分记录</h3>
                 <span className="text-xs text-muted-foreground">
@@ -384,10 +392,18 @@ function DetailContent({
               )}
               <Pagination
                 page={currentPage}
-                setPage={setPage}
+                setPage={(next) => {
+                  if (next === currentPage) return;
+                  setPage(next);
+                  recordsSection.current?.scrollIntoView?.({
+                    block: "start",
+                    behavior: "instant",
+                  });
+                }}
                 total={records.length}
                 pageSize={PAGE_SIZE}
                 hasMore={currentPage * PAGE_SIZE < records.length}
+                alwaysShow={records.length > 0}
               />
             </section>
           </div>
