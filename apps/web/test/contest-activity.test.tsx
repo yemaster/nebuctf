@@ -18,6 +18,7 @@ test("floating contest activity respects access, collapse state and new events",
   });
   const historyRequests: string[] = [];
   const historyPages = new Map<string, unknown>();
+  const historyGates = new Map<string, Promise<void>>();
   const sockets: FakeSocket[] = [];
   class FakeSocket {
     readyState = 1;
@@ -55,6 +56,7 @@ test("floating contest activity respects access, collapse state and new events",
     IS_REACT_ACT_ENVIRONMENT: true,
     fetch: async (url: string) => {
       historyRequests.push(url);
+      await historyGates.get(url);
       return new Response(
         JSON.stringify(historyPages.get(url) ?? { error: "暂时不可用" }),
         {
@@ -319,7 +321,34 @@ test("floating contest activity respects access, collapse state and new events",
           new dom.window.MouseEvent("mousedown", { bubbles: true, button: 0 }),
         );
       });
+    const viewport = document.querySelector(
+      '[data-slot="scroll-area-viewport"]',
+    );
+    const activityViewport = () =>
+      document.querySelector("[data-activity-viewport]")!;
+    let releaseFast!: () => void;
+    historyGates.set(
+      `/api${path}/history?kind=solve`,
+      new Promise<void>((resolve) => {
+        releaseFast = resolve;
+      }),
+    );
     await tab("解题");
+    assert.equal(
+      document.querySelector('[data-slot="scroll-area-viewport"]'),
+      viewport,
+    );
+    assert.ok(
+      rows()[0]!.textContent?.includes("最新解出"),
+      "short reads retain the prior category",
+    );
+    assert.equal(activityViewport().getAttribute("aria-busy"), "true");
+    assert.ok(
+      rows()[0]!.closest("[inert]"),
+      "retained links cannot be followed during a switch",
+    );
+    assert.equal(document.querySelector("[data-activity-loading]"), null);
+    await act(async () => releaseFast());
     await settle(
       () =>
         historyRequests.includes(`/api${path}/history?kind=solve`) &&
@@ -329,13 +358,59 @@ test("floating contest activity respects access, collapse state and new events",
       document.querySelector('[role="tab"][aria-selected="true"]')?.textContent,
       "解题",
     );
+    await settle(
+      () => activityViewport().getAttribute("aria-busy") === "false",
+    );
+    assert.equal(
+      document.querySelector("[data-activity-loading]"),
+      null,
+      "fast reads never mount a skeleton",
+    );
+    assert.ok(
+      rows().every((row) => !row.className.includes("animate-in")),
+      "category changes do not replay row entry animations",
+    );
+    let releaseSlow!: () => void;
+    historyGates.set(
+      `/api${path}/history?kind=blood`,
+      new Promise<void>((resolve) => {
+        releaseSlow = resolve;
+      }),
+    );
     await tab("三血");
+    await settle(() => !!document.querySelector("[data-activity-loading]"));
+    const skeleton = document.querySelector("[data-activity-loading]");
+    assert.equal(
+      document.querySelector('[data-slot="scroll-area-viewport"]'),
+      viewport,
+    );
+    await act(async () => releaseSlow());
     await settle(
       () => document.body.textContent?.includes("暂无比赛动态") === true,
     );
     assert.ok(
       (document.querySelector('[aria-label="下一页"]') as HTMLButtonElement)
         .disabled,
+    );
+    assert.equal(document.querySelector("[data-activity-loading]"), skeleton);
+    assert.equal(
+      activityViewport().getAttribute("aria-busy"),
+      "true",
+      "a visible skeleton is held before revealing content",
+    );
+    await settle(
+      () => activityViewport().getAttribute("aria-busy") === "false",
+    );
+    await tab("全部");
+    assert.equal(
+      document.querySelector('[data-slot="scroll-area-viewport"]'),
+      viewport,
+    );
+    await tab("三血");
+    assert.equal(
+      activityViewport().getAttribute("aria-busy"),
+      "false",
+      "cached categories do not restart loading",
     );
     await tab("题目");
     await settle(() => !!document.querySelector('[role="alert"]'));

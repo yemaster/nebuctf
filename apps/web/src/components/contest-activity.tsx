@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { m, useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   Activity,
@@ -133,7 +133,27 @@ function ActivityPanel({
     open && !hidden && !latest,
   );
   const feed = latest ? data : history;
-  const items = feed.data?.items ?? [];
+  const feedKey = `${kind}:${cursor ?? ""}`;
+  const previous = useRef<{ key: string; data: ContestActivityData } | null>(
+    null,
+  );
+  // Keep the last category during a short switch, never after an access reset
+  // of the same query or a failed request.
+  const retained =
+    feed.isLoading && previous.current?.key !== feedKey
+      ? previous.current?.data
+      : undefined;
+  const items = (feed.data ?? retained)?.items ?? [];
+  const previousIds =
+    previous.current?.key === feedKey
+      ? new Set(previous.current.data.items.map((event) => event.id))
+      : null;
+  useEffect(() => {
+    if (feed.data && !feed.error)
+      previous.current = { key: feedKey, data: feed.data };
+    else if (feed.error || previous.current?.key === feedKey)
+      previous.current = null;
+  }, [feed.data, feed.error, feedKey]);
   function scrollTop() {
     scroll.current
       ?.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')
@@ -336,34 +356,35 @@ function ActivityPanel({
                     ))}
                   </TabsList>
                 </div>
-                <TabsContent value={kind} className="mt-0">
-                  {data.status === "retrying" && (
-                    <p
-                      role="status"
-                      className="px-4 pt-3 text-xs text-muted-foreground"
-                    >
-                      连接中断，正在重连
-                    </p>
-                  )}
-                  {feed.error && (
-                    <div
-                      role="alert"
-                      className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-muted-foreground"
-                    >
-                      <span>动态更新失败</span>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => void feed.refetch()}
-                      >
-                        重试
-                      </Button>
-                    </div>
-                  )}
-                  {feed.isLoading ? (
-                    <Loading variant="activity" />
-                  ) : (
-                    <ScrollArea ref={scroll} className="h-80 max-h-[50dvh]">
+                <TabsContent
+                  value={kind}
+                  className="mt-0 motion-safe:data-[state=active]:animate-none"
+                >
+                  <ActivityLoading pending={feed.isLoading}>
+                    <ScrollArea ref={scroll} className="h-full">
+                      {data.status === "retrying" && (
+                        <p
+                          role="status"
+                          className="px-4 pt-3 text-xs text-muted-foreground"
+                        >
+                          连接中断，正在重连
+                        </p>
+                      )}
+                      {feed.error && (
+                        <div
+                          role="alert"
+                          className="flex h-80 max-h-[50dvh] flex-col items-center justify-center gap-3 px-4 text-sm text-muted-foreground"
+                        >
+                          <span>动态更新失败</span>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => void feed.refetch()}
+                          >
+                            重试
+                          </Button>
+                        </div>
+                      )}
                       <ul aria-label="近期比赛动态" className="px-4 pb-3">
                         {!feed.error &&
                           items.map((event) => {
@@ -381,7 +402,7 @@ function ActivityPanel({
                             return (
                               <li
                                 key={event.id}
-                                className="relative flex gap-3 py-3 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-2 motion-safe:duration-300"
+                                className={`relative flex gap-3 py-3 ${!feed.isLoading && previousIds && !previousIds.has(event.id) ? "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-2 motion-safe:duration-300" : ""}`}
                               >
                                 {blood ? (
                                   <BloodMark
@@ -453,13 +474,13 @@ function ActivityPanel({
                             );
                           })}
                       </ul>
-                      {!feed.error && !items.length && (
+                      {!feed.isLoading && !feed.error && !items.length && (
                         <p className="flex h-40 items-center justify-center text-sm text-muted-foreground">
                           暂无比赛动态
                         </p>
                       )}
                     </ScrollArea>
-                  )}
+                  </ActivityLoading>
                   <div className="flex items-center gap-2 border-t px-3 py-2">
                     <Button
                       type="button"
@@ -491,5 +512,62 @@ function ActivityPanel({
         </Card>
       </m.div>
     </Collapsible>
+  );
+}
+
+// A fixed viewport and one overlay avoid shrinking the panel or remounting its
+// scroll area between cached, fast, slow and failed reads.
+function ActivityLoading({
+  pending,
+  children,
+}: {
+  pending: boolean;
+  children: ReactNode;
+}) {
+  const reduced = useReducedMotion();
+  const [indicator, setIndicator] = useState(false);
+  const shownAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (pending && shownAt.current !== null) return;
+    const timer = setTimeout(
+      () => {
+        shownAt.current = pending ? Date.now() : null;
+        setIndicator(pending);
+      },
+      pending ? 120 : Math.max(0, 240 - (Date.now() - (shownAt.current ?? 0))),
+    );
+    return () => clearTimeout(timer);
+  }, [pending]);
+  const waiting = pending || indicator;
+  return (
+    <div
+      className="relative h-80 max-h-[50dvh] overflow-hidden"
+      aria-busy={waiting}
+      data-activity-viewport
+    >
+      <div
+        className="h-full motion-safe:transition-opacity motion-safe:duration-150"
+        inert={waiting || undefined}
+        aria-hidden={waiting || undefined}
+        style={{ opacity: pending && !indicator ? 0.6 : 1 }}
+      >
+        {children}
+      </div>
+      <AnimatePresence initial={false}>
+        {indicator && (
+          <m.div
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduced ? 0 : 0.15, ease: "easeOut" }}
+            className="pointer-events-none absolute inset-0 bg-card"
+            data-activity-loading
+          >
+            <Loading variant="activity" immediate />
+          </m.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
