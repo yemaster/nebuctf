@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
 import type { DB, Row } from "./db.js";
 import { contestAccess, type User } from "./context.js";
-import { readContestActivity } from "./contest-activity.js";
+import { ACTIVITY_PAGE_SIZE, readContestActivity } from "./contest-activity.js";
 import { visibleChallengeIds } from "./group-permissions.js";
 import { readScoreboard } from "./scoreboard.js";
 import { contestCutoff } from "./contest-practice.js";
@@ -74,7 +74,9 @@ export async function readSpectatorSnapshot(db: DB, contest: Row, user?: User) {
     spectator: true,
     summary: true,
   });
-  const activity = await readContestActivity(db, scope, contest, visible);
+  const activity = await readContestActivity(db, scope, contest, visible, {
+    includeHints: false,
+  });
   const cutoff = contestCutoff(contest);
   const attacks = board.started
     ? await db.query(
@@ -87,8 +89,8 @@ export async function readSpectatorSnapshot(db: DB, contest: Row, user?: User) {
      JOIN teams t ON t.id=ar.team_id JOIN teams v ON v.id=vr.team_id
      WHERE r.contest_id=$1 AND c.published AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=$2)
        AND ($3::uuid[] IS NULL OR c.id=ANY($3::uuid[])) AND a.created_at<=$2
-     ORDER BY a.created_at DESC,a.id DESC LIMIT 40`,
-        [scope, cutoff, visible],
+     ORDER BY a.created_at DESC,a.id DESC LIMIT $4`,
+        [scope, cutoff, visible, ACTIVITY_PAGE_SIZE],
       )
     : [];
   const [stats] = await db.query(
@@ -116,7 +118,7 @@ export async function readSpectatorSnapshot(db: DB, contest: Row, user?: User) {
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime() ||
         b.id.localeCompare(a.id),
     )
-    .slice(0, 40);
+    .slice(0, ACTIVITY_PAGE_SIZE);
   return {
     contest: {
       id: scope,
