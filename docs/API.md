@@ -107,12 +107,14 @@ Flag 提交请求：`{ "flag": "flag{...}", "scope": "practice" }`，返回 `cor
 
 ## 比赛动态与公告范围
 
-`GET /contests/:id/activity` 需要登录并已报名该比赛，管理员可以预览。返回 `{ items, frozen, hint_updates }`，最新在前，最多 40 条。事件包含 `id`、`type`（release / withdraw / hint / solve）、`challenge_id`、`challenge_title`、`part_id`、`part_title`、`team_name`、`blood_rank`（1/2/3 或 null）及 `created_at`。
+`GET /contests/:id/activity` 需要登录并已报名该比赛，管理员可以预览。返回 `{ items, frozen, hint_updates, has_more, next_cursor }`，最新在前，最多 10 条。事件包含 `id`、`type`（release / withdraw / hint / solve）、`challenge_id`、`challenge_title`、`part_id`、`part_title`、`team_name`、`blood_rank`（1/2/3 或 null）及 `created_at`。
 
 - 解题从真实 solves/part_solves 读取，错误和重复提交不产生事件。多小题按独立计分单元展示，不再重复显示整题完成事件。三血在全场按该计分单元的通过时间及稳定 ID 次序确定，仅作提醒，不增加分数。
 - 发布事件在管理员发布关联赛题、发布比赛或加入已发布题目时与管理变更在同一事务中记录；普通标题修改不会重复记录。开赛前不返回动态，预先发布的题目在开赛时展示上线时间。迁移前没有可靠上线时间的旧题目不编造历史事件，历史解题仍可读取。
 - 未上线的题目不产生提示或解题动态；已下线题目可保留下线通知。封榜中的解题查询使用封榜时间，结束后展示截至比赛结束的历史；上线信息不受成绩封榜影响。
-- 为列表时间序读取新增索引；先截取各类最近记录，再计算最多 40 条的前三次解出标记，查询不返回错误提交、答案或个人身份标识。
+- 查询在数据库中按可见性、报名资格与分类筛选后，每个来源最多读取 11 条，返回 10 条及是否还有下一页；不扫描全量事件计数，不返回错误提交、答案或个人身份标识。
+- `GET /contests/:id/activity/history?kind=all|solve|blood|challenge&cursor=…` 与实时动态使用同一权限和封榜规则。`challenge` 包含上线、下线和新提示，`blood` 只含具备三血资格的前三次解出。每页 10 条，返回 `{items,frozen,has_more,next_cursor}`；下一页原样传回不透明的 `next_cursor`，末页为 null。游标保留数据库时间精度并按事件 ID 稳定排序，新消息不会推移旧页；无效类型或游标返回 400。历史接口不重复读取 `hint_updates`。
+- 浮窗使用“全部 / 解题 / 三血 / 题目”简约标签页。全部分类第一页直接复用实时快照；其他分类与历史页按需请求，收起时不请求历史。新事件只更新分类首页，查看旧页时显示新动态角标，点击刷新图标回到最新一页；权限、封榜或题目下线变化会清除旧页缓存并重新核验。
 - `GET /announcements?scope=比赛UUID` 只返回该比赛公告；省略 scope 或使用 practice 时只返回全站公告。
 
 数据库迁移 8 新增 contest_releases 及动态查询索引，更新前建议按部署文档备份数据库。
@@ -215,7 +217,7 @@ API 进程每 2 秒检查到期题目，在事务内启用、清除计划时间�
 
 实例创建/策略/测试支持 resource_type=container/attachment，分别选择独立配置。`GET /instances` 会隐藏未开始阶段的共享环境，并在作答阶段外隐藏个人环境地址。
 
-`GET /contests/:id/activity/ws` 为 WebSocket 升级接口。必须提供精确 APP_ORIGIN 和有效会话，普通用户需报名。只读连接，发送应用消息将关闭。帧为 `{type:"activity",data:{items,frozen,hint_updates}}`；恢复中可收到 `{type:"retry"}`。每用户最多 4 个连接，每分钟最多 20 次握手。HTTP 动态接口保留作初始化及诊断，前端后续使用 WebSocket 更新。
+`GET /contests/:id/activity/ws` 为 WebSocket 升级接口。必须提供精确 APP_ORIGIN 和有效会话，普通用户需报名。只读连接，发送应用消息将关闭。帧为 `{type:"activity",data:{items,frozen,hint_updates,has_more,next_cursor,permissions_version}}`；恢复中可收到 `{type:"retry"}`。每用户最多 4 个连接，每分钟最多 20 次握手。HTTP 动态接口保留作初始化及诊断，前端后续使用 WebSocket 更新。
 
 轮次成绩保存在独立账本，不和普通解题成绩重复累计。榜单详情的 round_number、round_details 和 team_points 区分选手贡献及系统防守/可用性分。零分轮次不计解题数。
 
@@ -331,7 +333,7 @@ WebSocket 按组复用快照，每次发布重新验证会话、报名与题目�
 
 | 接口 | 用途 |
 | --- | --- |
-| `GET /contests/:id/spectate` | 公开观战快照，包含安全的比赛信息、统计、前 100 队、可见题目元数据及最近 40 条动态 |
+| `GET /contests/:id/spectate` | 公开观战快照，包含安全的比赛信息、统计、前 100 队、可见题目元数据及最近 10 条动态 |
 | `GET /contests/:id/spectate/ranking?page=&group=` | 大屏轮播排行，每页 10 队，组别可选 |
 | `GET /contests/:id/spectate/ws` | 匿名可连接的只读 WebSocket，同源 Origin 必须匹配 |
 
