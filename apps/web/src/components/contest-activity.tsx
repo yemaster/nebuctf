@@ -9,6 +9,7 @@ import {
   ChevronUp,
   Flag,
   LockKeyhole,
+  RotateCcw,
 } from "lucide-react";
 import { useContestRealtime } from "@/lib/contest-realtime";
 import { useAPI } from "@/lib/api";
@@ -24,7 +25,8 @@ import {
   CollapsibleTrigger,
 } from "./ui/collapsible";
 import { ScrollArea } from "./ui/scroll-area";
-import { Loading } from "./shared";
+import { Loading, Pagination } from "./shared";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 
 export interface ContestEvent {
   id: string;
@@ -40,6 +42,8 @@ export interface ContestActivityData {
   permissions_version?: string;
   items: ContestEvent[];
   frozen: boolean;
+  has_more?: boolean;
+  next_cursor?: string | null;
   hint_updates?: {
     id: string;
     challenge_id: string;
@@ -47,6 +51,7 @@ export interface ContestActivityData {
     created_at: string;
   }[];
 }
+type ActivityKind = "all" | "solve" | "blood" | "challenge";
 const time = new Intl.DateTimeFormat("zh-CN", {
   hour: "2-digit",
   minute: "2-digit",
@@ -116,6 +121,45 @@ function ActivityPanel({
     if (paper) setOpen(false);
   }, [paper]);
   const data = useContestRealtime(scope);
+  const [kind, setKind] = useState<ActivityKind>("all");
+  const [paging, setPaging] = useState({ page: 1, cursors: [""] });
+  const scroll = useRef<HTMLDivElement>(null);
+  const latest = kind === "all" && paging.page === 1;
+  const historyParams = new URLSearchParams({ kind });
+  const cursor = paging.cursors[paging.page - 1];
+  if (cursor) historyParams.set("cursor", cursor);
+  const history = useAPI<ContestActivityData>(
+    `/contests/${scope}/activity/history?${historyParams}`,
+    open && !hidden && !latest,
+  );
+  const feed = latest ? data : history;
+  const items = feed.data?.items ?? [];
+  function scrollTop() {
+    scroll.current
+      ?.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')
+      ?.scrollTo?.({ top: 0, behavior: "instant" });
+  }
+  function firstPage() {
+    setPaging({ page: 1, cursors: [""] });
+    setUnread(0);
+    scrollTop();
+  }
+  function changePage(page: number) {
+    if (page === paging.page) return;
+    if (page > paging.page) {
+      if (!feed.data?.next_cursor) return;
+      setPaging({
+        page,
+        cursors: [
+          ...paging.cursors.slice(0, paging.page),
+          feed.data.next_cursor,
+        ],
+      });
+    } else {
+      setPaging({ ...paging, page });
+    }
+    scrollTop();
+  }
   const seen = useRef<Set<string> | null>(null);
   const [unread, setUnread] = useState(0);
   const [newHints, setNewHints] = useState(0);
@@ -146,7 +190,7 @@ function ActivityPanel({
       (h) => h.created_at > hintSeen.current! && !knownHints.current.has(h.id),
     );
     for (const hint of updates) knownHints.current.add(hint.id);
-    if (open) {
+    if (open && paging.page === 1) {
       setNewHints(0);
       hintSeen.current = updates.reduce(
         (latest, h) => (h.created_at > latest ? h.created_at : latest),
@@ -156,20 +200,20 @@ function ActivityPanel({
         localStorage.setItem(key + ":hints", hintSeen.current);
       } catch {}
     } else if (fresh.length) setNewHints((n) => Math.min(99, n + fresh.length));
-  }, [data.data, open, key]);
+  }, [data.data, open, key, paging.page]);
   useEffect(() => {
     if (!data.data) return;
     const ids = new Set(data.data.items.map((item) => item.id));
     const added = seen.current
       ? [...ids].filter((id) => !seen.current!.has(id)).length
       : 0;
-    if (open) setUnread(0);
+    if (open && paging.page === 1) setUnread(0);
     else if (added) setUnread((value) => Math.min(99, value + added));
     seen.current = new Set([...(seen.current ?? []), ...ids].slice(-1000));
-  }, [data.data, open]);
+  }, [data.data, open, paging.page]);
   function toggle(value: boolean) {
     setOpen(value);
-    if (value) {
+    if (value && paging.page === 1) {
       setUnread(0);
       setNewHints(0);
     }
@@ -264,126 +308,184 @@ function ActivityPanel({
               aria-hidden={!open || undefined}
               className="overflow-hidden"
             >
-              {data.status === "retrying" && (
-                <p
-                  role="status"
-                  className="px-4 pt-3 text-xs text-muted-foreground"
-                >
-                  连接中断，正在重连
-                </p>
-              )}
-              {data.error && (
-                <div
-                  role="alert"
-                  className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-muted-foreground"
-                >
-                  <span>动态更新失败</span>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => void data.refetch()}
+              <Tabs
+                value={kind}
+                onValueChange={(value) => {
+                  setKind(value as ActivityKind);
+                  firstPage();
+                }}
+                className="gap-0"
+              >
+                <div className="px-4 pt-1">
+                  <TabsList
+                    variant="line"
+                    className="w-full"
+                    aria-label="动态分类"
                   >
-                    重试
-                  </Button>
+                    {(
+                      [
+                        ["all", "全部"],
+                        ["solve", "解题"],
+                        ["blood", "三血"],
+                        ["challenge", "题目"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <TabsTrigger key={value} value={value} className="flex-1">
+                        {label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
                 </div>
-              )}
-              {data.isLoading ? (
-                <Loading variant="activity" />
-              ) : (
-                <ScrollArea className="h-80 max-h-[50dvh]">
-                  <ul aria-label="近期比赛动态" className="px-4 pb-3">
-                    {data.data?.items.map((event) => {
-                      const blood = event.blood_rank
-                        ? ["一血", "二血", "三血"][event.blood_rank - 1]
-                        : null;
-                      const Icon =
-                        event.type === "hint"
-                          ? BellRing
-                          : event.type === "withdraw"
-                            ? FlagOff
-                            : event.type === "release"
-                              ? Flag
-                              : CheckCircle2;
-                      return (
-                        <li
-                          key={event.id}
-                          className="relative flex gap-3 py-3 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-2 motion-safe:duration-300"
-                        >
-                          {blood ? (
-                            <BloodMark
-                              rank={event.blood_rank!}
-                              className="mt-1 size-4"
-                            />
-                          ) : (
-                            <Icon className="mt-1 size-4 shrink-0 text-muted-foreground" />
-                          )}
-                          <div className="min-w-0 flex-1 space-y-1.5">
-                            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                              <span>
-                                {blood ? (
-                                  <Badge variant="secondary">{blood}</Badge>
-                                ) : (
-                                  {
-                                    release: "题目上线",
-                                    withdraw: "题目下线",
-                                    hint: "新增提示",
-                                    solve: "新解出",
-                                  }[event.type]
-                                )}
-                              </span>
-                              <time
-                                dateTime={event.created_at}
-                                title={new Date(
-                                  event.created_at,
-                                ).toLocaleString("zh-CN")}
-                                className="tabular-nums"
-                              >
-                                {time.format(new Date(event.created_at))}
-                              </time>
-                            </div>
-                            <p className="break-words text-sm leading-6">
-                              {event.type === "solve" && (
-                                <>
-                                  <span className="font-medium">
-                                    {event.team_name}
-                                  </span>
-                                  <span className="text-muted-foreground">
-                                    {" "}
-                                    解出{" "}
-                                  </span>
-                                </>
-                              )}
-                              {canOpen && event.type !== "withdraw" ? (
-                                <Link
-                                  className="rounded-sm underline-offset-4 after:absolute after:inset-0 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
-                                  to={`/contests/${scope}/challenges?challenge=${event.challenge_id}`}
-                                >
-                                  {event.challenge_title}
-                                  {event.part_title
-                                    ? ` / ${event.part_title}`
-                                    : ""}
-                                </Link>
-                              ) : (
-                                <span>
-                                  {event.challenge_title}
-                                  {event.part_title
-                                    ? ` / ${event.part_title}`
-                                    : ""}
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  {!data.error && data.data?.items.length === 0 && (
-                    <p className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                      暂无比赛动态
+                <TabsContent value={kind} className="mt-0">
+                  {data.status === "retrying" && (
+                    <p
+                      role="status"
+                      className="px-4 pt-3 text-xs text-muted-foreground"
+                    >
+                      连接中断，正在重连
                     </p>
                   )}
-                </ScrollArea>
-              )}
+                  {feed.error && (
+                    <div
+                      role="alert"
+                      className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-muted-foreground"
+                    >
+                      <span>动态更新失败</span>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => void feed.refetch()}
+                      >
+                        重试
+                      </Button>
+                    </div>
+                  )}
+                  {feed.isLoading ? (
+                    <Loading variant="activity" />
+                  ) : (
+                    <ScrollArea ref={scroll} className="h-80 max-h-[50dvh]">
+                      <ul aria-label="近期比赛动态" className="px-4 pb-3">
+                        {!feed.error &&
+                          items.map((event) => {
+                            const blood = event.blood_rank
+                              ? ["一血", "二血", "三血"][event.blood_rank - 1]
+                              : null;
+                            const Icon =
+                              event.type === "hint"
+                                ? BellRing
+                                : event.type === "withdraw"
+                                  ? FlagOff
+                                  : event.type === "release"
+                                    ? Flag
+                                    : CheckCircle2;
+                            return (
+                              <li
+                                key={event.id}
+                                className="relative flex gap-3 py-3 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-2 motion-safe:duration-300"
+                              >
+                                {blood ? (
+                                  <BloodMark
+                                    rank={event.blood_rank!}
+                                    className="mt-1 size-4"
+                                  />
+                                ) : (
+                                  <Icon className="mt-1 size-4 shrink-0 text-muted-foreground" />
+                                )}
+                                <div className="min-w-0 flex-1 space-y-1.5">
+                                  <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                                    <span>
+                                      {blood ? (
+                                        <Badge variant="secondary">
+                                          {blood}
+                                        </Badge>
+                                      ) : (
+                                        {
+                                          release: "题目上线",
+                                          withdraw: "题目下线",
+                                          hint: "新增提示",
+                                          solve: "新解出",
+                                        }[event.type]
+                                      )}
+                                    </span>
+                                    <time
+                                      dateTime={event.created_at}
+                                      title={new Date(
+                                        event.created_at,
+                                      ).toLocaleString("zh-CN")}
+                                      className="tabular-nums"
+                                    >
+                                      {time.format(new Date(event.created_at))}
+                                    </time>
+                                  </div>
+                                  <p className="break-words text-sm leading-6">
+                                    {event.type === "solve" && (
+                                      <>
+                                        <span className="font-medium">
+                                          {event.team_name}
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                          {" "}
+                                          解出{" "}
+                                        </span>
+                                      </>
+                                    )}
+                                    {canOpen && event.type !== "withdraw" ? (
+                                      <Link
+                                        className="rounded-sm underline-offset-4 after:absolute after:inset-0 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                                        to={`/contests/${scope}/challenges?challenge=${event.challenge_id}`}
+                                      >
+                                        {event.challenge_title}
+                                        {event.part_title
+                                          ? ` / ${event.part_title}`
+                                          : ""}
+                                      </Link>
+                                    ) : (
+                                      <span>
+                                        {event.challenge_title}
+                                        {event.part_title
+                                          ? ` / ${event.part_title}`
+                                          : ""}
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              </li>
+                            );
+                          })}
+                      </ul>
+                      {!feed.error && !items.length && (
+                        <p className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+                          暂无比赛动态
+                        </p>
+                      )}
+                    </ScrollArea>
+                  )}
+                  <div className="flex items-center gap-2 border-t px-3 py-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 shrink-0"
+                      aria-label="查看最新动态"
+                      title="查看最新动态"
+                      disabled={paging.page === 1 && !unread}
+                      onClick={firstPage}
+                    >
+                      <RotateCcw className="size-3.5" />
+                    </Button>
+                    <div className="min-w-0 flex-1 [&>div]:mt-0">
+                      <Pagination
+                        page={paging.page}
+                        setPage={changePage}
+                        hasMore={!!feed.data?.has_more}
+                        disabled={feed.isFetching || !!feed.error}
+                        compact
+                        alwaysShow
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </m.div>
           </CollapsibleContent>
         </Card>

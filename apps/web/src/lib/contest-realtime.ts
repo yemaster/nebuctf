@@ -70,6 +70,30 @@ export function useContestRealtime(scope: string) {
                 (e) => !previous.items.some((old) => old.id === e.id),
               ))
           ) {
+            const historyPath = `${path}/history?`;
+            if (
+              data.permissions_version !== previous.permissions_version ||
+              data.frozen !== previous.frozen ||
+              data.items.some(
+                (event) =>
+                  event.type === "withdraw" &&
+                  !previous.items.some((old) => old.id === event.id),
+              )
+            ) {
+              void cache.resetQueries({
+                predicate: (q) => String(q.queryKey[0]).startsWith(historyPath),
+              });
+            } else {
+              void cache.invalidateQueries({
+                predicate: (q) => {
+                  const key = String(q.queryKey[0]);
+                  return (
+                    key.startsWith(historyPath) &&
+                    !new URLSearchParams(key.split("?")[1]).has("cursor")
+                  );
+                },
+              });
+            }
             void cache.invalidateQueries({
               predicate: (q) => {
                 const key = String(q.queryKey[0]);
