@@ -156,8 +156,8 @@ export function ScoreTimeline({
         aria-label="前五名战队积分走势"
       >
         <LineChart
-          accessibilityLayer
-          aria-label="积分走势图，左右方向键查看时间"
+          accessibilityLayer={!compact}
+          aria-label={compact ? "积分走势图" : "积分走势图，左右方向键查看时间"}
           data={visible}
           margin={{ top: 12, right: compact ? 20 : 16, bottom: 0, left: 0 }}
         >
@@ -210,14 +210,16 @@ export function ScoreTimeline({
               isAnimationActive={false}
             />
           ))}
-          <TimelineInspector
-            container={chart}
-            data={visible}
-            config={config}
-            teams={board.timeline}
-            hidden={hidden}
-            formatTime={(value) => fullTime.format(value)}
-          />
+          {!compact && (
+            <TimelineInspector
+              container={chart}
+              data={visible}
+              config={config}
+              teams={board.timeline}
+              hidden={hidden}
+              formatTime={(value) => fullTime.format(value)}
+            />
+          )}
         </LineChart>
       </ChartContainer>
       {!compact && (
@@ -271,7 +273,7 @@ export function ScoreTimeline({
       <div
         className={
           compact
-            ? "grid shrink-0 grid-cols-2 gap-x-3 gap-y-1"
+            ? "flex shrink-0 flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap px-0.5 pb-1"
             : "flex flex-wrap justify-center gap-x-5 gap-y-1"
         }
         role="group"
@@ -285,6 +287,7 @@ export function ScoreTimeline({
             aria-label={`${hidden.has(team.id) ? "显示" : "隐藏"}${team.name}的积分走势`}
             className={cn(
               "flex max-w-full items-center gap-2 rounded-sm py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              compact && "shrink-0 gap-1.5 text-[11px]",
               hidden.has(team.id) && "opacity-40",
             )}
             onClick={() =>
@@ -298,7 +301,10 @@ export function ScoreTimeline({
           >
             <span
               aria-hidden
-              className="h-0.5 w-4 shrink-0 rounded-full bg-(--team-color) dark:bg-(--team-color-dark)"
+              className={cn(
+                "h-0.5 shrink-0 rounded-full bg-(--team-color) dark:bg-(--team-color-dark)",
+                compact ? "w-3" : "w-4",
+              )}
               style={
                 {
                   "--team-color": palette[colors[team.id]!]!.light,
