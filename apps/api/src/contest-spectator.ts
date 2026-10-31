@@ -187,7 +187,7 @@ export function contestSpectatorRoutes(app: FastifyInstance, db: DB) {
     string,
     {
       until: number;
-      pending: Promise<{ total: number; page: number; items: Row[] }>;
+      pending: Promise<Row>;
     }
   >();
   let closing = false,
@@ -221,11 +221,17 @@ export function contestSpectatorRoutes(app: FastifyInstance, db: DB) {
         db,
         { scope, page: q.page, group: q.group, page_size: 10 },
         req.user ?? undefined,
-        { spectator: true, summary: true },
+        { spectator: true, summary: true, timeline: true },
       );
       return {
         total: board.total,
         page: board.page,
+        timeline: board.timeline,
+        starts_at: board.starts_at,
+        ends_at: board.ends_at,
+        cutoff: board.cutoff,
+        started: board.started,
+        frozen: board.frozen,
         items: board.items.map((t: Row) => ({
           id: t.id,
           name: t.name,

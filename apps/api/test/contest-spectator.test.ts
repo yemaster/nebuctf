@@ -791,6 +791,23 @@ test(
             "summary preserves standings, effective points and visibility",
           );
           assert.deepEqual(summary.timeline, []);
+          const chart = await readScoreboard(db, { scope }, undefined, {
+            spectator: true,
+            summary: true,
+            timeline: true,
+          });
+          assert.deepEqual(
+            chart.timeline,
+            full.timeline,
+            "spectator curves retain official scores, penalties, visibility and freeze",
+          );
+          assert(
+            chart.items.every(
+              (row: Record<string, unknown>) =>
+                Array.isArray(row.cells) && row.cells.length === 0,
+            ),
+            "curves do not fetch the solve matrix",
+          );
           assert(
             summary.items.every(
               (row: Record<string, unknown>) =>
@@ -824,6 +841,69 @@ test(
         const frozen = await read();
         assert(frozen.frozen);
         assert(frozen.challenges.every((c) => c.challenge_solves === 0));
+      },
+    );
+
+    await t.test(
+      "spectator ranking curves follow groups and freeze even when the public scoreboard is disabled",
+      async () => {
+        const scope = await contest(),
+          cid = await challenge(scope),
+          group = crypto.randomUUID();
+        await db.query(
+          "INSERT INTO contest_groups(id,contest_id,name,position,permissions) VALUES($1,$2,'Separate ranking',0,$3)",
+          [group, scope, JSON.stringify({ rank_overall: false })],
+        );
+        for (const p of [alice, bob]) {
+          await db.query(
+            "INSERT INTO registrations(contest_id,team_id,group_id) VALUES($1,$2,$3)",
+            [scope, p.team, p === alice ? group : null],
+          );
+          await db.query(
+            "INSERT INTO solves(id,challenge_id,scope,owner_key,user_id,created_at) VALUES($1,$2,$3,$4,$5,now()-$6::interval)",
+            [
+              crypto.randomUUID(),
+              cid,
+              scope,
+              "t:" + p.team,
+              p.id,
+              p === alice ? "20 minutes" : "10 minutes",
+            ],
+          );
+        }
+        await db.query(
+          "UPDATE contests SET spectator_scoreboard=false,freeze_at=now()-interval '15 minutes' WHERE id=$1",
+          [scope],
+        );
+        const global = await ok(`/contests/${scope}/spectate/ranking`);
+        assert(global.frozen);
+        assert.deepEqual(global.timeline, []);
+        assert.equal(global.items.length, 1);
+        assert.equal(global.items[0].id, bob.team);
+        const division = await ok(
+          `/contests/${scope}/spectate/ranking?group=${group}`,
+        );
+        assert.equal(division.timeline.length, 1);
+        assert.equal(division.timeline[0].id, alice.team);
+        assert.equal(
+          division.timeline[0].points.at(-1).score,
+          division.items[0].score,
+        );
+        assert(
+          division.timeline[0].points.every(
+            (p: any) => Date.parse(p.time) <= Date.parse(division.cutoff),
+          ),
+        );
+        assert(!JSON.stringify(division).includes("cells"));
+        assert(!JSON.stringify(division).includes("solver_id"));
+        assert.equal(
+          (
+            await request(
+              `/contests/${scope}/spectate/ranking?group=${crypto.randomUUID()}`,
+            )
+          ).statusCode,
+          400,
+        );
       },
     );
 
