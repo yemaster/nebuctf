@@ -307,6 +307,9 @@ test(
       await act(async () => {
         Socket.current.readyState = 1;
         Socket.current.onopen?.();
+        Socket.current.onmessage?.({
+          data: JSON.stringify({ type: "spectator", data }),
+        });
       });
       await settle(() =>
         document.body.textContent!.includes("当前设备无法显示 3D"),
@@ -335,6 +338,47 @@ test(
       await settle(() => document.body.textContent!.includes("Team 10"));
       assert(!button("重置视角"));
       assert(!button("查看 Team 10，第 11 名，1000 分"));
+      assert(
+        !document.querySelector("[data-spectator-highlight]"),
+        "initial history never broadcasts",
+      );
+      const push = async (frame: SpectatorData) =>
+        act(async () => {
+          Socket.current.onmessage?.({
+            data: JSON.stringify({ type: "spectator", data: frame }),
+          });
+        });
+      const next = {
+        ...data,
+        events: [event("live-blood", Date.now()), ...data.events],
+        leaders: [{ ...team(0), score: 100 }],
+      };
+      await push(next);
+      await settle(
+        () => !!document.querySelector('[data-spectator-highlight="blood"]'),
+      );
+      assert.equal(
+        document.querySelector("[data-spectator-highlight]")!.parentElement!
+          .parentElement,
+        document.body,
+        "broadcast escapes content clipping",
+      );
+      await act(async () => button("暂停动效").click());
+      assert(!document.querySelector("[data-spectator-highlight]"));
+      await act(async () => button("继续动效").click());
+      assert(
+        !document.querySelector("[data-spectator-highlight]"),
+        "resuming does not replay discarded events",
+      );
+      await push({ ...next, leaders: [{ ...team(1), rank: 1, score: 200 }] });
+      await settle(
+        () => !!document.querySelector('[data-spectator-highlight="leader"]'),
+      );
+      assert(
+        document
+          .querySelector("[data-spectator-highlight]")!
+          .textContent!.includes("Team 1"),
+      );
       await act(async () => {
         denied = true;
         Socket.current.onclose?.({ code: 1008 });
@@ -342,6 +386,10 @@ test(
       await settle(() => !document.querySelector("[data-spectator-screen]"));
       assert(document.body.textContent!.includes("本场比赛的观战权限已变更"));
       assert(!document.body.textContent!.includes("Team 0"));
+      assert(
+        !document.querySelector("[data-spectator-highlight]"),
+        "revocation removes the portal too",
+      );
     } finally {
       await act(async () => root.unmount());
       cache.clear();

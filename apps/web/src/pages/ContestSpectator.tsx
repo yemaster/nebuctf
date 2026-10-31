@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/native-select";
 import { Loading, QueryState } from "@/components/shared";
 import { ContestClockLine } from "@/components/contest-clock";
+import { SpectatorHighlightOverlay } from "@/components/spectator/highlight-overlay";
 const ArenaScene = lazy(() => import("@/components/spectator/arena-scene"));
 const ScoreTimeline = lazy(() =>
   import("@/components/score-timeline").then((module) => ({
@@ -176,6 +177,12 @@ function Spectator({ scope }: { scope: string }) {
           </span>
         </section>
       </div>
+      <SpectatorHighlightOverlay
+        batch={feed.highlights}
+        container={fullscreen ? screen.current : null}
+        enabled={feed.status === "live" && !paused && !data.frozen && !ended}
+        reduced={reduced}
+      />
     </div>
   );
 }

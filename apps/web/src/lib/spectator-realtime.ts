@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, useAPI } from "./api";
 import type { SpectatorData } from "./spectator";
+import {
+  SpectatorHighlightTracker,
+  type SpectatorHighlightBatch,
+} from "./spectator-highlights";
 
 export function useSpectatorRealtime(scope: string) {
   const path = `/contests/${scope}/spectate`,
@@ -12,15 +16,21 @@ export function useSpectatorRealtime(scope: string) {
   );
   const [attempt, setAttempt] = useState(0);
   const [denied, setDenied] = useState<ApiError | null>(null);
+  const [highlights, setHighlights] = useState<SpectatorHighlightBatch | null>(
+    null,
+  );
   useEffect(() => {
+    const tracker = new SpectatorHighlightTracker();
     let disposed = false,
       blocked = false,
       socket: WebSocket | undefined,
       timer: ReturnType<typeof setTimeout> | undefined,
       retries = 0;
     setDenied(null);
+    setHighlights(null);
     const connect = () => {
       if (disposed || blocked || document.hidden) return;
+      let continuous = false;
       const url = new URL(`/api${path}/ws`, window.location.href);
       url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
       setStatus(retries ? "retrying" : "connecting");
@@ -36,6 +46,7 @@ export function useSpectatorRealtime(scope: string) {
         try {
           const frame = JSON.parse(String(message.data));
           if (frame.type === "retry") {
+            continuous = false;
             setStatus("retrying");
             return;
           }
@@ -46,6 +57,12 @@ export function useSpectatorRealtime(scope: string) {
             typeof frame.data?.frozen !== "boolean"
           )
             return;
+          const items = tracker.ingest(
+            frame.data,
+            continuous && !document.hidden,
+          );
+          continuous = !document.hidden;
+          if (items.length) setHighlights({ items });
           void cache.cancelQueries({ queryKey: [path], exact: true });
           cache.setQueryData([path], frame.data);
           void cache.invalidateQueries({
@@ -58,6 +75,7 @@ export function useSpectatorRealtime(scope: string) {
         }
       };
       socket.onerror = () => {
+        continuous = false;
         if (!disposed) setStatus("retrying");
       };
       socket.onclose = (event) => {
@@ -81,6 +99,7 @@ export function useSpectatorRealtime(scope: string) {
     };
     const resume = () => {
       if (document.hidden) {
+        setStatus("retrying");
         if (timer) clearTimeout(timer);
         socket?.close();
       } else if (!socket || socket.readyState > 1) {
@@ -104,6 +123,7 @@ export function useSpectatorRealtime(scope: string) {
     data: denied ? undefined : query.data,
     error: denied ?? query.error,
     status,
+    highlights,
     retry: () => {
       setAttempt((v) => v + 1);
       void query.refetch();
