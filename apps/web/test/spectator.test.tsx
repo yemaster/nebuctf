@@ -155,7 +155,7 @@ test("contest capabilities distinguish visitors, approved teams and staff withou
 });
 
 test(
-  "spectator page keeps rankings and live events usable without WebGL and revokes the entire view",
+  "spectator page keeps rankings and score curves usable without WebGL and revokes the entire view",
   { timeout: 15000 },
   async () => {
     const dom = new JSDOM('<!doctype html><div id="root"></div>', {
@@ -199,6 +199,11 @@ test(
       getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
       requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window),
       cancelAnimationFrame: dom.window.cancelAnimationFrame.bind(dom.window),
+      ResizeObserver: class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
       IS_REACT_ACT_ENVIRONMENT: true,
     })) {
       original.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
@@ -225,6 +230,23 @@ test(
       events: [event("first", Date.now())],
       groups: [],
     };
+    const curve = {
+      starts_at: data.contest.starts_at,
+      ends_at: data.contest.ends_at,
+      cutoff: data.cutoff,
+      started: true,
+      frozen: false,
+      timeline: [
+        {
+          id: "team-0",
+          name: "Team 0",
+          score: 100,
+          points: [
+            { time: new Date(Date.now() - 1800000).toISOString(), score: 100 },
+          ],
+        },
+      ],
+    };
     let denied = false,
       resolveNext: ((res: Response) => void) | undefined;
     globalThis.fetch = async (input) => {
@@ -240,7 +262,7 @@ test(
         });
       return Response.json(
         path.includes("ranking")
-          ? { items: data.leaders.slice(0, 10), total: 11, page: 1 }
+          ? { ...curve, items: data.leaders.slice(0, 10), total: 11, page: 1 }
           : data,
       );
     };
@@ -290,7 +312,15 @@ test(
         document.body.textContent!.includes("当前设备无法显示 3D"),
       );
       assert(document.body.textContent!.includes("Team 0"));
-      assert(document.body.textContent!.includes("一血"));
+      await settle(
+        () => !!document.querySelector('[aria-label="前五名战队积分走势"]'),
+      );
+      assert(!document.querySelector('[aria-label="解题与攻防动态"]'));
+      assert(document.querySelector('[aria-label="隐藏Team 0的积分走势"]'));
+      assert(
+        !document.querySelector('[aria-label="重置时间范围"]'),
+        "spectator chart omits full-page range controls",
+      );
       await act(async () => button("下一页排名").click());
       await settle(() => !!resolveNext);
       assert(
@@ -298,7 +328,9 @@ test(
         "current ranking remains visible while next page is pending",
       );
       await act(async () =>
-        resolveNext!(Response.json({ items: [team(10)], total: 11, page: 2 })),
+        resolveNext!(
+          Response.json({ ...curve, items: [team(10)], total: 11, page: 2 }),
+        ),
       );
       await settle(() => document.body.textContent!.includes("Team 10"));
       assert(!button("重置视角"));
@@ -491,4 +523,66 @@ test("city districts group categories, aggregate part points and use full-challe
       (f) => f.points === 50 && f.solves === 9 && f.title.endsWith(" updated"),
     ),
   );
+});
+
+test("category colors tint instanced buildings and districts without category-specific materials", async () => {
+  const T = await import("three"),
+    { createArenaWorld } =
+      await import("../src/components/spectator/arena-world"),
+    { categorySceneColor } = await import("../src/lib/category-colors");
+  const categories = ["Web", "Pwn", "Reverse", "Crypto", "Misc", "Forensics"];
+  const world = createArenaWorld();
+  const input = categories.map((category, i) => ({ ...question(i), category }));
+  world.setChallenges(input);
+  const edge = world.group.getObjectByName("district-outline") as InstanceType<
+    typeof T.InstancedMesh
+  >;
+  const glass = world.group.getObjectByName("facility-glass") as InstanceType<
+    typeof T.InstancedMesh
+  >;
+  const colors = (mesh: typeof edge) => {
+    const found = new Set<string>(),
+      color = new T.Color();
+    for (let i = 0; i < mesh.count; i++) {
+      mesh.getColorAt(i, color);
+      found.add("#" + color.getHexString());
+    }
+    return found;
+  };
+  const expected = new Set(categories.map(categorySceneColor));
+  assert.equal(expected.size, 6);
+  assert.deepEqual(colors(edge), expected);
+  assert.deepEqual(colors(glass), expected);
+  let draws = 0;
+  const materials = new Set();
+  world.group.traverse((o) => {
+    if (o instanceof T.InstancedMesh) {
+      draws++;
+      materials.add(o.material);
+    }
+  });
+  assert(draws < 40, "city stays batched with six category colors");
+  const count = materials.size;
+  world.setChallenges(
+    Array.from({ length: 60 }, (_, i) => ({
+      ...question(i),
+      category: categories[i % 6]!,
+    })),
+  );
+  const expanded = new Set();
+  world.group.traverse((o) => {
+    if (o instanceof T.InstancedMesh) expanded.add(o.material);
+  });
+  assert.equal(
+    expanded.size,
+    count,
+    "more questions do not allocate more materials",
+  );
+  world.setChallenges([{ ...question(0), category: "crypto" }]);
+  assert.deepEqual(
+    colors(world.group.getObjectByName("district-outline") as typeof edge),
+    new Set([categorySceneColor("Crypto")]),
+  );
+  assert.equal(categorySceneColor("unknown"), "#94a3b8");
+  world.dispose();
 });

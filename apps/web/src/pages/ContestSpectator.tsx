@@ -12,9 +12,6 @@ import {
   LockKeyhole,
   WifiOff,
   ArrowLeft,
-  Flag,
-  Swords,
-  Bell,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -25,11 +22,10 @@ import {
   activeEngagements,
   SpectatorEvents,
   type SpectatorData,
-  type SpectatorTeam,
+  type SpectatorRanking,
   type SpectatorEvent,
 } from "@/lib/spectator";
 import { Button } from "@/components/ui/button";
-import { BloodMark } from "@/components/blood-mark";
 import { Badge } from "@/components/ui/badge";
 import {
   NativeSelect,
@@ -38,12 +34,11 @@ import {
 import { Loading, QueryState } from "@/components/shared";
 import { ContestClockLine } from "@/components/contest-clock";
 const ArenaScene = lazy(() => import("@/components/spectator/arena-scene"));
-const clock = new Intl.DateTimeFormat("zh-CN", {
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hour12: false,
-});
+const ScoreTimeline = lazy(() =>
+  import("@/components/score-timeline").then((module) => ({
+    default: module.ScoreTimeline,
+  })),
+);
 const number = new Intl.NumberFormat("zh-CN");
 
 export function ContestSpectator() {
@@ -165,12 +160,6 @@ function Spectator({ scope }: { scope: string }) {
           aria-label="观战数据"
         >
           <Leaderboard scope={scope} groups={data.groups} reduced={reduced} />
-          <EventFeed
-            events={data.events}
-            frozen={data.frozen}
-            started={data.started}
-            reduced={reduced}
-          />
         </aside>
         <section
           className="relative min-h-[420px] overflow-hidden lg:min-h-0"
@@ -207,12 +196,7 @@ function Leaderboard({
   const ranking = useQuery({
     queryKey: [path, group],
     queryFn: ({ signal }) =>
-      api<{ items: SpectatorTeam[]; total: number; page: number }>(
-        path,
-        "GET",
-        undefined,
-        signal,
-      ),
+      api<SpectatorRanking>(path, "GET", undefined, signal),
     placeholderData: (previous, query) =>
       query?.queryKey[1] === group ? previous : undefined,
   });
@@ -230,220 +214,155 @@ function Leaderboard({
     return () => clearInterval(timer);
   }, [cycling, hovered, pages, ranking.isLoading, ranking.error]);
   return (
-    <section
-      className="flex min-h-0 shrink-0 flex-col px-5 pb-3 pt-4 lg:h-[58%]"
-      aria-label="轮播排行榜"
-      aria-busy={ranking.isFetching}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocusCapture={() => setHovered(true)}
-      onBlurCapture={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setHovered(false);
-      }}
-    >
-      <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
-        <h2 className="shrink-0 text-sm font-medium text-primary">排行榜</h2>
-        <div className="flex min-w-0 items-center gap-2">
-          {!!groups.length && (
-            <NativeSelect
-              className="h-7 max-w-36 rounded-sm border-0 bg-transparent py-0 pl-2 text-xs shadow-none dark:bg-transparent"
-              aria-label="观战排名组别"
-              value={group}
-              onChange={(e) => {
-                setGroup(e.target.value);
-                setPage(1);
-              }}
-            >
-              {[{ id: "", name: "全局排名" }, ...groups].map((g) => (
-                <NativeSelectOption key={g.id} value={g.id}>
-                  {g.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          )}
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-7"
-            aria-label={cycling ? "暂停排行轮播" : "开启排行轮播"}
-            title={cycling ? "暂停排行轮播" : "开启排行轮播"}
-            aria-pressed={cycling}
-            onClick={() => setCycling(!cycling)}
-          >
-            {cycling ? <Pause /> : <Play />}
-          </Button>
-        </div>
-      </div>
-      {ranking.error || ranking.isLoading ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center">
-          <QueryState
-            loading={ranking.isLoading}
-            error={ranking.error}
-            retry={() => void ranking.refetch()}
-          />
-        </div>
-      ) : (
-        <AnimatePresence mode="wait" initial={false}>
-          <m.ol
-            key={`${group}:${ranking.data?.page ?? page}`}
-            initial={{ opacity: reduced ? 1 : 0, y: reduced ? 0 : 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: reduced ? 0 : 0.18 }}
-            className="min-h-0 flex-1 overflow-y-auto"
-          >
-            {ranking.data?.items.map((team) => (
-              <li key={team.id}>
-                <div
-                  className={`flex h-9 items-center gap-3 px-2 text-sm ${team.rank <= 3 ? "bg-primary/5" : ""}`}
-                >
-                  <span
-                    className={`w-6 shrink-0 text-right font-mono text-xs tabular-nums ${team.rank <= 3 ? "text-primary" : "text-muted-foreground"}`}
-                  >
-                    {String(team.rank).padStart(2, "0")}
-                  </span>
-                  <span className="truncate" title={team.name}>
-                    {team.name}
-                  </span>
-                  <span className="ml-auto shrink-0 font-mono font-medium tabular-nums text-primary">
-                    {number.format(team.score)}
-                  </span>
-                </div>
-              </li>
-            ))}
-            {!ranking.data?.items.length && (
-              <li className="py-16 text-center text-sm text-muted-foreground">
-                暂无参赛战队
-              </li>
-            )}
-          </m.ol>
-        </AnimatePresence>
-      )}
-      <div className="mt-2 flex shrink-0 items-center justify-between text-xs text-muted-foreground">
-        <span>{ranking.data?.total ?? 0} 支战队</span>
-        <div className="flex items-center gap-2">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-7"
-            aria-label="上一页排名"
-            disabled={page <= 1 || ranking.isPlaceholderData}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            <ChevronLeft />
-          </Button>
-          <span className="font-mono tabular-nums">
-            {page} / {pages}
-          </span>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-7"
-            aria-label="下一页排名"
-            disabled={page >= pages || ranking.isPlaceholderData}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            <ChevronRight />
-          </Button>
-        </div>
-      </div>
-    </section>
-  );
-}
-function EventFeed({
-  events,
-  frozen,
-  started,
-  reduced,
-}: {
-  events: SpectatorEvent[];
-  frozen: boolean;
-  started: boolean;
-  reduced: boolean;
-}) {
-  return (
-    <section
-      className="mx-5 flex min-h-56 flex-1 flex-col border-t border-primary/15 lg:min-h-40"
-      aria-label="解题与攻防动态"
-    >
-      <div className="flex shrink-0 items-center justify-between py-4">
-        <h2 className="text-sm font-medium text-primary">比赛动态</h2>
-        {frozen && <LockKeyhole className="size-4 text-muted-foreground" />}
-      </div>
-      <ol
-        className="min-h-0 divide-y divide-primary/10 overflow-y-auto pb-4"
-        aria-live="off"
+    <>
+      <section
+        className="flex min-h-0 shrink-0 flex-col px-5 pb-3 pt-4 lg:h-[58%]"
+        aria-label="轮播排行榜"
+        aria-busy={ranking.isFetching}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onFocusCapture={() => setHovered(true)}
+        onBlurCapture={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) setHovered(false);
+        }}
       >
-        {events.map((event) => {
-          const Icon =
-            event.type === "attack"
-              ? Swords
-              : event.type === "solve"
-                ? Flag
-                : Bell;
-          return (
-            <m.li
-              key={event.id}
-              layout={!reduced}
-              initial={false}
-              transition={{ duration: reduced ? 0 : 0.24 }}
-              className="flex items-start gap-2.5 py-3 first:pt-0"
+        <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+          <h2 className="shrink-0 text-sm font-medium text-primary">排行榜</h2>
+          <div className="flex min-w-0 items-center gap-2">
+            {!!groups.length && (
+              <NativeSelect
+                className="h-7 max-w-36 rounded-sm border-0 bg-transparent py-0 pl-2 text-xs shadow-none dark:bg-transparent"
+                aria-label="观战排名组别"
+                value={group}
+                onChange={(e) => {
+                  setGroup(e.target.value);
+                  setPage(1);
+                }}
+              >
+                {[{ id: "", name: "全局排名" }, ...groups].map((g) => (
+                  <NativeSelectOption key={g.id} value={g.id}>
+                    {g.name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-7"
+              aria-label={cycling ? "暂停排行轮播" : "开启排行轮播"}
+              title={cycling ? "暂停排行轮播" : "开启排行轮播"}
+              aria-pressed={cycling}
+              onClick={() => setCycling(!cycling)}
             >
-              {event.blood_rank ? (
-                <BloodMark rank={event.blood_rank} className="mt-0.5 size-4" />
-              ) : (
-                <Icon
-                  className={`mt-0.5 size-4 shrink-0 ${event.type === "attack" ? "text-destructive" : "text-primary"}`}
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p
-                    className="truncate text-sm"
-                    title={event.team_name ?? event.challenge_title}
+              {cycling ? <Pause /> : <Play />}
+            </Button>
+          </div>
+        </div>
+        {ranking.error || ranking.isLoading ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <QueryState
+              loading={ranking.isLoading}
+              error={ranking.error}
+              retry={() => void ranking.refetch()}
+            />
+          </div>
+        ) : (
+          <AnimatePresence mode="wait" initial={false}>
+            <m.ol
+              key={`${group}:${ranking.data?.page ?? page}`}
+              initial={{ opacity: reduced ? 1 : 0, y: reduced ? 0 : 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: reduced ? 0 : 0.18 }}
+              className="min-h-0 flex-1 overflow-y-auto"
+            >
+              {ranking.data?.items.map((team) => (
+                <li key={team.id}>
+                  <div
+                    className={`flex h-9 items-center gap-3 px-2 text-sm ${team.rank <= 3 ? "bg-primary/5" : ""}`}
                   >
-                    {event.team_name ?? event.challenge_title}
-                  </p>
-                  <time
-                    dateTime={event.created_at}
-                    className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
-                  >
-                    {clock.format(new Date(event.created_at))}
-                  </time>
-                </div>
-                <p className="mt-1 flex items-baseline gap-2 text-xs leading-5">
-                  <span
-                    className={`shrink-0 ${event.type === "attack" ? "text-destructive" : event.blood_rank ? "text-warning" : "text-primary"}`}
-                  >
-                    {eventLabel(event)}
-                  </span>
-                  {event.team_name && (
                     <span
-                      className="truncate text-muted-foreground"
-                      title={`${event.challenge_title}${event.part_title ? ` / ${event.part_title}` : ""}${event.target_team_name ? ` → ${event.target_team_name}` : ""}`}
+                      className={`w-6 shrink-0 text-right font-mono text-xs tabular-nums ${team.rank <= 3 ? "text-primary" : "text-muted-foreground"}`}
                     >
-                      {event.challenge_title}
-                      {event.part_title ? ` / ${event.part_title}` : ""}
-                      {event.target_team_name
-                        ? ` → ${event.target_team_name}`
-                        : ""}
+                      {String(team.rank).padStart(2, "0")}
                     </span>
-                  )}
-                </p>
-              </div>
-            </m.li>
-          );
-        })}
-        {!events.length && (
-          <li className="py-10 text-center text-sm text-muted-foreground">
-            {started ? "暂无比赛动态" : "比赛尚未开始"}
-          </li>
+                    <span className="truncate" title={team.name}>
+                      {team.name}
+                    </span>
+                    <span className="ml-auto shrink-0 font-mono font-medium tabular-nums text-primary">
+                      {number.format(team.score)}
+                    </span>
+                  </div>
+                </li>
+              ))}
+              {!ranking.data?.items.length && (
+                <li className="py-16 text-center text-sm text-muted-foreground">
+                  暂无参赛战队
+                </li>
+              )}
+            </m.ol>
+          </AnimatePresence>
         )}
-      </ol>
-    </section>
+        <div className="mt-2 flex shrink-0 items-center justify-between text-xs text-muted-foreground">
+          <span>{ranking.data?.total ?? 0} 支战队</span>
+          <div className="flex items-center gap-2">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-7"
+              aria-label="上一页排名"
+              disabled={page <= 1 || ranking.isPlaceholderData}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              <ChevronLeft />
+            </Button>
+            <span className="font-mono tabular-nums">
+              {page} / {pages}
+            </span>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-7"
+              aria-label="下一页排名"
+              disabled={page >= pages || ranking.isPlaceholderData}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              <ChevronRight />
+            </Button>
+          </div>
+        </div>
+      </section>
+      <section
+        className="mx-5 flex min-h-56 flex-1 flex-col border-t border-primary/15 pb-3 lg:min-h-0"
+        aria-label="观战积分走势"
+      >
+        <div className="flex shrink-0 items-center justify-between py-3">
+          <h2 className="text-sm font-medium text-primary">积分走势</h2>
+          {ranking.data?.frozen && (
+            <LockKeyhole
+              className="size-3.5 text-muted-foreground"
+              aria-label="积分已封榜"
+            />
+          )}
+        </div>
+        <div className="min-h-0 flex-1">
+          {ranking.data ? (
+            <Suspense fallback={<Loading variant="chart" className="h-full" />}>
+              <ScoreTimeline key={group} board={ranking.data} compact />
+            </Suspense>
+          ) : ranking.error ? (
+            <p className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              积分暂不可用
+            </p>
+          ) : (
+            <Loading variant="chart" className="h-full" />
+          )}
+        </div>
+      </section>
+    </>
   );
 }
-
 function CityView({
   data,
   live,

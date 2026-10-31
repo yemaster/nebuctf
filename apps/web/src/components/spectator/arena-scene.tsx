@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as T from "three";
+import { categorySceneColor } from "@/lib/category-colors";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
@@ -255,7 +256,13 @@ export default function ArenaScene(props: Props) {
         if (stats.textContent !== text) stats.textContent = text;
         (label.children[2] as HTMLElement).style.height = `${lift}px`;
         label.dataset.challenge = f.id;
-        label.dataset.category = f.category;
+        if (label.dataset.category !== f.category) {
+          label.dataset.category = f.category;
+          label.style.setProperty(
+            "--category-color",
+            categorySceneColor(f.category),
+          );
+        }
         label.dataset.focus = String(f.id === state.current.focus);
         label.style.transform = `translate(-50%,-100%) translate(${x}px,${y - lift}px)`;
         used.push({
@@ -371,7 +378,11 @@ export default function ArenaScene(props: Props) {
               key={region.category}
               data-district={region.category}
               hidden
-              className="absolute left-0 top-0 border-b border-blue-400/60 bg-slate-950/80 px-4 py-1 font-mono text-base font-medium tracking-widest text-blue-200"
+              style={{
+                color: categorySceneColor(region.category),
+                borderColor: categorySceneColor(region.category) + "99",
+              }}
+              className="absolute left-0 top-0 border-b bg-slate-950/80 px-4 py-1 font-mono text-base font-medium tracking-widest"
             >
               {region.category}
             </div>
@@ -388,11 +399,11 @@ export default function ArenaScene(props: Props) {
             <div
               key={i}
               hidden
-              className="absolute left-0 top-0 w-40 rounded bg-slate-950/85 px-2.5 py-1.5 text-xs text-cyan-100 data-[focus=true]:bg-cyan-950 data-[focus=true]:text-white"
+              className="absolute left-0 top-0 w-40 rounded bg-slate-950/85 px-2.5 py-1.5 text-xs text-(--category-color) data-[focus=true]:bg-slate-900 data-[focus=true]:text-white"
             >
               <div className="truncate font-medium" />
-              <div className="mt-0.5 font-mono text-[11px] tabular-nums text-cyan-200/65" />
-              <span className="absolute left-1/2 top-full w-px bg-cyan-200/30" />
+              <div className="mt-0.5 font-mono text-[11px] tabular-nums text-slate-300/80" />
+              <span className="absolute left-1/2 top-full w-px bg-(--category-color) opacity-40" />
             </div>
           ))}
         </div>
@@ -401,7 +412,7 @@ export default function ArenaScene(props: Props) {
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-background px-6 text-center">
           <MonitorOff className="size-8 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            当前设备无法显示 3D 场景，排行榜和动态仍可查看
+            当前设备无法显示 3D 场景，排行榜和积分走势仍可查看
           </p>
           <Button
             variant="secondary"

@@ -1,3 +1,12 @@
+import type { ScoreboardData } from "./types";
+export type SpectatorRanking = Pick<
+  ScoreboardData,
+  "timeline" | "starts_at" | "ends_at" | "cutoff" | "started" | "frozen"
+> & {
+  items: SpectatorTeam[];
+  total: number;
+  page: number;
+};
 export type SpectatorTeam = {
   id: string;
   name: string;

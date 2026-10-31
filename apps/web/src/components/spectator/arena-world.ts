@@ -1,4 +1,5 @@
 import * as T from "three";
+import { categorySceneColor } from "@/lib/category-colors";
 import {
   cityLayout,
   cityPosition,
@@ -91,10 +92,16 @@ export function createArenaWorld() {
   const facade = material(
     new T.ShaderMaterial({
       fog: true,
-      uniforms: { ...T.UniformsUtils.clone(T.UniformsLib.fog) },
-      vertexShader: `varying vec3 vCity; varying vec3 vSide;
+      uniforms: {
+        ...T.UniformsUtils.clone(T.UniformsLib.fog),
+        categoryTint: { value: 0 },
+      },
+      vertexShader: `varying vec3 vCity; varying vec3 vSide; varying vec3 vTint;
       #include <fog_pars_vertex>
-      void main(){vec4 p=vec4(position,1.);
+      void main(){vec4 p=vec4(position,1.);vTint=vec3(1.);
+      #ifdef USE_INSTANCING_COLOR
+        vTint=instanceColor;
+      #endif
       #ifdef USE_INSTANCING
         p=instanceMatrix*p;
       #endif
@@ -102,7 +109,7 @@ export function createArenaWorld() {
       vec4 mvPosition=viewMatrix*world;gl_Position=projectionMatrix*mvPosition;
       #include <fog_vertex>
       }`,
-      fragmentShader: `varying vec3 vCity;varying vec3 vSide;
+      fragmentShader: `varying vec3 vCity;varying vec3 vSide;varying vec3 vTint;uniform float categoryTint;
       #include <fog_pars_fragment>
       float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       void main(){float side=1.-step(.5,abs(vSide.y));
@@ -111,8 +118,8 @@ export function createArenaWorld() {
         vec2 f=fract(cell);float lit=step(.35,hash(floor(cell)));
         float window=step(.24,f.x)*step(f.x,.68)*step(.25,f.y)*step(f.y,.64)*side*lit;
         float shade=.38+max(dot(vSide,normalize(vec3(-.5,.8,.4))),0.)*.75;
-        vec3 col=vec3(.025,.085,.155)*shade;
-        col+=mix(vec3(.04,.33,.68),vec3(.22,.72,.88),hash(floor(cell)))*window*1.15;
+        vec3 col=mix(vec3(.025,.085,.155),vTint*.22,categoryTint)*shade;
+        col+=mix(mix(vec3(.04,.33,.68),vec3(.22,.72,.88),hash(floor(cell))),vTint*(.8+hash(floor(cell))*.35),categoryTint)*window*1.15;
         gl_FragColor=vec4(col,1.);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -120,10 +127,44 @@ export function createArenaWorld() {
       }`,
     }),
   );
+  // Color is an instance attribute: adding a category adds no material or draw call.
+  const tintedFacade = material(facade.clone());
+  tintedFacade.uniforms.categoryTint!.value = 1;
+  tintedFacade.name = "facility-facade";
+  const tintedGlass = material(glass.clone());
+  tintedGlass.color.set("#777777");
+  tintedGlass.name = "facility-glass";
+  const tintedSteel = material(steel.clone());
+  tintedSteel.color.set("#999999");
+  tintedSteel.name = "facility-steel";
+  const tintedLight = material(
+    new T.MeshBasicMaterial({ color: new T.Color(1.6, 1.6, 1.6) }),
+  );
+  const tintedEdge = material(districtEdge.clone());
+  tintedEdge.color.setRGB(1.25, 1.25, 1.25);
+  const tintedWall = material(districtWall.clone());
+  tintedWall.color.set("#ffffff");
+  const tintedMaterials = new Map<T.Material, T.Material>([
+    [glass, tintedGlass],
+    [steel, tintedSteel],
+    [facade, tintedFacade],
+    [cyan, tintedLight],
+    [amber, tintedLight],
+    [green, tintedLight],
+    [districtEdge, tintedEdge],
+    [districtWall, tintedWall],
+  ]);
+  const categoryTints = new Map<string, T.Color>();
+  const categoryTint = (category: string) => {
+    const hex = categorySceneColor(category);
+    if (!categoryTints.has(hex)) categoryTints.set(hex, new T.Color(hex));
+    return categoryTints.get(hex)!;
+  };
   type Batch = {
     geo: T.BufferGeometry;
     mat: T.Material;
     matrices: T.Matrix4[];
+    colors: (T.Color | undefined)[];
   };
   const staticBatches = new Map<string, Batch>(),
     facilityBatches = new Map<string, Batch>();
@@ -140,20 +181,27 @@ export function createArenaWorld() {
     sz: number,
     ry = 0,
     rx = 0,
+    tint?: T.Color,
   ) => {
     const key = g.uuid + m.uuid;
-    if (!batches.has(key)) batches.set(key, { geo: g, mat: m, matrices: [] });
+    if (!batches.has(key))
+      batches.set(key, { geo: g, mat: m, matrices: [], colors: [] });
     dummy.position.set(x, y, z);
     dummy.scale.set(sx, sy, sz);
     dummy.rotation.set(rx, ry, 0);
     dummy.updateMatrix();
     batches.get(key)!.matrices.push(dummy.matrix.clone());
+    batches.get(key)!.colors.push(tint);
   };
   const meshes = (batches: Map<string, Batch>, target: T.Group) => {
     for (const b of batches.values()) {
       const mesh = new T.InstancedMesh(b.geo, b.mat, b.matrices.length);
       mesh.name = b.mat.name;
       b.matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
+      if (b.colors.some(Boolean))
+        b.colors.forEach((color, i) =>
+          mesh.setColorAt(i, color ?? new T.Color("#ffffff")),
+        );
       mesh.computeBoundingSphere();
       target.add(mesh);
     }
@@ -284,6 +332,7 @@ export function createArenaWorld() {
     clearDistrict();
     facilityBatches.clear();
     const bySlot = new Map(next.map((n) => [n.slot, n]));
+    let tint: T.Color | undefined;
     const put = (
       g: T.BufferGeometry,
       m: T.Material,
@@ -295,8 +344,23 @@ export function createArenaWorld() {
       sz: number,
       ry = 0,
       rx = 0,
-    ) => add(facilityBatches, g, m, x, y, z, sx, sy, sz, ry, rx);
+    ) =>
+      add(
+        facilityBatches,
+        g,
+        tint ? (tintedMaterials.get(m) ?? m) : m,
+        x,
+        y,
+        z,
+        sx,
+        sy,
+        sz,
+        ry,
+        rx,
+        tint && tintedMaterials.has(m) ? tint : undefined,
+      );
     for (const region of layout.districts) {
+      tint = categoryTint(region.category);
       const first = cityPosition(region.col, region.row, layout.grid),
         last = cityPosition(
           region.col + region.width - 1,
@@ -307,7 +371,7 @@ export function createArenaWorld() {
         d = last.z - first.z + 5;
       put(box, glass, region.x, 0.12, region.z, w, 0.08, d);
       for (const side of [-1, 1]) {
-        // A continuous low blue enclosure reads as one district above the
+        // A continuous category-colored enclosure reads as one district above the
         // pavement. Both outlines and translucent walls stay instanced.
         for (const y of [0.35, 1.7]) {
           put(
@@ -365,6 +429,7 @@ export function createArenaWorld() {
       }
     }
     for (let slot = 0; slot < layout.grid * layout.grid; slot++) {
+      tint = undefined;
       const { x, z } = cityPosition(
         slot % layout.grid,
         Math.floor(slot / layout.grid),
@@ -393,6 +458,7 @@ export function createArenaWorld() {
       }
       const h = facility.height,
         category = facility.category.toLowerCase();
+      tint = categoryTint(facility.category);
       put(box, pavement, x, 0.4, z, 4.7, 0.4, 4.7);
       put(box, cyan, x, 0.63, z, 4.72, 0.035, 4.72);
       put(box, asphalt, x, 0.68, z, 4.58, 0.06, 4.58);
@@ -460,7 +526,8 @@ export function createArenaWorld() {
   traffic.instanceMatrix.setUsage(T.DynamicDrawUsage);
   traffic.frustumCulled = false;
   group.add(traffic);
-  const focus = new T.Mesh(ring, cyan);
+  const focusMaterial = material(tintedLight.clone());
+  const focus = new T.Mesh(ring, focusMaterial);
   focus.rotation.x = -Math.PI / 2;
   focus.visible = false;
   group.add(focus);
@@ -468,6 +535,11 @@ export function createArenaWorld() {
   const setFocus = (id: string | null) => {
     focused = id;
     focus.visible = !!id && anchors.has(id);
+    const facility = facilities.find((f) => f.id === id);
+    if (facility)
+      focusMaterial.color
+        .copy(categoryTint(facility.category))
+        .multiplyScalar(1.6);
   };
   const tick = (time: number) => {
     (water.material as T.ShaderMaterial).uniforms.time!.value = time;

@@ -57,12 +57,18 @@ const fullTime = new Intl.DateTimeFormat("zh-CN", {
   second: "2-digit",
   hourCycle: "h23",
 });
-const compact = new Intl.NumberFormat("zh-CN", {
+const compactNumber = new Intl.NumberFormat("zh-CN", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
 
-export function ScoreTimeline({ board }: { board: ScoreboardData }) {
+export function ScoreTimeline({
+  board,
+  compact = false,
+}: {
+  board: Pick<ScoreboardData, "timeline" | "starts_at" | "ends_at" | "cutoff">;
+  compact?: boolean;
+}) {
   const mobile = useIsMobile();
   const chart = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<"all" | "activity" | "custom">("all");
@@ -113,7 +119,7 @@ export function ScoreTimeline({ board }: { board: ScoreboardData }) {
     () => timelineWindow(data, range),
     [data, range[0], range[1]],
   );
-  const ticks = timelineTicks(range, mobile ? 3 : 7);
+  const ticks = timelineTicks(range, compact || mobile ? 3 : 7);
   const multiDay =
     new Date(range[0]).toDateString() !== new Date(range[1]).toDateString();
   const tickFormat = multiDay
@@ -122,26 +128,38 @@ export function ScoreTimeline({ board }: { board: ScoreboardData }) {
       ? seconds
       : time;
   const all = range[0] === bounds[0] && range[1] === bounds[1];
-  if (bounds[0] >= bounds[1])
+  if (bounds[0] >= bounds[1] || (compact && !board.timeline.length))
     return (
-      <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">
+      <div
+        className={cn(
+          "flex items-center justify-center text-sm text-muted-foreground",
+          compact ? "h-full min-h-32" : "h-56",
+        )}
+      >
         暂无积分变化
       </div>
     );
 
   return (
-    <div className="space-y-3" aria-label="积分走势图控制">
+    <div
+      className={compact ? "flex h-full min-h-0 flex-col gap-3" : "space-y-3"}
+      aria-label="积分走势图控制"
+    >
       <ChartContainer
         config={config}
         ref={chart}
-        className="relative h-56 w-full aspect-auto touch-pan-y sm:h-64"
+        className={
+          compact
+            ? "relative min-h-32 w-full flex-1 aspect-auto touch-pan-y font-mono"
+            : "relative h-56 w-full aspect-auto touch-pan-y sm:h-64"
+        }
         aria-label="前五名战队积分走势"
       >
         <LineChart
           accessibilityLayer
           aria-label="积分走势图，左右方向键查看时间"
           data={visible}
-          margin={{ top: 12, right: 16, bottom: 0, left: 0 }}
+          margin={{ top: 12, right: compact ? 20 : 16, bottom: 0, left: 0 }}
         >
           <CartesianGrid
             vertical={false}
@@ -163,18 +181,20 @@ export function ScoreTimeline({ board }: { board: ScoreboardData }) {
             tickFormatter={(value) => tickFormat.format(value)}
           />
           <YAxis
-            width={mobile ? 40 : 48}
+            width={compact ? 36 : mobile ? 40 : 48}
             tickLine={false}
             axisLine={false}
             allowDecimals={false}
-            tickCount={5}
+            tickCount={compact ? 4 : 5}
             domain={[
               (min: number) => Math.min(0, min * 1.1),
               (max: number) => Math.max(10, Math.ceil((max * 11) / 10)),
             ]}
             tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
             tickFormatter={(value) =>
-              Math.abs(value) >= 10_000 ? compact.format(value) : String(value)
+              Math.abs(value) >= 10_000
+                ? compactNumber.format(value)
+                : String(value)
             }
           />
           {board.timeline.map((team, index) => (
@@ -200,54 +220,60 @@ export function ScoreTimeline({ board }: { board: ScoreboardData }) {
           />
         </LineChart>
       </ChartContainer>
-      <div className="flex flex-wrap items-start gap-x-5 gap-y-2">
-        <div className="min-w-40 flex-1 px-2">
-          <Slider
-            min={bounds[0]}
-            max={bounds[1]}
-            step={Math.min(1000, bounds[1] - bounds[0])}
-            minStepsBetweenThumbs={1}
-            value={range}
-            thumbLabels={["时间范围开始", "时间范围结束"]}
-            formatValue={(value) => fullTime.format(value)}
-            className="h-8 [&_[data-slot=slider-range]]:bg-muted-foreground/40 [&_[data-slot=slider-thumb]]:border-border"
-            onValueChange={(value) => {
-              setSelection(value as TimeRange);
-              setMode("custom");
-            }}
-          />
-          <div className="flex justify-between gap-3 text-xs text-muted-foreground tabular-nums">
-            <time dateTime={new Date(range[0]).toISOString()}>
-              {dateTime.format(range[0])}
-            </time>
-            <time dateTime={new Date(range[1]).toISOString()}>
-              {dateTime.format(range[1])}
-            </time>
+      {!compact && (
+        <div className="flex flex-wrap items-start gap-x-5 gap-y-2">
+          <div className="min-w-40 flex-1 px-2">
+            <Slider
+              min={bounds[0]}
+              max={bounds[1]}
+              step={Math.min(1000, bounds[1] - bounds[0])}
+              minStepsBetweenThumbs={1}
+              value={range}
+              thumbLabels={["时间范围开始", "时间范围结束"]}
+              formatValue={(value) => fullTime.format(value)}
+              className="h-8 [&_[data-slot=slider-range]]:bg-muted-foreground/40 [&_[data-slot=slider-thumb]]:border-border"
+              onValueChange={(value) => {
+                setSelection(value as TimeRange);
+                setMode("custom");
+              }}
+            />
+            <div className="flex justify-between gap-3 text-xs text-muted-foreground tabular-nums">
+              <time dateTime={new Date(range[0]).toISOString()}>
+                {dateTime.format(range[0])}
+              </time>
+              <time dateTime={new Date(range[1]).toISOString()}>
+                {dateTime.format(range[1])}
+              </time>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant={mode === "activity" ? "secondary" : "ghost"}
+              disabled={!activity}
+              onClick={() => setMode("activity")}
+            >
+              得分时段
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="重置时间范围"
+              title="重置时间范围"
+              disabled={all}
+              onClick={() => setMode("all")}
+            >
+              <RotateCcw />
+            </Button>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            size="sm"
-            variant={mode === "activity" ? "secondary" : "ghost"}
-            disabled={!activity}
-            onClick={() => setMode("activity")}
-          >
-            得分时段
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-label="重置时间范围"
-            title="重置时间范围"
-            disabled={all}
-            onClick={() => setMode("all")}
-          >
-            <RotateCcw />
-          </Button>
-        </div>
-      </div>
+      )}
       <div
-        className="flex flex-wrap justify-center gap-x-5 gap-y-1"
+        className={
+          compact
+            ? "grid shrink-0 grid-cols-2 gap-x-3 gap-y-1"
+            : "flex flex-wrap justify-center gap-x-5 gap-y-1"
+        }
         role="group"
         aria-label="走势图战队"
       >
