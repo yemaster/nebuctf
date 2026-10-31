@@ -334,8 +334,10 @@ WebSocket 按组复用快照，每次发布重新验证会话、报名与题目�
 | 接口 | 用途 |
 | --- | --- |
 | `GET /contests/:id/spectate` | 公开观战快照，包含安全的比赛信息、统计、前 100 队、可见题目元数据及最近 10 条动态 |
-| `GET /contests/:id/spectate/ranking?page=&group=` | 大屏轮播排行，每页 10 队，组别可选 |
+| `GET /contests/:id/spectate/ranking?page=&group=` | 大屏轮播排行与前五名积分曲线，每页 10 队，组别可选 |
 | `GET /contests/:id/spectate/ws` | 匿名可连接的只读 WebSocket，同源 Origin 必须匹配 |
+
+`spectate/ranking` 返回 `{items,total,page,timeline,starts_at,ends_at,cutoff,started,frozen}`。`timeline` 为当前全局或组别排名中前五名有得分队伍的累计积分曲线，与普通排行榜使用同一计分、提示扣分及封榜截止；沿用每队约 300 个采样点的上限，保留首尾点。轮播翻页不改变曲线所选队伍，组别筛选同时应用于列表和图表，不附带逐题解答矩阵或成员信息。复用排名请求与 2 秒缓存，WebSocket 更新后同步刷新，无额外曲线轮询接口。
 
 实时消息为 `{type:"spectator",data:快照}`，暂时读取失败为 `{type:"retry"}`。事件包含解题/三血、上线、下线、提示以及真实 AWD 攻击，攻击仅公开双方战队 ID/名称，不公开 Flag、靶机端点、邮箱或管理员线索。封榜使用同一截止时间过滤排行、统计和动态。关闭大屏/隐藏比赛使已有普通连接以 1008 关闭。每 IP 每分钟最多 30 次连接、8 个同时连接，单进程最多 512 个；慢连接缓冲超过 256 KiB 时关闭。按比赛共享 2 秒快照与分页缓存，通知合并窗口 250 ms，5 秒补充刷新，20 秒心跳。
 
