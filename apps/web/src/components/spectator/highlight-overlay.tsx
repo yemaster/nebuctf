@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, m } from "motion/react";
 import {
@@ -9,6 +9,34 @@ import {
 
 const number = new Intl.NumberFormat("zh-CN");
 const easing = [0.16, 1, 0.3, 1] as const;
+
+// Clipped line reveals follow Motion's text animation guide. Padding preserves
+// descenders and Chinese glyphs while the line moves through the mask.
+function Reveal({
+  children,
+  reduced,
+  delay = 0,
+}: {
+  children: ReactNode;
+  reduced: boolean;
+  delay?: number;
+}) {
+  return (
+    <div className="-my-[0.15em] overflow-hidden py-[0.15em]">
+      <m.div
+        initial={{ y: reduced ? 0 : "115%", opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{
+          duration: reduced ? 0.18 : 0.55,
+          delay: reduced ? 0 : delay,
+          ease: easing,
+        }}
+      >
+        {children}
+      </m.div>
+    </div>
+  );
+}
 
 export function SpectatorHighlightOverlay({
   batch,
@@ -46,7 +74,7 @@ export function SpectatorHighlightOverlay({
           <m.div
             key={active.id}
             data-spectator-highlight={active.kind}
-            className="pointer-events-none fixed inset-0 z-[90] flex select-none items-center justify-center overflow-hidden bg-slate-950/85 px-10 text-center"
+            className="pointer-events-none fixed inset-0 z-[90] flex select-none items-center justify-center overflow-hidden bg-slate-950/75"
             style={{
               color:
                 active.kind === "blood"
@@ -56,9 +84,9 @@ export function SpectatorHighlightOverlay({
             initial={{ opacity: 0 }}
             animate={{ opacity: [0, 1, 1, 0] }}
             transition={{
-              duration: reduced ? 3.8 : 4.6,
-              times: [0, 0.1, 0.78, 1],
-              ease: "easeInOut",
+              duration: reduced ? 3.8 : 4.8,
+              times: [0, 0.07, 0.81, 1],
+              ease: ["easeOut", "linear", "easeInOut"],
             }}
             onAnimationComplete={() =>
               setQueue((current) =>
@@ -71,65 +99,77 @@ export function SpectatorHighlightOverlay({
             }
           >
             {!reduced && (
-              <div
+              <m.div
                 aria-hidden="true"
-                className="absolute inset-0 flex items-center justify-center"
-              >
-                <m.div
-                  className="absolute size-[min(78vw,82vh)] rounded-full border border-current"
-                  initial={{ scale: 0.35, opacity: 0 }}
-                  animate={{ scale: [0.35, 1, 1.18], opacity: [0, 0.32, 0] }}
-                  transition={{
-                    duration: 1.8,
-                    times: [0, 0.2, 1],
-                    ease: easing,
-                  }}
-                />
-                <m.div
-                  className="absolute h-px w-full bg-current shadow-[0_0_24px_currentColor]"
-                  initial={{ scaleX: 0, opacity: 0 }}
-                  animate={{ scaleX: [0, 1, 1], opacity: [0, 0.65, 0] }}
-                  transition={{
-                    duration: 1.1,
-                    times: [0, 0.3, 1],
-                    ease: easing,
-                  }}
-                />
-              </div>
+                className="absolute inset-y-0 left-0 w-[44vw] bg-current opacity-15"
+                initial={{ x: "-65vw", skewX: -16 }}
+                animate={{ x: "135vw", skewX: -16 }}
+                transition={{ duration: 0.8, ease: [0.76, 0, 0.24, 1] }}
+              />
             )}
-            <m.div
-              className="relative w-full max-w-5xl"
-              initial={{ y: reduced ? 0 : 18, scale: reduced ? 1 : 0.94 }}
-              animate={{ y: 0, scale: 1 }}
-              transition={{ duration: reduced ? 0 : 0.65, ease: easing }}
-            >
-              <p className="text-5xl font-semibold tracking-widest [text-shadow:0_0_48px_currentColor] lg:text-7xl">
-                {active.kind === "blood" ? "一血" : "榜首易主"}
-              </p>
-              <p className="mt-8 break-words text-3xl font-semibold leading-tight text-slate-50 lg:text-5xl">
-                {active.teamName}
-              </p>
-              <p className="mt-4 break-words text-lg leading-relaxed text-slate-300 lg:text-xl">
-                {active.kind === "blood" ? (
-                  <>
-                    {active.challengeTitle}
-                    {active.partTitle && (
-                      <span className="text-slate-400">
-                        {" "}
-                        / {active.partTitle}
-                      </span>
+            <div className="relative w-full">
+              <m.div
+                className="absolute inset-0 origin-left bg-slate-950/65"
+                initial={{ scaleX: reduced ? 1 : 0, opacity: 0 }}
+                animate={{ scaleX: 1, opacity: 1 }}
+                transition={{ duration: reduced ? 0.18 : 0.45, ease: easing }}
+              />
+              <div className="relative mx-auto flex w-fit max-w-[min(1120px,calc(100%-80px))] flex-col items-center gap-8 py-16 text-center md:flex-row md:gap-16 md:text-left lg:py-20">
+                <div className="shrink-0 text-center md:w-60">
+                  <Reveal reduced={reduced} delay={0.12}>
+                    {active.kind === "blood" ? (
+                      <p className="text-7xl font-bold leading-tight tracking-tight lg:text-8xl">
+                        一血
+                      </p>
+                    ) : (
+                      <div>
+                        <p
+                          aria-hidden="true"
+                          className="font-mono text-8xl font-semibold leading-none tracking-tighter lg:text-[128px]"
+                        >
+                          #1
+                        </p>
+                        <p className="mt-3 text-xl font-medium">榜首易主</p>
+                      </div>
                     )}
-                  </>
-                ) : (
-                  <>
-                    <span className="font-mono tabular-nums text-sky-200">
-                      {number.format(active.score)}
-                    </span>{" "}
-                    分
-                  </>
-                )}
-              </p>
-            </m.div>
+                  </Reveal>
+                </div>
+                <div className="min-w-0">
+                  <Reveal reduced={reduced} delay={0.24}>
+                    <p
+                      data-highlight-team
+                      className={`font-semibold leading-[1.12] tracking-tight text-slate-50 [overflow-wrap:anywhere] ${Array.from(active.teamName).length > 32 ? "text-4xl lg:text-5xl" : "text-5xl lg:text-7xl"}`}
+                    >
+                      {active.teamName}
+                    </p>
+                  </Reveal>
+                  <div className="mt-5">
+                    <Reveal reduced={reduced} delay={0.38}>
+                      <p className="text-lg leading-relaxed text-slate-300 [overflow-wrap:anywhere] lg:text-2xl">
+                        {active.kind === "blood" ? (
+                          <>
+                            {active.challengeTitle}
+                            {active.partTitle && (
+                              <span className="text-slate-400">
+                                {" "}
+                                / {active.partTitle}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-mono text-3xl tabular-nums text-sky-200">
+                              {number.format(active.score)}
+                            </span>
+                            <span className="ml-2 text-lg">分</span>
+                          </>
+                        )}
+                      </p>
+                    </Reveal>
+                  </div>
+                </div>
+              </div>
+            </div>
           </m.div>
         )}
       </AnimatePresence>
