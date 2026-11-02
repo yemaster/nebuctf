@@ -48,7 +48,24 @@ const snapshot = (
       group_name: null,
     },
   ],
-  challenges: [],
+  challenges: [
+    {
+      id: "crypto",
+      challenge_id: "crypto",
+      title: "Crypto",
+      part_title: null,
+      category: "Crypto",
+      solves: 0,
+    },
+    {
+      id: "web:part2",
+      challenge_id: "web",
+      title: "Web",
+      part_title: "Part 2",
+      category: "Web",
+      solves: 1,
+    },
+  ],
   events,
   groups: [],
   ...extra,
@@ -74,6 +91,11 @@ test("spectator highlights announce fresh first bloods and changed global leader
     ["blood", "leader"],
   );
   assert.equal(items[0]!.kind === "blood" && items[0]!.partTitle, "Part 2");
+  assert.equal(
+    items[0]!.kind === "blood" && items[0]!.challengeCategory,
+    "Web",
+    "category follows the parent challenge ID for multi-flag events",
+  );
   assert.equal(items[1]!.teamId, "b");
   assert.deepEqual(tracker.ingest(frame, true, now), []);
   assert.deepEqual(
@@ -138,7 +160,7 @@ test("highlight bursts retain the active event, replace queued leaders and expir
       teamName: id,
       createdAt: now,
       ...(kind === "blood"
-        ? { challengeTitle: "Web", partTitle: null }
+        ? { challengeCategory: "Web", challengeTitle: "Web", partTitle: null }
         : { score: 100 }),
     }) as SpectatorHighlight;
   const active = item("active"),

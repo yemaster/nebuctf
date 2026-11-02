@@ -6,7 +6,12 @@ export type SpectatorHighlight = {
   teamName: string;
   createdAt: number;
 } & (
-  | { kind: "blood"; challengeTitle: string; partTitle: string | null }
+  | {
+      kind: "blood";
+      challengeCategory: string | null;
+      challengeTitle: string;
+      partTitle: string | null;
+    }
   | { kind: "leader"; score: number }
 );
 export type SpectatorHighlightBatch = { items: SpectatorHighlight[] };
@@ -43,6 +48,10 @@ export class SpectatorHighlightTracker {
         kind: "blood",
         teamId: e.team_id!,
         teamName: e.team_name!,
+        challengeCategory:
+          data.challenges
+            .find((challenge) => challenge.challenge_id === e.challenge_id)
+            ?.category.trim() || null,
         challengeTitle: e.challenge_title,
         partTitle: e.part_title,
         createdAt: now,

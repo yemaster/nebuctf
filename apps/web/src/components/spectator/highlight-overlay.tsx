@@ -98,20 +98,11 @@ export function SpectatorHighlightOverlay({
               )
             }
           >
-            {!reduced && (
-              <m.div
-                aria-hidden="true"
-                className="absolute inset-y-0 left-0 w-[44vw] bg-current opacity-15"
-                initial={{ x: "-65vw", skewX: -16 }}
-                animate={{ x: "135vw", skewX: -16 }}
-                transition={{ duration: 0.8, ease: [0.76, 0, 0.24, 1] }}
-              />
-            )}
             <div className="relative w-full">
               <m.div
-                className="absolute inset-0 origin-left bg-slate-950/65"
-                initial={{ scaleX: reduced ? 1 : 0, opacity: 0 }}
-                animate={{ scaleX: 1, opacity: 1 }}
+                className="absolute inset-0 bg-slate-950/65"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 transition={{ duration: reduced ? 0.18 : 0.45, ease: easing }}
               />
               <div className="relative mx-auto flex w-fit max-w-[min(1120px,calc(100%-80px))] flex-col items-center gap-8 py-16 text-center md:flex-row md:gap-16 md:text-left lg:py-20">
@@ -148,13 +139,10 @@ export function SpectatorHighlightOverlay({
                       <p className="text-lg leading-relaxed text-slate-300 [overflow-wrap:anywhere] lg:text-2xl">
                         {active.kind === "blood" ? (
                           <>
-                            {active.challengeTitle}
-                            {active.partTitle && (
-                              <span className="text-slate-400">
-                                {" "}
-                                / {active.partTitle}
-                              </span>
+                            {active.challengeCategory && (
+                              <>{active.challengeCategory} </>
                             )}
+                            {active.challengeTitle}
                           </>
                         ) : (
                           <>
