@@ -173,6 +173,7 @@ function AppShell() {
           <SiteHeader
             contestId={contestId}
             user={user}
+            identityReady={data !== undefined}
             onLogout={() => logout.mutate()}
             loggingOut={logout.isPending}
             showCountdown={!!contestId && !spectating && !cardTransition.native}

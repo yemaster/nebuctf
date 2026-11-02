@@ -53,12 +53,14 @@ export function ContestAdmin() {
         createHref={editor("/admin/contests/new")}
         createLabel="新建比赛"
         actions={
-          <Button asChild variant="outline">
-            <Link to={editor("/admin/contests/import")}>
-              <Upload />
-              导入
-            </Link>
-          </Button>
+          can(user, "challenges.write") && (
+            <Button asChild variant="outline">
+              <Link to={editor("/admin/contests/import")}>
+                <Upload />
+                导入
+              </Link>
+            </Button>
+          )
         }
         search={params.get("q") ?? ""}
         onSearch={(v) => filter("q", v)}

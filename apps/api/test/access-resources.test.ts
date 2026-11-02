@@ -242,6 +242,52 @@ test(
           403,
           "contest grants cannot change global policy",
         );
+        await db.query(
+          "INSERT INTO docker_worker_status(id,checked_at,error) VALUES(1,now(),NULL) ON CONFLICT(id) DO UPDATE SET checked_at=now(),error=NULL",
+        );
+        await db.query(
+          "INSERT INTO docker_images(image) VALUES('docker.io/nebuctf/access-scope:1')",
+        );
+        const pull = crypto.randomUUID();
+        await db.query(
+          "INSERT INTO docker_image_pulls(id,image,reference,requested_by,status) VALUES($1,'docker.io/nebuctf/access-scope:1','nebuctf/access-scope:1',$2,'pulling')",
+          [pull, admin.id],
+        );
+        assert.equal(
+          (
+            await request("/admin/images/pull", manager, {
+              image: "nebuctf/access-scope:1",
+            })
+          ).statusCode,
+          403,
+        );
+        await ok(
+          `/admin/users/${manager.id}/access`,
+          admin,
+          {
+            ...access,
+            grants: access.grants.map((g) =>
+              g.kind === "challenge"
+                ? { ...g, permissions: ["challenges.write"] }
+                : g,
+            ),
+          },
+          "PUT",
+        );
+        assert.equal(
+          (
+            await ok("/admin/images/pull", manager, {
+              image: "nebuctf/access-scope:1",
+            })
+          ).id,
+          pull,
+        );
+        assert.equal(
+          (await ok(`/admin/images/pulls/${pull}`, manager)).status,
+          "pulling",
+          "authorized editors can follow a shared pull job",
+        );
+        await ok(`/admin/users/${manager.id}/access`, admin, access, "PUT");
         await ok(
           `/admin/contests/${contest.id}/traffic/policy`,
           manager,

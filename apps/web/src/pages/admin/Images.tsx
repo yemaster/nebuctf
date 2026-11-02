@@ -1,3 +1,4 @@
+import { useManagementWrite } from "@/lib/use-management-access";
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useAPI } from "@/lib/api";
@@ -28,6 +29,7 @@ import {
 } from "@/components/ui/table";
 
 export function ImagesAdmin() {
+  const write = useManagementWrite();
   const { params, page, setPage, filter } = useAdminList();
   const data = useAPI<{
     items: ImageRecord[];
@@ -163,7 +165,7 @@ export function ImagesAdmin() {
                             item.job_status ?? "",
                           )}
                           jobId={item.job_id}
-                          disabled={!data.data?.worker.online}
+                          disabled={!write || !data.data?.worker.online}
                           onOpen={setJobId}
                         />
                       )}

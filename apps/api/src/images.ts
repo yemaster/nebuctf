@@ -1,4 +1,4 @@
-import { can } from "./access-control.js";
+import { can, anyAccess } from "./access-control.js";
 import { getSetting } from "./settings.js";
 import { flagEnvironmentSpec } from "./flag-environment.js";
 import { resourceUsage } from "./resource-usage.js";
@@ -110,7 +110,11 @@ export function imageRoutes(app: FastifyInstance, db: DB) {
     const user = requireAdmin(req);
     const [job] = await db.query(
       "SELECT id,image,reference,status,layers,logs,error,created_at,updated_at,finished_at FROM docker_image_pulls WHERE id=$1 AND ($2 OR requested_by=$3)",
-      [id.parse((req.params as any).id), can(user, "images.read"), user.id],
+      [
+        id.parse((req.params as any).id),
+        can(user, "images.read") || anyAccess(user, "challenges.write"),
+        user.id,
+      ],
     );
     if (!job) fail(404, "拉取任务不存在");
     return job;

@@ -75,12 +75,14 @@ export function SiteHeader({
   loggingOut,
   contestId,
   showCountdown = false,
+  identityReady = true,
 }: {
   user: User | null;
   onLogout: () => void;
   loggingOut: boolean;
   contestId?: string;
   showCountdown?: boolean;
+  identityReady?: boolean;
 }) {
   const { pathname, search } = useLocation();
   const trafficOnly =
@@ -92,7 +94,7 @@ export function SiteHeader({
     trafficOnly
       ? `/admin/contests/${contestId}/traffic/context`
       : `/contests/${contestId}`,
-    !!contestId,
+    !!contestId && identityReady,
     contestId ? 15000 : undefined,
   );
   const base = `/contests/${contestId}`;
