@@ -261,7 +261,13 @@ test(
     async function cleanup() {
       if (root) await act(async () => root!.unmount());
       root = undefined;
-      cache?.clear();
+      await act(async () => {
+        await cache?.cancelQueries();
+        cache?.clear();
+        // React Query batches notifications into a timer. Drain it before
+        // removing the jsdom globals used by React's update scheduler.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
     }
     async function click(element: Element | null) {
       assert.ok(element);
