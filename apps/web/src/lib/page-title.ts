@@ -40,6 +40,8 @@ const admin: Record<string, string> = {
   resources: "资源",
   images: "Docker 镜像",
   users: "用户",
+  roles: "角色与权限",
+  traffic: "流量监测",
   submissions: "提交",
   audit: "审计",
 };
@@ -57,6 +59,7 @@ const management: Record<string, string> = {
   writeups: "WriteUp 管理",
   activity: "比赛动态",
   integrity: "作弊审查",
+  traffic: "流量监测",
   settings: "比赛设置",
 };
 export function pageTitle(
@@ -85,6 +88,7 @@ export function pageTitle(
   if (area === "admin") {
     if (!id) return "管理中心";
     if (id === "messages" && section === "welcome") return "注册欢迎消息";
+    if (id === "users" && sub === "access") return "用户权限";
     const label = admin[id];
     if (!label) return "页面不存在";
     if (section === "import") return `导入${label}`;

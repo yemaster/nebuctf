@@ -1,3 +1,4 @@
+import { useManagementWrite } from "@/lib/use-management-access";
 import { TeamAvatar } from "@/components/team-avatar";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, ChevronRight } from "lucide-react";
@@ -61,6 +62,7 @@ import {
   type ReviewStatus,
 } from "@/components/admin/contest-management-shared";
 export function Registrations() {
+  const write = useManagementWrite();
   const { id, apiBase } = useBase(),
     { params, page, setPage, filter } = useAdminList();
   const data = useAPI<{
@@ -177,7 +179,7 @@ export function Registrations() {
               label={`通过所选（${selected.length}）`}
               icon={Check}
               tone="success"
-              disabled={review.isPending}
+              disabled={!write || review.isPending}
               onClick={() =>
                 review.mutate(
                   { team_ids: selected, status: "accepted" },
@@ -219,7 +221,7 @@ export function Registrations() {
                     pending.length > 0 &&
                     pending.every((r) => selected.includes(r.team_id))
                   }
-                  disabled={!pending.length || review.isPending}
+                  disabled={!write || !pending.length || review.isPending}
                   onCheckedChange={(v) =>
                     setSelected(v ? pending.map((r) => r.team_id) : [])
                   }
@@ -260,7 +262,9 @@ export function Registrations() {
                   <TableCell>
                     <Checkbox
                       aria-label={`选择 ${r.name}`}
-                      disabled={r.status !== "pending" || review.isPending}
+                      disabled={
+                        !write || r.status !== "pending" || review.isPending
+                      }
                       checked={selected.includes(r.team_id)}
                       onCheckedChange={(v) =>
                         setSelected(
@@ -413,6 +417,7 @@ function RegistrationForm({
   back: string;
   apiBase: string;
 }) {
+  const write = useManagementWrite();
   const [status, setStatus] = useState<ReviewStatus>(r.status),
     [group, setGroup] = useState(r.group_id ?? ""),
     [note, setNote] = useState(r.review_note);
@@ -434,7 +439,9 @@ function RegistrationForm({
       }}
       className="space-y-6"
     >
-      <PageTitle action={<Button disabled={save.isPending}>保存</Button>}>
+      <PageTitle
+        action={<Button disabled={!write || save.isPending}>保存</Button>}
+      >
         <span className="flex items-center gap-3">
           <Button variant="ghost" size="icon" asChild>
             <Link to={back} aria-label="返回报名战队">
@@ -445,7 +452,7 @@ function RegistrationForm({
           <ReviewBadge status={r.status} />
         </span>
       </PageTitle>
-      <fieldset disabled={save.isPending} className="space-y-5">
+      <fieldset disabled={!write || save.isPending} className="space-y-5">
         <Field label="参赛状态">
           <RadioGroup
             value={status}

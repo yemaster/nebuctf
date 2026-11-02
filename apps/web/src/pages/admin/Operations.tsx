@@ -1,4 +1,8 @@
+import { copyText } from "@/lib/clipboard";
+import { can } from "@/lib/access-control";
+import { useManagementWrite } from "@/lib/use-management-access";
 import { UserIdentity } from "@/components/user-avatar";
+import { SubmittedFlag } from "@/components/admin/submitted-flag";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   AdminToolbar,
@@ -8,7 +12,8 @@ import {
   useEditorReturn,
 } from "@/components/admin/shared";
 import { useState } from "react";
-import { Square, Pencil } from "lucide-react";
+import { Square, Pencil, Copy, ExternalLink, ShieldCheck } from "lucide-react";
+import { useUser } from "@/App";
 import { toast } from "sonner";
 import { api, useAction, useAPI } from "@/lib/api";
 import type {
@@ -230,6 +235,7 @@ export function AnnouncementEditor() {
   );
 }
 export function ResourceAdmin() {
+  const write = useManagementWrite();
   const { page, setPage } = useAdminList();
   const data = useAPI<{
     total: number;
@@ -274,7 +280,7 @@ export function ResourceAdmin() {
           </div>
         ))}
       </div>
-      <Table headers={["题目", "主体", "状态", "到期", "操作"]}>
+      <Table headers={["题目", "主体", "访问地址", "状态", "到期", "操作"]}>
         {data.data?.items.map((i) => (
           <TableRow key={i.id}>
             <TableCell>
@@ -289,7 +295,48 @@ export function ResourceAdmin() {
               className="text-xs text-muted-foreground"
               title={i.owner_key}
             >
-              {i.owner_key.slice(0, 12)}
+              {i.owner_name ?? i.owner_key}
+            </TableCell>
+            <TableCell>
+              {i.status === "running" && i.endpoint ? (
+                <div className="flex max-w-80 items-center gap-1">
+                  <code className="min-w-0 break-all text-xs">
+                    {i.endpoint}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 shrink-0"
+                    aria-label="复制访问地址"
+                    onClick={() =>
+                      copyText(i.endpoint!)
+                        .then(() => toast.success("已复制"))
+                        .catch(() => toast.error("复制失败"))
+                    }
+                  >
+                    <Copy />
+                  </Button>
+                  {/^https?:\/\//.test(i.endpoint) && (
+                    <Button
+                      asChild
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 shrink-0"
+                    >
+                      <a
+                        href={i.endpoint}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="打开靶机"
+                      >
+                        <ExternalLink />
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
             </TableCell>
             <TableCell>
               <Badge>{statusNames[i.status]}</Badge>
@@ -307,6 +354,7 @@ export function ResourceAdmin() {
                 size="sm"
                 variant="outline"
                 disabled={
+                  !write ||
                   stop.isPending ||
                   ["failed", "stopped", "stopping"].includes(i.status)
                 }
@@ -332,6 +380,7 @@ export function ResourceAdmin() {
   );
 }
 export function UserAdmin() {
+  const actor = useUser();
   const [page, setPage] = useState(1),
     [selected, setSelected] = useState<(User & { disabled: boolean }) | null>(
       null,
@@ -369,12 +418,37 @@ export function UserAdmin() {
               <UserIdentity name={u.username} avatarId={u.avatar_id} />
             </TableCell>
             <TableCell>{u.email}</TableCell>
-            <TableCell>{u.role === "admin" ? "管理员" : "用户"}</TableCell>
+            <TableCell>
+              <div className="flex max-w-80 flex-wrap gap-1">
+                <Badge variant="secondary">
+                  {u.role === "admin" ? "超级管理员" : "普通用户"}
+                </Badge>
+                {u.access?.roles.map((role) => (
+                  <Badge variant="outline" key={role.id}>
+                    {role.name}
+                  </Badge>
+                ))}
+              </div>
+            </TableCell>
             <TableCell>{u.disabled ? "已禁用" : "正常"}</TableCell>
             <TableCell>
+              {actor?.role === "admin" && (
+                <Button asChild variant="ghost" size="icon">
+                  <Link
+                    to={`/admin/users/${u.id}/access`}
+                    aria-label={`设置 ${u.username}权限`}
+                  >
+                    <ShieldCheck />
+                  </Link>
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
+                disabled={
+                  !can(actor, "users.write") ||
+                  (u.role === "admin" && actor?.role !== "admin")
+                }
                 onClick={() => setSelected(u)}
               >
                 {u.disabled ? "启用" : "禁用"}
@@ -430,7 +504,7 @@ export function LogAdmin({ audit = false }: { audit?: boolean }) {
         headers={
           audit
             ? ["操作人", "操作", "目标", "时间"]
-            : ["用户", "题目", "结果", "时间"]
+            : ["用户", "题目", "结果", "提交内容", "时间"]
         }
       >
         {data.data?.items.map((r) => (
@@ -449,6 +523,11 @@ export function LogAdmin({ audit = false }: { audit?: boolean }) {
             <TableCell className="text-xs text-muted-foreground">
               {audit ? r.target : r.correct ? "正确" : "错误"}
             </TableCell>
+            {!audit && (
+              <TableCell>
+                {r.correct ? "—" : <SubmittedFlag value={r.submitted_flag} />}
+              </TableCell>
+            )}
             <TableCell className="text-xs text-muted-foreground">
               {date(r.created_at)}
             </TableCell>

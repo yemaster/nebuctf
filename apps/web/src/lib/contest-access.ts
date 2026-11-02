@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Contest, User } from "./types";
+import { can } from "./access-control";
 
 // Mirror the existing API rules; hiding navigation never replaces server checks.
 export function contestCapabilities(
@@ -8,8 +9,8 @@ export function contestCapabilities(
   now = Date.now(),
 ) {
   const registered = !!user && !!contest?.registered;
-  const staff = user?.role === "admin";
-  const preview = user?.role === "admin" && !contest?.registration;
+  const staff = can(user, "contests.read", contest?.id);
+  const preview = staff && !contest?.registration;
   const active =
     !!contest &&
     Date.parse(contest.starts_at) <= now &&

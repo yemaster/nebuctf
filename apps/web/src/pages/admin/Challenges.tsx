@@ -1,3 +1,6 @@
+import { can } from "@/lib/access-control";
+import { useManagementWrite } from "@/lib/use-management-access";
+import { useUser } from "@/App";
 import { ArchiveExport } from "@/components/admin/archive-export";
 import { useState } from "react";
 import { ChallengeForm } from "@/components/admin/challenge-form";
@@ -33,6 +36,7 @@ function PublicationSwitch({
   challenge: Challenge;
   refresh: () => Promise<unknown>;
 }) {
+  const user = useUser();
   const publication = useAction(async (published: boolean) => {
     await api(`/admin/challenges/${challenge.id}/publication`, "POST", {
       published,
@@ -48,7 +52,9 @@ function PublicationSwitch({
             ? (publication.variables ?? challenge.published)
             : challenge.published
         }
-        disabled={publication.isPending}
+        disabled={
+          publication.isPending || !can(user, "challenges.write", challenge.id)
+        }
         aria-label={`启用 ${challenge.title}`}
         aria-busy={publication.isPending}
         onCheckedChange={(published) => publication.mutate(published)}
@@ -288,6 +294,7 @@ export function ChallengeAdmin() {
   );
 }
 export function ChallengeEditor() {
+  const write = useManagementWrite();
   const { id } = useParams(),
     navigate = useNavigate(),
     back = useEditorReturn("/admin/challenges");
@@ -350,6 +357,7 @@ export function ChallengeEditor() {
       )}
       {(!id || data.data) && (
         <ChallengeForm
+          readOnly={!write}
           key={id ?? "new"}
           challenge={data.data ?? null}
           pending={save.isPending}

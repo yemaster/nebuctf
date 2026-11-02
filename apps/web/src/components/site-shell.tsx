@@ -83,8 +83,15 @@ export function SiteHeader({
   showCountdown?: boolean;
 }) {
   const { pathname, search } = useLocation();
+  const trafficOnly =
+    !!contestId &&
+    can(user, "traffic.read", contestId) &&
+    !can(user, "contests.read", contestId) &&
+    pathname.startsWith(`/contests/${contestId}/manage`);
   const contest = useAPI<Contest>(
-    `/contests/${contestId}`,
+    trafficOnly
+      ? `/admin/contests/${contestId}/traffic/context`
+      : `/contests/${contestId}`,
     !!contestId,
     contestId ? 15000 : undefined,
   );
@@ -103,33 +110,42 @@ export function SiteHeader({
         : { ...previous, [contestId]: pathname + search },
     );
   }, [contestId, base, pathname, search]);
-  const items = contestId
-    ? [
-        { to: base, name: "概览" },
-        { to: `${base}/announcements`, name: "公告" },
-        ...(access.challenges
-          ? [
-              {
-                to: arenaPaths[contestId] ?? `${base}/challenges`,
-                name: access.practice ? "赛后练习" : "赛题",
-              },
-            ]
-          : []),
-        ...(access.scoreboard
-          ? [{ to: `${base}/scoreboard`, name: "排行榜" }]
-          : []),
-        ...(contest.data?.writeup_access
-          ? [{ to: `${base}/writeup`, name: "WriteUp" }]
-          : []),
+  const items = trafficOnly
+    ? []
+    : contestId
+      ? [
+          { to: base, name: "概览" },
+          { to: `${base}/announcements`, name: "公告" },
+          ...(access.challenges
+            ? [
+                {
+                  to: arenaPaths[contestId] ?? `${base}/challenges`,
+                  name: access.practice ? "赛后练习" : "赛题",
+                },
+              ]
+            : []),
+          ...(access.scoreboard
+            ? [{ to: `${base}/scoreboard`, name: "排行榜" }]
+            : []),
+          ...(contest.data?.writeup_access
+            ? [{ to: `${base}/writeup`, name: "WriteUp" }]
+            : []),
 
-        ...(access.instances
-          ? [{ to: `${base}/instances`, name: "靶机" }]
-          : []),
-      ]
-    : primary;
+          ...(access.instances
+            ? [{ to: `${base}/instances`, name: "靶机" }]
+            : []),
+        ]
+      : primary;
   const management =
-    contestId && user?.role === "admin"
-      ? [{ to: `${base}/manage/teams`, name: "管理" }]
+    contestId &&
+    (can(user, "contests.read", contestId) ||
+      can(user, "traffic.read", contestId))
+      ? [
+          {
+            to: `${base}/manage/${can(user, "contests.read", contestId) ? "teams" : "traffic"}`,
+            name: "管理",
+          },
+        ]
       : [];
   const managing = pathname.startsWith(`${base}/manage/`);
   const site = useSiteSettings().data ?? defaultSite;
@@ -361,7 +377,7 @@ export function SiteHeader({
                     </Link>
                   </DropdownMenuItem>
                 ))}
-                {user.role === "admin" && (
+                {isStaff(user) && (
                   <DropdownMenuItem asChild>
                     <Link to="/admin">
                       <Settings />
@@ -435,3 +451,4 @@ export function SiteHeader({
     </header>
   );
 }
+import { can, isStaff } from "@/lib/access-control";

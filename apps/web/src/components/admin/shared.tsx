@@ -1,3 +1,6 @@
+import { useUser } from "@/App";
+import { can, adminSection } from "@/lib/access-control";
+import { useManagementWrite } from "@/lib/use-management-access";
 import type { ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus, Search } from "lucide-react";
@@ -57,18 +60,23 @@ export function AdminToolbar({
   children?: ReactNode;
   actions?: ReactNode;
 }) {
+  const user = useUser(),
+    area = createHref.split("/")[2] ?? "";
+  const create = can(user, `${adminSection(area)}.write`);
   return (
     <>
       <PageTitle
         action={
           <div className="flex items-center gap-2">
-            {actions}
-            <Button asChild>
-              <Link to={createHref}>
-                <Plus />
-                {createLabel}
-              </Link>
-            </Button>
+            {create && actions}
+            {create && (
+              <Button asChild>
+                <Link to={createHref}>
+                  <Plus />
+                  {createLabel}
+                </Link>
+              </Button>
+            )}
           </div>
         }
       >
@@ -122,6 +130,7 @@ export function EditorHeading({
   backLabel?: string;
   actions?: ReactNode;
 }) {
+  const write = useManagementWrite();
   return (
     <div
       data-slot="page-title"
@@ -137,9 +146,11 @@ export function EditorHeading({
       </div>
       <div className="flex items-center gap-2">
         {actions}
-        <Button type="submit" form={form} disabled={pending}>
-          {pending ? "保存中" : "保存"}
-        </Button>
+        {write && (
+          <Button type="submit" form={form} disabled={pending}>
+            {pending ? "保存中" : "保存"}
+          </Button>
+        )}
       </div>
     </div>
   );

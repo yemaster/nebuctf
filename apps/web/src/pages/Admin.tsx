@@ -29,6 +29,7 @@ import {
   Waypoints,
 } from "lucide-react";
 import { useUser } from "@/App";
+import { isStaff, anyAccess, adminSection } from "@/lib/access-control";
 import { cn } from "@/lib/utils";
 import { StatusPage } from "@/components/status-page";
 import { Loading, PageTitle } from "@/components/shared";
@@ -56,6 +57,18 @@ import {
 } from "@/components/ui/breadcrumb";
 const WelcomeMessage = lazy(() =>
   import("./admin/WelcomeMessage").then((m) => ({ default: m.WelcomeMessage })),
+);
+const Roles = lazy(() =>
+  import("./admin/Roles").then((m) => ({ default: m.Roles })),
+);
+const TrafficOverview = lazy(() =>
+  import("./admin/Traffic").then((m) => ({ default: m.TrafficOverview })),
+);
+const RoleEditor = lazy(() =>
+  import("./admin/Roles").then((m) => ({ default: m.RoleEditor })),
+);
+const UserAccessEditor = lazy(() =>
+  import("./admin/Roles").then((m) => ({ default: m.UserAccessEditor })),
 );
 
 const ContentImport = lazy(() =>
@@ -162,8 +175,10 @@ const groups = [
     title: "运维",
     items: [
       { path: "resources", title: "资源", icon: Box },
+      { path: "traffic", title: "流量监测", icon: Network },
       { path: "images", title: "Docker 镜像", icon: Layers },
       { path: "users", title: "用户", icon: Users },
+      { path: "roles", title: "角色与权限", icon: ShieldCheck },
       { path: "submissions", title: "提交", icon: ListChecks },
       { path: "audit", title: "审计", icon: ShieldCheck },
     ],
@@ -171,7 +186,7 @@ const groups = [
 ];
 export function Admin() {
   const user = useUser();
-  if (user?.role !== "admin") return <StatusPage status={user ? 403 : 401} />;
+  if (!isStaff(user)) return <StatusPage status={user ? 403 : 401} />;
   return (
     <SidebarProvider
       className="relative h-full min-h-0"
@@ -182,6 +197,17 @@ export function Admin() {
   );
 }
 function AdminLayout() {
+  const user = useUser();
+  const visibleGroups = groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) =>
+        item.path === "roles"
+          ? user?.role === "admin"
+          : anyAccess(user, `${adminSection(item.path)}.read`),
+      ),
+    }))
+    .filter((group) => group.items.length);
   const location = useLocation(),
     { setOpenMobile } = useSidebar();
   useEffect(() => setOpenMobile(false), [location.pathname, setOpenMobile]);
@@ -200,7 +226,7 @@ function AdminLayout() {
       <Sidebar collapsible="icon" className="absolute h-full">
         <SidebarContent>
           <nav aria-label="管理导航">
-            {groups.map((group) => (
+            {visibleGroups.map((group) => (
               <SidebarGroup key={group.title}>
                 <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
                 <SidebarGroupContent>
@@ -233,7 +259,7 @@ function AdminLayout() {
             <BreadcrumbList>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link to="/admin/overview">管理中心</Link>
+                  <Link to="/admin">管理中心</Link>
                 </BreadcrumbLink>
               </BreadcrumbItem>
               {section && (
@@ -293,7 +319,23 @@ function AdminLayout() {
             <PageLoadingBoundary>
               <Suspense fallback={<Loading fullPage />}>
                 <Routes>
-                  <Route index element={<Navigate to="overview" replace />} />
+                  <Route
+                    index
+                    element={
+                      <Navigate
+                        to={visibleGroups[0]?.items[0]?.path ?? "overview"}
+                        replace
+                      />
+                    }
+                  />
+                  <Route path="roles" element={<Roles />} />
+                  <Route path="traffic" element={<TrafficOverview />} />
+                  <Route path="roles/new" element={<RoleEditor />} />
+                  <Route path="roles/:id/edit" element={<RoleEditor />} />
+                  <Route
+                    path="users/:id/access"
+                    element={<UserAccessEditor />}
+                  />
                   <Route path="overview" element={<AdminOverview />} />
                   <Route
                     path="settings"

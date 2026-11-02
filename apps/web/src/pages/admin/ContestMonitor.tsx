@@ -1,4 +1,6 @@
+import { useManagementWrite } from "@/lib/use-management-access";
 import { Link, useParams } from "react-router-dom";
+import { SubmittedFlag } from "@/components/admin/submitted-flag";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { api, useAPI, useAction } from "@/lib/api";
@@ -126,7 +128,7 @@ export function MonitorList({
                 "状态",
                 "操作",
               ]
-            : ["时间", "动态", "题目", "战队 / 选手", "结果"]
+            : ["时间", "动态", "题目", "战队 / 选手", "结果", "提交内容"]
         }
       >
         {data.data?.items.map((r) => (
@@ -226,6 +228,13 @@ export function MonitorList({
                     )[r.detail ?? ""] ?? "—")
                   )}
                 </TableCell>
+                <TableCell>
+                  {r.type === "submission" && r.correct === false ? (
+                    <SubmittedFlag value={r.submitted_flag} />
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
               </>
             )}
           </TableRow>
@@ -270,6 +279,7 @@ function IntegrityForm({
   apiBase: string;
   base: string;
 }) {
+  const write = useManagementWrite();
   const [status, setStatus] = useState(clue.status),
     [note, setNote] = useState(clue.note),
     [page, setPage] = useState(1);
@@ -305,7 +315,9 @@ function IntegrityForm({
       className="space-y-6"
     >
       <PageTitle
-        action={<Button disabled={save.isPending}>保存核实记录</Button>}
+        action={
+          <Button disabled={!write || save.isPending}>保存核实记录</Button>
+        }
       >
         <span className="flex items-center gap-3">
           <Button asChild size="icon" variant="ghost">
@@ -357,7 +369,11 @@ function IntegrityForm({
           <dd className="break-all font-mono text-xs">{clue.submission_id}</dd>
         </div>
       </dl>
-      <fieldset disabled={save.isPending} className="space-y-4">
+      <div className="space-y-2">
+        <p className="text-sm text-muted-foreground">提交内容</p>
+        <SubmittedFlag value={clue.submitted_flag} />
+      </div>
+      <fieldset disabled={!write || save.isPending} className="space-y-4">
         <Field label="核实结果">
           <RadioGroup
             value={status}

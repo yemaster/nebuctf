@@ -1,3 +1,6 @@
+import { can } from "@/lib/access-control";
+import { useManagementWrite } from "@/lib/use-management-access";
+import { useUser } from "@/App";
 import { ArchiveExport } from "@/components/admin/archive-export";
 import { ContestForm } from "@/components/admin/contest-form";
 import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
@@ -20,6 +23,7 @@ import {
 } from "@/components/admin/shared";
 
 export function ContestAdmin() {
+  const user = useUser();
   const { params, page, setPage, filter } = useAdminList(),
     editor = useEditorLink();
   const data = useAPI<{ items: Contest[]; total: number }>(
@@ -147,7 +151,9 @@ export function ContestAdmin() {
                     className="sr-only"
                     aria-label={`上传 ${c.title} 海报`}
                     accept="image/png,image/jpeg,image/webp"
-                    disabled={poster.isPending}
+                    disabled={
+                      poster.isPending || !can(user, "contests.write", c.id)
+                    }
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) poster.mutate({ id: c.id, file });
@@ -173,6 +179,7 @@ export function ContestAdmin() {
   );
 }
 export function ContestEditor() {
+  const write = useManagementWrite();
   const { id } = useParams(),
     navigate = useNavigate(),
     location = useLocation(),
@@ -235,6 +242,7 @@ export function ContestEditor() {
       )}
       {(!id || data.data) && (
         <ContestForm
+          readOnly={!write}
           key={id ?? "new"}
           contest={data.data ?? null}
           pending={save.isPending}

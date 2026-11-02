@@ -9,6 +9,7 @@ import type {
   Phase,
 } from "./competition";
 export interface User {
+  access?: import("./access-control").AccessProfile;
   avatar_id?: string | null;
   id: string;
   username: string;
@@ -170,6 +171,7 @@ export interface Contest {
   challenge_ids: string[];
 }
 export interface Instance {
+  owner_name?: string;
   protocol?: "http" | "nc";
   queue_ahead?: number | null;
   queue_blocked?: boolean;
@@ -200,6 +202,7 @@ export interface Announcement {
   created_at: string;
 }
 export interface Submission {
+  submitted_flag?: string | null;
   avatar_id?: string | null;
   contest_practice?: boolean;
   part_title?: string | null;

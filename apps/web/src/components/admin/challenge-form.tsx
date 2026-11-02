@@ -43,10 +43,12 @@ const ScoreCurve = lazy(() => import("./score-curve"));
 export function ChallengeForm({
   challenge: c,
   pending,
+  readOnly = false,
   onSave,
 }: {
   challenge: Challenge | null;
   pending: boolean;
+  readOnly?: boolean;
   onSave: (body: Record<string, unknown>) => void;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -221,7 +223,7 @@ export function ChallengeForm({
         </div>
         <ConfigPanel value="content" active={section}>
           <div className="space-y-6">
-            <FieldSet disabled={pending}>
+            <FieldSet disabled={pending || readOnly}>
               <FieldLegend>基本信息</FieldLegend>
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-12">
                 <Field label="题目名称" className="xl:col-span-5">
@@ -267,7 +269,7 @@ export function ChallengeForm({
                 </Field>
               </div>
             </FieldSet>{" "}
-            <FieldSet disabled={pending}>
+            <FieldSet disabled={pending || readOnly}>
               <FieldLegend>题面与提示</FieldLegend>
               <FieldGroup className="gap-5">
                 <Control>
@@ -277,21 +279,21 @@ export function ChallengeForm({
                     name="description"
                     value={description}
                     onChange={setDescription}
-                    disabled={pending}
+                    disabled={pending || readOnly}
                     maxLength={20000}
                   />
                 </Control>
                 <HintsEditor
                   value={hints}
                   onChange={setHints}
-                  disabled={pending}
+                  disabled={pending || readOnly}
                 />
               </FieldGroup>
             </FieldSet>
           </div>
         </ConfigPanel>
         <ConfigPanel value="scoring" active={section}>
-          <fieldset disabled={pending} className="space-y-5">
+          <fieldset disabled={pending || readOnly} className="space-y-5">
             {type === "objective" && (
               <ObjectiveEditor value={objective} onChange={setObjective} />
             )}
@@ -299,7 +301,7 @@ export function ChallengeForm({
               <FlagTemplate
                 value={flagTemplate}
                 onChange={setFlagTemplate}
-                disabled={pending}
+                disabled={pending || readOnly}
               />
             )}
             {type === "awd" ? (
@@ -387,7 +389,7 @@ export function ChallengeForm({
                   <FlagTemplate
                     value={flagTemplate}
                     onChange={setFlagTemplate}
-                    disabled={pending}
+                    disabled={pending || readOnly}
                   />
                 )}
                 {practical && !multi && !dynamic && (
@@ -485,7 +487,10 @@ export function ChallengeForm({
           </fieldset>
         </ConfigPanel>
         <ConfigPanel value="environment" active={section}>
-          <fieldset disabled={pending || !practical} className="space-y-6">
+          <fieldset
+            disabled={pending || readOnly || !practical}
+            className="space-y-6"
+          >
             <label className="flex items-center gap-2 text-sm">
               <Switch
                 checked={!!resources.container}
@@ -526,7 +531,7 @@ export function ChallengeForm({
         </ConfigPanel>
         <ConfigPanel value="judging" active={section}>
           <fieldset
-            disabled={pending || !attackDefense}
+            disabled={pending || readOnly || !attackDefense}
             className="grid gap-5 md:grid-cols-2"
           >
             <Field label="补丁校验镜像">
@@ -608,7 +613,7 @@ export function ChallengeForm({
         </ConfigPanel>
         <ConfigPanel value="attachments" active={section}>
           {practical && (
-            <fieldset disabled={pending} className="mb-8 space-y-6">
+            <fieldset disabled={pending || readOnly} className="mb-8 space-y-6">
               <label className="flex items-center gap-2 text-sm">
                 <Switch
                   checked={!!resources.attachment}
@@ -635,7 +640,7 @@ export function ChallengeForm({
             </fieldset>
           )}
           {resources.attachment && practical && !resources.container && (
-            <fieldset disabled={pending} className="mb-6">
+            <fieldset disabled={pending || readOnly} className="mb-6">
               <FlagInjection
                 parts={multi ? parts : []}
                 setParts={setParts}
@@ -648,11 +653,11 @@ export function ChallengeForm({
           <ChallengeAttachments
             challengeId={c?.id}
             attachments={c?.attachments ?? []}
-            disabled={pending}
+            disabled={pending || readOnly}
           />
         </ConfigPanel>
         <ConfigPanel value="publication" active={section}>
-          <FieldSet disabled={pending}>
+          <FieldSet disabled={pending || readOnly}>
             <FieldLegend className="sr-only">发布设置</FieldLegend>
             <FieldGroup className="grid items-start gap-5 md:grid-cols-2">
               <Field label="上线方式">
@@ -683,7 +688,7 @@ export function ChallengeForm({
         </ConfigPanel>
       </Tabs>
       <div className="flex justify-end">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || readOnly}>
           {pending ? "保存中…" : "保存题目"}
         </Button>
       </div>

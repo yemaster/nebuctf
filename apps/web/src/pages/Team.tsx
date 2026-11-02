@@ -1,3 +1,4 @@
+import { copyText } from "@/lib/clipboard";
 import { TeamAvatar } from "@/components/team-avatar";
 import { TeamLogoEditor } from "@/components/team-logo-editor";
 import { UserAvatar } from "@/components/user-avatar";
@@ -169,19 +170,29 @@ function TeamDetail() {
               </Button>
             )}
             {invite?.team === team.id && (
-              <div className="space-y-3">
-                <p className="break-all text-sm">{invite.code}</p>
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  aria-label="战队邀请码"
+                  className="min-w-0 font-mono"
+                  value={`${invite.code.slice(0, 4)}${"*".repeat(12)}${invite.code.slice(-4)}`}
+                  onCopy={(event) => {
+                    event.preventDefault();
+                    event.clipboardData.setData("text/plain", invite.code);
+                  }}
+                />
                 <Button
-                  variant="ghost"
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  aria-label="复制邀请码"
                   onClick={() =>
-                    navigator.clipboard
-                      .writeText(invite.code)
+                    copyText(invite.code)
                       .then(() => toast.success("邀请码已复制"))
                       .catch(() => toast.error("复制失败，请手动复制"))
                   }
                 >
                   <Copy />
-                  复制邀请码
                 </Button>
               </div>
             )}

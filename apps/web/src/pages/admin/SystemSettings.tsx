@@ -1,3 +1,4 @@
+import { useManagementWrite } from "@/lib/use-management-access";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Save, Loader2, Send, PlugZap } from "lucide-react";
@@ -74,6 +75,7 @@ function SettingsForm({
   section: Section;
   data: Record<string, any>;
 }) {
+  const write = useManagementWrite();
   const [destroyOnSolve, setDestroyOnSolve] = useState(!!data.destroy_on_solve);
   const [unlimitedOwner, setUnlimitedOwner] = useState(
     data.max_owner_instances === null,
@@ -94,7 +96,7 @@ function SettingsForm({
     <>
       <PageTitle
         action={
-          <Button form="system-settings" disabled={save.isPending}>
+          <Button form="system-settings" disabled={!write || save.isPending}>
             <Save />
             {save.isPending ? "保存中" : "保存"}
           </Button>
@@ -103,315 +105,322 @@ function SettingsForm({
         {titles[section]}
       </PageTitle>
       <ConfigCard>
-        <form
-          id="system-settings"
-          className="space-y-6"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget),
-              text = (key: string) => String(f.get(key) ?? "");
-            save.mutate(
-              section === "site"
-                ? Object.fromEntries(f)
-                : section === "containers"
-                  ? {
-                      default_ttl: Number(f.get("default_ttl")) * 60,
-                      renew_limit: Number(f.get("renew_limit")),
-                      renew_seconds: Number(f.get("renew_seconds")) * 60,
-                      auto_destroy: autoDestroy,
-                      destroy_on_solve: destroyOnSolve,
-                      max_owner_instances: unlimitedOwner
-                        ? null
-                        : Number(f.get("max_owner_instances")),
-                      max_instances: unlimitedGlobal
-                        ? null
-                        : Number(f.get("max_instances")),
-                    }
-                  : {
-                      require_verification: verification,
-                      allowed_emails: text("allowed_emails")
-                        .split(/[\s,，]+/)
-                        .filter(Boolean),
-                      host: text("host"),
-                      port: Number(f.get("port")),
-                      security,
-                      username: text("username"),
-                      password: text("password"),
-                      clear_password: clearPassword,
-                      from_address: text("from_address"),
-                      from_name: text("from_name"),
-                    },
-            );
-          }}
-        >
-          {section === "site" ? (
-            <>
-              <Field label="系统名称">
-                <Input
-                  name="name"
-                  defaultValue={data.name}
-                  maxLength={48}
-                  required
-                  className="max-w-lg"
-                />
-              </Field>
-              <Group title="底部信息">
-                <Field label="页脚文本">
+        <fieldset disabled={!write || save.isPending}>
+          <form
+            id="system-settings"
+            className="space-y-6"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget),
+                text = (key: string) => String(f.get(key) ?? "");
+              save.mutate(
+                section === "site"
+                  ? Object.fromEntries(f)
+                  : section === "containers"
+                    ? {
+                        default_ttl: Number(f.get("default_ttl")) * 60,
+                        renew_limit: Number(f.get("renew_limit")),
+                        renew_seconds: Number(f.get("renew_seconds")) * 60,
+                        auto_destroy: autoDestroy,
+                        destroy_on_solve: destroyOnSolve,
+                        max_owner_instances: unlimitedOwner
+                          ? null
+                          : Number(f.get("max_owner_instances")),
+                        max_instances: unlimitedGlobal
+                          ? null
+                          : Number(f.get("max_instances")),
+                      }
+                    : {
+                        require_verification: verification,
+                        allowed_emails: text("allowed_emails")
+                          .split(/[\s,，]+/)
+                          .filter(Boolean),
+                        host: text("host"),
+                        port: Number(f.get("port")),
+                        security,
+                        username: text("username"),
+                        password: text("password"),
+                        clear_password: clearPassword,
+                        from_address: text("from_address"),
+                        from_name: text("from_name"),
+                      },
+              );
+            }}
+          >
+            {section === "site" ? (
+              <>
+                <Field label="系统名称">
                   <Input
-                    name="footer_text"
-                    defaultValue={data.footer_text}
-                    maxLength={160}
-                    placeholder="留空显示系统名称与年份"
+                    name="name"
+                    defaultValue={data.name}
+                    maxLength={48}
+                    required
+                    className="max-w-lg"
                   />
                 </Field>
-                <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-                  <Field label="链接名称">
+                <Group title="底部信息">
+                  <Field label="页脚文本">
                     <Input
-                      name="footer_link_label"
-                      defaultValue={data.footer_link_label}
-                      maxLength={40}
+                      name="footer_text"
+                      defaultValue={data.footer_text}
+                      maxLength={160}
+                      placeholder="留空显示系统名称与年份"
                     />
                   </Field>
-                  <Field label="链接地址">
-                    <Input
-                      name="footer_link_url"
-                      defaultValue={data.footer_link_url}
-                      type="url"
-                      maxLength={500}
-                      placeholder="https://"
-                    />
-                  </Field>
-                </div>
-              </Group>
-            </>
-          ) : section === "containers" ? (
-            <>
-              <Group title="数量限制">
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <Field label="单人 / 战队上限">
-                    <div className="flex items-center gap-4">
+                  <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                    <Field label="链接名称">
                       <Input
-                        name="max_owner_instances"
-                        aria-label="单人 / 战队上限"
+                        name="footer_link_label"
+                        defaultValue={data.footer_link_label}
+                        maxLength={40}
+                      />
+                    </Field>
+                    <Field label="链接地址">
+                      <Input
+                        name="footer_link_url"
+                        defaultValue={data.footer_link_url}
+                        type="url"
+                        maxLength={500}
+                        placeholder="https://"
+                      />
+                    </Field>
+                  </div>
+                </Group>
+              </>
+            ) : section === "containers" ? (
+              <>
+                <Group title="数量限制">
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <Field label="单人 / 战队上限">
+                      <div className="flex items-center gap-4">
+                        <Input
+                          name="max_owner_instances"
+                          aria-label="单人 / 战队上限"
+                          type="number"
+                          min={1}
+                          max={10000}
+                          required={!unlimitedOwner}
+                          disabled={unlimitedOwner}
+                          defaultValue={data.max_owner_instances ?? 2}
+                        />
+                        <span className="shrink-0">
+                          <ToggleField
+                            label="单人不限"
+                            checked={unlimitedOwner}
+                            onChange={setUnlimitedOwner}
+                          />
+                        </span>
+                      </div>
+                    </Field>
+                    <Field label="全局上限">
+                      <div className="flex items-center gap-4">
+                        <Input
+                          name="max_instances"
+                          aria-label="全局上限"
+                          type="number"
+                          min={1}
+                          max={100000}
+                          required={!unlimitedGlobal}
+                          disabled={unlimitedGlobal}
+                          defaultValue={data.max_instances ?? 64}
+                        />
+                        <span className="shrink-0">
+                          <ToggleField
+                            label="全局不限"
+                            checked={unlimitedGlobal}
+                            onChange={setUnlimitedGlobal}
+                          />
+                        </span>
+                      </div>
+                    </Field>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    练习按个人、比赛按战队计算。包含排队任务与附件环境；CPU、内存和比赛配额仍生效。
+                  </p>
+                </Group>
+                <Group title="时长与续期">
+                  <div className="grid gap-5 sm:grid-cols-3">
+                    <Field label="默认时长（分钟）">
+                      <Input
+                        name="default_ttl"
                         type="number"
                         min={1}
-                        max={10000}
-                        required={!unlimitedOwner}
-                        disabled={unlimitedOwner}
-                        defaultValue={data.max_owner_instances ?? 2}
+                        max={1440}
+                        required
+                        defaultValue={data.default_ttl / 60}
                       />
-                      <span className="shrink-0">
-                        <ToggleField
-                          label="单人不限"
-                          checked={unlimitedOwner}
-                          onChange={setUnlimitedOwner}
-                        />
-                      </span>
-                    </div>
-                  </Field>
-                  <Field label="全局上限">
-                    <div className="flex items-center gap-4">
+                    </Field>
+                    <Field label="续期次数">
                       <Input
-                        name="max_instances"
-                        aria-label="全局上限"
+                        name="renew_limit"
+                        type="number"
+                        min={0}
+                        max={100}
+                        required
+                        defaultValue={data.renew_limit}
+                      />
+                    </Field>
+                    <Field label="每次增加（分钟）">
+                      <Input
+                        name="renew_seconds"
                         type="number"
                         min={1}
-                        max={100000}
-                        required={!unlimitedGlobal}
-                        disabled={unlimitedGlobal}
-                        defaultValue={data.max_instances ?? 64}
+                        max={1440}
+                        required
+                        defaultValue={data.renew_seconds / 60}
                       />
-                      <span className="shrink-0">
-                        <ToggleField
-                          label="全局不限"
-                          checked={unlimitedGlobal}
-                          onChange={setUnlimitedGlobal}
-                        />
-                      </span>
-                    </div>
-                  </Field>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  练习按个人、比赛按战队计算。包含排队任务与附件环境；CPU、内存和比赛配额仍生效。
-                </p>
-              </Group>
-              <Group title="时长与续期">
-                <div className="grid gap-5 sm:grid-cols-3">
-                  <Field label="默认时长（分钟）">
-                    <Input
-                      name="default_ttl"
-                      type="number"
-                      min={1}
-                      max={1440}
-                      required
-                      defaultValue={data.default_ttl / 60}
-                    />
-                  </Field>
-                  <Field label="续期次数">
-                    <Input
-                      name="renew_limit"
-                      type="number"
-                      min={0}
-                      max={100}
-                      required
-                      defaultValue={data.renew_limit}
-                    />
-                  </Field>
-                  <Field label="每次增加（分钟）">
-                    <Input
-                      name="renew_seconds"
-                      type="number"
-                      min={1}
-                      max={1440}
-                      required
-                      defaultValue={data.renew_seconds / 60}
-                    />
-                  </Field>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  新建独立靶机生效。题目可覆盖默认时长，续期不超过比赛截止时间。
-                </p>
-              </Group>
-              <Group title="自动回收">
-                <ToggleField
-                  label="完成解题后销毁靶机"
-                  checked={destroyOnSolve}
-                  onChange={setDestroyOnSolve}
-                >
-                  全部小题解答后回收独立靶机。公共环境、AWD 和多轮计分环境除外。
-                </ToggleField>
-                <ToggleField
-                  label="自动销毁旧实例"
-                  checked={autoDestroy}
-                  onChange={setAutoDestroy}
-                >
-                  启动前确认待销毁靶机，只替换同一范围内自己的普通靶机。
-                </ToggleField>
-              </Group>
-            </>
-          ) : (
-            <>
-              <Group title="注册验证">
-                <ToggleField
-                  label="注册时验证邮箱"
-                  checked={verification}
-                  onChange={setVerification}
-                />
-                <Field label="邮箱白名单">
-                  <Textarea
-                    name="allowed_emails"
-                    defaultValue={data.allowed_emails.join("\n")}
-                    rows={3}
-                    placeholder={"example.com\n*.example.edu\nuser@example.net"}
-                  />
-                </Field>
-                <p className="text-xs text-muted-foreground">
-                  每行一个邮箱或域名，留空不限。子域名使用 *.example.com。
-                </p>
-              </Group>
-              <Group title="发件服务器">
-                <div className="grid items-start gap-5 sm:grid-cols-3 xl:grid-cols-12">
-                  <Field
-                    label="SMTP 地址"
-                    className="sm:col-span-2 xl:col-span-6"
-                  >
-                    <Input
-                      name="host"
-                      defaultValue={data.host}
-                      required={verification}
-                      maxLength={253}
-                      placeholder="smtp.example.com"
-                    />
-                  </Field>
-                  <Field label="端口" className="xl:col-span-2">
-                    <Input
-                      name="port"
-                      type="number"
-                      min={1}
-                      max={65535}
-                      required
-                      defaultValue={data.port}
-                    />
-                  </Field>
-                  <Field
-                    label="连接加密"
-                    className="sm:col-span-3 xl:col-span-4"
-                  >
-                    <RadioGroup
-                      className="flex min-h-9 flex-wrap items-center gap-x-6 gap-y-3"
-                      value={security}
-                      onValueChange={setSecurity}
-                    >
-                      {[
-                        ["starttls", "STARTTLS"],
-                        ["tls", "TLS"],
-                        ["none", "无加密"],
-                      ].map(([value, label]) => (
-                        <label
-                          key={value}
-                          className="flex items-center gap-2 text-sm"
-                        >
-                          <RadioGroupItem value={value!} />
-                          {label}
-                        </label>
-                      ))}
-                    </RadioGroup>
-                  </Field>
-                </div>
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <Field label="用户名">
-                    <Input
-                      name="username"
-                      defaultValue={data.username}
-                      autoComplete="off"
-                      maxLength={254}
-                    />
-                  </Field>
-                  <Field label="密码 / 授权码">
-                    <Input
-                      name="password"
-                      type="password"
-                      autoComplete="new-password"
-                      maxLength={2048}
-                      placeholder={data.password_set ? "已设置，留空保留" : ""}
-                    />
-                  </Field>
-                </div>
-                {data.password_set && (
+                    </Field>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    新建独立靶机生效。题目可覆盖默认时长，续期不超过比赛截止时间。
+                  </p>
+                </Group>
+                <Group title="自动回收">
                   <ToggleField
-                    label="清除已保存密码"
-                    checked={clearPassword}
-                    onChange={setClearPassword}
+                    label="完成解题后销毁靶机"
+                    checked={destroyOnSolve}
+                    onChange={setDestroyOnSolve}
+                  >
+                    全部小题解答后回收独立靶机。公共环境、AWD
+                    和多轮计分环境除外。
+                  </ToggleField>
+                  <ToggleField
+                    label="自动销毁旧实例"
+                    checked={autoDestroy}
+                    onChange={setAutoDestroy}
+                  >
+                    启动前确认待销毁靶机，只替换同一范围内自己的普通靶机。
+                  </ToggleField>
+                </Group>
+              </>
+            ) : (
+              <>
+                <Group title="注册验证">
+                  <ToggleField
+                    label="注册时验证邮箱"
+                    checked={verification}
+                    onChange={setVerification}
                   />
-                )}
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <Field label="发件邮箱">
-                    <Input
-                      name="from_address"
-                      type="email"
-                      defaultValue={data.from_address}
-                      required={verification}
-                      maxLength={254}
+                  <Field label="邮箱白名单">
+                    <Textarea
+                      name="allowed_emails"
+                      defaultValue={data.allowed_emails.join("\n")}
+                      rows={3}
+                      placeholder={
+                        "example.com\n*.example.edu\nuser@example.net"
+                      }
                     />
                   </Field>
-                  <Field label="发件名称">
-                    <Input
-                      name="from_name"
-                      defaultValue={data.from_name}
-                      maxLength={80}
+                  <p className="text-xs text-muted-foreground">
+                    每行一个邮箱或域名，留空不限。子域名使用 *.example.com。
+                  </p>
+                </Group>
+                <Group title="发件服务器">
+                  <div className="grid items-start gap-5 sm:grid-cols-3 xl:grid-cols-12">
+                    <Field
+                      label="SMTP 地址"
+                      className="sm:col-span-2 xl:col-span-6"
+                    >
+                      <Input
+                        name="host"
+                        defaultValue={data.host}
+                        required={verification}
+                        maxLength={253}
+                        placeholder="smtp.example.com"
+                      />
+                    </Field>
+                    <Field label="端口" className="xl:col-span-2">
+                      <Input
+                        name="port"
+                        type="number"
+                        min={1}
+                        max={65535}
+                        required
+                        defaultValue={data.port}
+                      />
+                    </Field>
+                    <Field
+                      label="连接加密"
+                      className="sm:col-span-3 xl:col-span-4"
+                    >
+                      <RadioGroup
+                        className="flex min-h-9 flex-wrap items-center gap-x-6 gap-y-3"
+                        value={security}
+                        onValueChange={setSecurity}
+                      >
+                        {[
+                          ["starttls", "STARTTLS"],
+                          ["tls", "TLS"],
+                          ["none", "无加密"],
+                        ].map(([value, label]) => (
+                          <label
+                            key={value}
+                            className="flex items-center gap-2 text-sm"
+                          >
+                            <RadioGroupItem value={value!} />
+                            {label}
+                          </label>
+                        ))}
+                      </RadioGroup>
+                    </Field>
+                  </div>
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <Field label="用户名">
+                      <Input
+                        name="username"
+                        defaultValue={data.username}
+                        autoComplete="off"
+                        maxLength={254}
+                      />
+                    </Field>
+                    <Field label="密码 / 授权码">
+                      <Input
+                        name="password"
+                        type="password"
+                        autoComplete="new-password"
+                        maxLength={2048}
+                        placeholder={
+                          data.password_set ? "已设置，留空保留" : ""
+                        }
+                      />
+                    </Field>
+                  </div>
+                  {data.password_set && (
+                    <ToggleField
+                      label="清除已保存密码"
+                      checked={clearPassword}
+                      onChange={setClearPassword}
                     />
-                  </Field>
-                </div>
-              </Group>
-            </>
-          )}
-          {save.error && (
-            <Alert variant="destructive">
-              <AlertTitle>{save.error.message}</AlertTitle>
-            </Alert>
-          )}
-        </form>
-        {section === "mail" && (
+                  )}
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <Field label="发件邮箱">
+                      <Input
+                        name="from_address"
+                        type="email"
+                        defaultValue={data.from_address}
+                        required={verification}
+                        maxLength={254}
+                      />
+                    </Field>
+                    <Field label="发件名称">
+                      <Input
+                        name="from_name"
+                        defaultValue={data.from_name}
+                        maxLength={80}
+                      />
+                    </Field>
+                  </div>
+                </Group>
+              </>
+            )}
+            {save.error && (
+              <Alert variant="destructive">
+                <AlertTitle>{save.error.message}</AlertTitle>
+              </Alert>
+            )}
+          </form>
+        </fieldset>
+        {write && section === "mail" && (
           <>
             <Separator className="my-6" />
             <MailTest />

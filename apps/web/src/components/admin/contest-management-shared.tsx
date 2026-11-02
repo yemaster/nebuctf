@@ -46,6 +46,7 @@ export type Registration = {
   }[];
 };
 export type Clue = {
+  submitted_flag?: string | null;
   id: string;
   challenge_title: string;
   part_title: string | null;
@@ -62,6 +63,7 @@ export type Clue = {
   updated_at: string;
 };
 export type Activity = {
+  submitted_flag?: string | null;
   id: string;
   type: string;
   created_at: string;

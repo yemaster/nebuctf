@@ -16,6 +16,7 @@ import {
   Users,
 } from "lucide-react";
 import { useUser } from "@/App";
+import { can } from "@/lib/access-control";
 import { StatusPage, PageBoundary } from "@/components/status-page";
 import { useMonitor } from "@/lib/contest-monitor";
 import {
@@ -43,18 +44,27 @@ const ContestEditor = lazy(() =>
     default: module.ContestEditor,
   })),
 );
+const ContestTraffic = lazy(() =>
+  import("./admin/Traffic").then((m) => ({ default: m.ContestTraffic })),
+);
+const TrafficDetail = lazy(() =>
+  import("./admin/Traffic").then((m) => ({ default: m.TrafficDetail })),
+);
 
 const sections = [
   { path: "teams", label: "报名战队", icon: Users },
   { path: "activity", label: "比赛动态", icon: Activity },
   { path: "integrity", label: "作弊线索", icon: ShieldCheck },
+  { path: "traffic", label: "流量监测", icon: Activity },
   { path: "writeups", label: "WriteUp 管理", icon: FileText },
   { path: "settings", label: "比赛设置", icon: Settings2 },
 ];
 export function ContestManagement() {
   const user = useUser(),
+    { id } = useParams(),
     location = useLocation();
-  if (user?.role !== "admin") return <StatusPage status={403} />;
+  if (!can(user, "contests.read", id) && !can(user, "traffic.read", id))
+    return <StatusPage status={403} />;
   if (location.pathname.startsWith("/admin/"))
     return (
       <Navigate
@@ -72,11 +82,15 @@ export function ContestManagement() {
   );
 }
 function ManagementLayout() {
+  const user = useUser();
   const { id } = useParams(),
     location = useLocation(),
     { setOpenMobile } = useSidebar();
-  const live = useMonitor(id!, true),
+  const live = useMonitor(id!, can(user, "contests.read", id)),
     base = `/contests/${id}/manage`;
+  const visibleSections = sections.filter((s) =>
+    can(user, s.path === "traffic" ? "traffic.read" : "contests.read", id),
+  );
   const active = location.pathname.slice(base.length + 1).split("/")[0];
   useEffect(() => setOpenMobile(false), [location.pathname, setOpenMobile]);
   return (
@@ -91,7 +105,7 @@ function ManagementLayout() {
         <SidebarContent className="px-2">
           <nav aria-label="比赛管理导航">
             <SidebarMenu>
-              {sections.map(({ path, label, icon: Icon }) => (
+              {visibleSections.map(({ path, label, icon: Icon }) => (
                 <SidebarMenuItem key={path}>
                   <SidebarMenuButton
                     asChild
@@ -116,9 +130,19 @@ function ManagementLayout() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild tooltip="返回比赛">
-                <Link to={`/contests/${id}`}>
+                <Link
+                  to={
+                    can(user, "contests.read", id)
+                      ? `/contests/${id}`
+                      : "/admin/traffic"
+                  }
+                >
                   <ArrowLeft />
-                  <span>返回比赛</span>
+                  <span>
+                    {can(user, "contests.read", id)
+                      ? "返回比赛"
+                      : "返回流量监测"}
+                  </span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -138,7 +162,20 @@ function ManagementLayout() {
               <PageLoadingBoundary key={location.pathname}>
                 <Suspense fallback={<Loading fullPage />}>
                   <Routes>
-                    <Route index element={<Navigate replace to="teams" />} />
+                    <Route
+                      index
+                      element={
+                        <Navigate
+                          replace
+                          to={visibleSections[0]?.path ?? "teams"}
+                        />
+                      }
+                    />
+                    <Route path="traffic" element={<ContestTraffic />} />
+                    <Route
+                      path="traffic/:instance"
+                      element={<TrafficDetail />}
+                    />
                     <Route path="writeups" element={<WriteupsAdmin />} />
                     <Route
                       path="writeups/:team"

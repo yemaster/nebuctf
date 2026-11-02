@@ -41,10 +41,12 @@ import { Alert, AlertTitle } from "../ui/alert";
 export function ContestForm({
   contest: saved,
   pending,
+  readOnly = false,
   save,
 }: {
   contest: Contest | null;
   pending: boolean;
+  readOnly?: boolean;
   save: (body: Record<string, unknown>) => Promise<unknown>;
 }) {
   const user = useUser();
@@ -372,7 +374,7 @@ export function ContestForm({
         </div>
         <ConfigPanel value="content" active={section}>
           <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)]">
-            <fieldset disabled={pending} className="space-y-5">
+            <fieldset disabled={pending || readOnly} className="space-y-5">
               <legend className="sr-only">基本信息</legend>
               <Field label="比赛名称">
                 <Input
@@ -395,11 +397,11 @@ export function ContestForm({
                 启用比赛
               </label>
             </fieldset>
-            <ContestPosterEditor contest={c} disabled={pending} />
+            <ContestPosterEditor contest={c} disabled={pending || readOnly} />
           </div>
         </ConfigPanel>
         <ConfigPanel value="challenges" active={section}>
-          <fieldset disabled={pending} className="min-w-0">
+          <fieldset disabled={pending || readOnly} className="min-w-0">
             <legend className="sr-only">赛题设置</legend>
             <ContestQuestions
               ids={selected}
@@ -412,7 +414,7 @@ export function ContestForm({
           </fieldset>
         </ConfigPanel>
         <ConfigPanel value="submissions" active={section}>
-          <fieldset disabled={pending}>
+          <fieldset disabled={pending || readOnly}>
             <legend className="sr-only">提交限制</legend>
             <ContestSubmissionLimits
               ids={selected}
@@ -425,7 +427,7 @@ export function ContestForm({
           </fieldset>
         </ConfigPanel>
         <ConfigPanel value="hints" active={section}>
-          <fieldset disabled={pending}>
+          <fieldset disabled={pending || readOnly}>
             <legend className="sr-only">提示规则</legend>
             <ContestHints
               issue={hintIssue}
@@ -443,7 +445,7 @@ export function ContestForm({
               <AlertTitle>{scheduleIssue}</AlertTitle>
             </Alert>
           )}
-          <fieldset disabled={pending} className="mb-6 space-y-4">
+          <fieldset disabled={pending || readOnly} className="mb-6 space-y-4">
             <h3 className="font-medium">报名阶段</h3>
             <div className="grid gap-5 md:grid-cols-2">
               {(
@@ -465,7 +467,7 @@ export function ContestForm({
               留空时，发布后开放报名，比赛结束时截止。
             </p>
           </fieldset>
-          <fieldset disabled={pending} className="space-y-4">
+          <fieldset disabled={pending || readOnly} className="space-y-4">
             <h3 className="font-medium">比赛阶段</h3>
             <div className="grid gap-5 md:grid-cols-2">
               {[
@@ -503,7 +505,10 @@ export function ContestForm({
               onChange={(practical) => setTiming({ ...timing, practical })}
               locked={pending || started}
             />
-            <fieldset disabled={pending} className="space-y-3 border-t pt-5">
+            <fieldset
+              disabled={pending || readOnly}
+              className="space-y-3 border-t pt-5"
+            >
               <legend className="sr-only">比赛轮次</legend>
               <h3 className="font-medium">比赛轮次</h3>
               <div className="grid items-center gap-4 sm:grid-cols-2">
@@ -531,7 +536,7 @@ export function ContestForm({
           )}
         </ConfigPanel>
         <ConfigPanel value="registration" active={section}>
-          <fieldset disabled={pending} className="space-y-6">
+          <fieldset disabled={pending || readOnly} className="space-y-6">
             <legend className="sr-only">报名分组</legend>
             <div className="max-w-sm">
               <Field label="每队人数上限">
@@ -567,13 +572,16 @@ export function ContestForm({
           />
         </ConfigPanel>
         <ConfigPanel value="resources" active={section}>
-          <fieldset disabled={pending}>
+          <fieldset disabled={pending || readOnly}>
             <legend className="sr-only">资源限制</legend>
             <ContestResourceSettings contest={c} />
           </fieldset>
         </ConfigPanel>
         <ConfigPanel value="access" active={section}>
-          <fieldset disabled={pending} className="min-w-0 max-w-4xl">
+          <fieldset
+            disabled={pending || readOnly}
+            className="min-w-0 max-w-4xl"
+          >
             <legend className="sr-only">访问与报名</legend>
             <ContestAccessSettings
               contest={c}
@@ -586,12 +594,12 @@ export function ContestForm({
           <WriteupSettings
             value={writeup}
             onChange={setWriteup}
-            disabled={pending}
+            disabled={pending || readOnly}
           />
         </ConfigPanel>
       </Tabs>
       <div className="flex justify-start">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || readOnly}>
           {pending ? "保存中" : "保存比赛"}
         </Button>
       </div>
