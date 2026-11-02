@@ -207,7 +207,15 @@ function RoleForm({ id, data }: { id?: string; data: Catalog & Role }) {
                   {data.keys.includes(`${key}.${action}`) ? (
                     <Switch
                       aria-label={`${label}${action === "read" ? "查看" : "管理"}`}
-                      checked={value.permissions.includes(`${key}.${action}`)}
+                      checked={
+                        value.permissions.includes(`${key}.${action}`) ||
+                        (action === "read" &&
+                          value.permissions.includes(`${key}.write`))
+                      }
+                      disabled={
+                        action === "read" &&
+                        value.permissions.includes(`${key}.write`)
+                      }
                       onCheckedChange={(checked) =>
                         setValue({
                           ...value,
