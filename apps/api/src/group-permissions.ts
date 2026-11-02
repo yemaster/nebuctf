@@ -1,3 +1,4 @@
+import { can } from "./access-control.js";
 import { z } from "zod";
 import type { DB, Row } from "./db.js";
 import { fail } from "./security.js";
@@ -94,7 +95,11 @@ export function requirePermission(
 export async function visibleChallengeIds(
   db: DB,
   scope: string,
-  user?: { id: string; role: string },
+  user?: {
+    id: string;
+    role: string;
+    access?: import("./access-control.js").AccessProfile;
+  },
 ): Promise<string[] | null> {
   if (scope === "practice") return null;
   const [registered] = user
@@ -103,7 +108,7 @@ export async function visibleChallengeIds(
         [scope, user.id],
       )
     : [];
-  if (!registered && user?.role === "admin") return null;
+  if (!registered && can(user, "contests.read", scope)) return null;
   if (registered && registered.status !== "accepted") return [];
   const groups = registered
     ? [registered]

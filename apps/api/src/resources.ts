@@ -1,4 +1,5 @@
 import { withQueuePositions } from "./resource-queue.js";
+import { can, requireAccess } from "./access-control.js";
 import { contestResourcePolicy } from "./contest-resource-limits.js";
 import { permissionSQL } from "./group-permissions.js";
 import { flagEnvironmentSpec } from "./flag-environment.js";
@@ -180,7 +181,7 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
           u.id,
           c.kind,
           JSON.stringify({
-            ...(await flagEnvironmentSpec(tx, c)),
+            ...(await flagEnvironmentSpec(tx, c, scope, owner)),
             image: c.image,
             access_mode: c.access_mode,
             protocol: c.protocol ?? "http",
@@ -278,6 +279,14 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
       [iid],
     );
     if (!i) fail(404, "环境不存在");
+    if (
+      can(u, "resources.write") ||
+      (i!.scope !== "test" &&
+        i!.scope !== "practice" &&
+        can(u, "contests.write", i!.scope)) ||
+      (i!.scope === "test" && can(u, "challenges.write", i!.challenge_id))
+    )
+      return i!;
     if (i!.scope === "test" && u.role !== "admin")
       fail(403, "无权操作测试环境");
     if (
@@ -394,19 +403,26 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
     return sendAttachment(reply, { id: aid, name: a!.name, size: a!.size });
   });
   app.get("/api/admin/attachments/:id", async (req, reply) => {
-    requireAdmin(req);
+    const user = requireUser(req);
     const aid = id.parse((req.params as any).id);
     const [a] = await db.query(
-      "SELECT id,name,size FROM attachments WHERE id=$1",
+      "SELECT id,name,size,challenge_id FROM attachments WHERE id=$1",
       [aid],
     );
     if (!a) fail(404, "附件不存在");
+    requireAccess(user, "challenges.read", a!.challenge_id);
     return sendAttachment(reply, { id: aid, name: a!.name, size: a!.size });
   });
   app.delete("/api/admin/attachments/:id", async (req) => {
-    const user = requireAdmin(req),
+    const user = requireUser(req),
       aid = id.parse((req.params as any).id);
     await db.transaction(async (tx) => {
+      const [attachment] = await tx.query(
+        "SELECT challenge_id FROM attachments WHERE id=$1 FOR UPDATE",
+        [aid],
+      );
+      if (!attachment) fail(404, "附件不存在");
+      requireAccess(user, "challenges.write", attachment!.challenge_id);
       const rows = await tx.query(
         "DELETE FROM attachments WHERE id=$1 RETURNING id",
         [aid],
@@ -431,7 +447,8 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
       new Date(i.expires_at).getTime() <= Date.now()
     )
       fail(404, "附件尚未就绪或已过期");
-    if (i!.scope === "test") requireAdmin(req);
+    if (i!.scope === "test")
+      requireAccess(u, "challenges.read", i!.challenge_id);
     else {
       await challengeAccess(
         db,

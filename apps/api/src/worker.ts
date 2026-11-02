@@ -1,6 +1,7 @@
 import { queuePriority, queueReady } from "./resource-queue.js";
 import { recordIssuedFlags } from "./contest-monitor.js";
 import { flagEnvironment } from "./flag-environment.js";
+import { finishTraffic } from "./traffic-worker.js";
 import { DockerEngine, readArtifact } from "./docker.js";
 export { readArtifact } from "./docker.js";
 import { setTimeout as delay } from "node:timers/promises";
@@ -89,6 +90,13 @@ export class Worker {
     private docker: DockerEngine = new DockerEngine(),
   ) {}
   async cleanup(i: Row) {
+    if (
+      i.scope !== "practice" &&
+      i.scope !== "test" &&
+      i.owner_key?.startsWith("t:") &&
+      i.resource_type === "container"
+    )
+      await finishTraffic(this.db, this.docker, i.id);
     try {
       const name = `nebuctf-${i.id}`;
       const info = await this.docker.inspectContainer(name);

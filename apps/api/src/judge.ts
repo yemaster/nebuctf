@@ -98,7 +98,12 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
             file.filename.slice(0, 180).replace(/[\x00-\x1f\x7f/\\]/g, "_"),
             JSON.stringify({
               container: profile,
-              flag_environment: await flagEnvironmentSpec(tx, current),
+              flag_environment: await flagEnvironmentSpec(
+                tx,
+                current,
+                scope,
+                owner,
+              ),
               patch: current.patch_config,
               type: current.challenge_type,
               contest_scoring: current.contest_scoring,

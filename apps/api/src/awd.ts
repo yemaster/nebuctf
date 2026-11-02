@@ -1,4 +1,5 @@
 import { resourceProfiles } from "./challenge-model.js";
+import { seal } from "./settings.js";
 import { requireSubmissionSlot } from "./submission-policy.js";
 import {
   contestResourcePolicy,
@@ -110,8 +111,16 @@ export function awdRoutes(app: FastifyInstance, db: DB) {
       await requireSubmissionSlot(tx, c, input.scope, owner, "flag");
       const record = async (correct: boolean, already_solved = false) => {
         await tx.query(
-          "INSERT INTO submissions(id,user_id,challenge_id,scope,owner_key,correct) VALUES($1,$2,$3,$4,$5,$6)",
-          [crypto.randomUUID(), user.id, cid, input.scope, owner, correct],
+          "INSERT INTO submissions(id,user_id,challenge_id,scope,owner_key,correct,flag_cipher) VALUES($1,$2,$3,$4,$5,$6,$7)",
+          [
+            crypto.randomUUID(),
+            user.id,
+            cid,
+            input.scope,
+            owner,
+            correct,
+            correct ? null : seal(input.flag),
+          ],
         );
         return { correct, already_solved, completed: false };
       };

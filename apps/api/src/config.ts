@@ -33,6 +33,12 @@ const env = z
     TERMINAL_WORKER_URL: z.string().url().default("ws://worker:8082"),
     TERMINAL_PORT: z.coerce.number().int().min(0).max(65535).default(8082),
     DOCKER_SOCKET: z.string().default("/var/run/docker.sock"),
+    TRAFFIC_DIR: z.string().default("../../.data/traffic"),
+    TRAFFIC_VOLUME: z
+      .string()
+      .regex(/^[a-zA-Z0-9_.-]+$/)
+      .default("nebuctf_traffic"),
+    TRAFFIC_IMAGE: z.string().default("nebuctf/traffic:local"),
     CHALLENGE_HOST: z
       .string()
       .regex(/^[a-zA-Z0-9.-]+$/)

@@ -303,3 +303,43 @@ ALTER TABLE registrations ADD COLUMN IF NOT EXISTS form_answers jsonb NOT NULL D
 ALTER TABLE registrations ADD COLUMN IF NOT EXISTS submitted_members jsonb NOT NULL DEFAULT '[]';
 UPDATE contest_groups SET review_mode='required' WHERE coalesce((permissions->>'require_review')::boolean,false) AND review_mode='inherit' AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=30);
 INSERT INTO schema_migrations(version) VALUES(30) ON CONFLICT DO NOTHING;
+
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS flag_cipher text;
+CREATE TABLE IF NOT EXISTS contest_flag_templates(
+ contest_id uuid NOT NULL REFERENCES contests(id) ON DELETE CASCADE,
+ challenge_id uuid NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+ owner_key text NOT NULL,part_key text NOT NULL,template text NOT NULL,
+ PRIMARY KEY(contest_id,challenge_id,owner_key,part_key));
+INSERT INTO contest_flag_templates(contest_id,challenge_id,owner_key,part_key,template)
+ SELECT DISTINCT ON(co.id,i.challenge_id,i.owner_key,p.key) co.id,i.challenge_id,i.owner_key,p.key,
+ coalesce(i.spec->'part_templates'->>p.key,i.spec->>'flag_template','')
+ FROM instances i JOIN contests co ON co.id::text=i.scope JOIN challenges c ON c.id=i.challenge_id
+ CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_array_length(coalesce(i.spec->'parts','[]'))>0 THEN i.spec->'parts' ELSE '[""]'::jsonb END) p(key)
+ WHERE c.challenge_type<>'awd' AND coalesce(i.spec->>'flag_mode',CASE WHEN i.kind LIKE 'dynamic%' THEN 'dynamic' ELSE 'static' END)='dynamic'
+ AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=31)
+ ORDER BY co.id,i.challenge_id,i.owner_key,p.key,i.created_at DESC,i.id DESC ON CONFLICT DO NOTHING;
+CREATE UNIQUE INDEX IF NOT EXISTS issued_flags_identity ON issued_flags(contest_id,challenge_id,part_key,owner_key,flag_hash);
+ALTER TABLE issued_flags DROP CONSTRAINT IF EXISTS issued_flags_pkey;
+INSERT INTO schema_migrations(version) VALUES(31) ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS roles(id uuid PRIMARY KEY,name varchar(48) NOT NULL UNIQUE,permissions jsonb NOT NULL DEFAULT '[]',created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS user_roles(user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,role_id uuid NOT NULL REFERENCES roles(id) ON DELETE CASCADE,PRIMARY KEY(user_id,role_id));
+CREATE INDEX IF NOT EXISTS user_roles_role ON user_roles(role_id,user_id);
+CREATE TABLE IF NOT EXISTS user_grants(user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind text NOT NULL CHECK(kind IN ('challenge','contest')),target_id uuid NOT NULL,permissions jsonb NOT NULL,PRIMARY KEY(user_id,kind,target_id));
+ALTER TABLE users ADD COLUMN IF NOT EXISTS access_profile jsonb NOT NULL DEFAULT '{"permissions":[],"roles":[],"grants":[]}';
+INSERT INTO schema_migrations(version) VALUES(32) ON CONFLICT DO NOTHING;
+
+ALTER TABLE contests ADD COLUMN IF NOT EXISTS traffic_mode text NOT NULL DEFAULT 'inherit' CHECK(traffic_mode IN ('inherit','off','stats','capture'));
+CREATE TABLE IF NOT EXISTS instance_traffic(
+ instance_id uuid PRIMARY KEY REFERENCES instances(id) ON DELETE CASCADE,
+ rx_bytes bigint NOT NULL DEFAULT 0,tx_bytes bigint NOT NULL DEFAULT 0,
+ last_rx bigint NOT NULL DEFAULT 0,last_tx bigint NOT NULL DEFAULT 0,
+ rx_rate double precision NOT NULL DEFAULT 0,tx_rate double precision NOT NULL DEFAULT 0,
+ sampled_at timestamptz,capture_status text NOT NULL DEFAULT 'off',capture_error text,
+ capture_config text,capture_reserved bigint NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS traffic_samples(instance_id uuid NOT NULL REFERENCES instances(id) ON DELETE CASCADE,bucket timestamptz NOT NULL,rx_bytes bigint NOT NULL,tx_bytes bigint NOT NULL,PRIMARY KEY(instance_id,bucket));
+CREATE INDEX IF NOT EXISTS traffic_samples_retention ON traffic_samples(bucket);
+CREATE TABLE IF NOT EXISTS traffic_files(id uuid PRIMARY KEY,instance_id uuid NOT NULL REFERENCES instances(id) ON DELETE CASCADE,name text NOT NULL,size bigint NOT NULL,created_at timestamptz NOT NULL,UNIQUE(instance_id,name));
+CREATE INDEX IF NOT EXISTS traffic_files_instance ON traffic_files(instance_id,created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS traffic_files_retention ON traffic_files(created_at);
+INSERT INTO schema_migrations(version) VALUES(33) ON CONFLICT DO NOTHING;

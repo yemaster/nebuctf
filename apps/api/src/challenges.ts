@@ -1,4 +1,5 @@
 import { submissionUsage, requireSubmissionSlot } from "./submission-policy.js";
+import { seal } from "./settings.js";
 import { visibleHints, hintRoutes } from "./hints.js";
 import { contestVisibilitySQL } from "./contest-entry.js";
 import { contestCutoff, isContestPractice } from "./contest-practice.js";
@@ -161,6 +162,16 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
       const candidates = parts.length
         ? parts.filter((part) => part.role !== "defense")
         : [{ ...c, id: null }];
+      const bound =
+        flagMode(c) === "dynamic" && data.scope !== "practice"
+          ? await tx.query(
+              "SELECT part_key,template FROM contest_flag_templates WHERE contest_id=$1 AND challenge_id=$2 AND owner_key=$3",
+              [data.scope, cid, owner],
+            )
+          : [];
+      const templates = new Map(
+        bound.map((row) => [row.part_key, row.template]),
+      );
       // Check every candidate; client never chooses the small question being credited.
       let matched: (typeof candidates)[number] | undefined;
       for (const part of candidates) {
@@ -172,16 +183,27 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
                   data.scope,
                   owner,
                   part.id ?? undefined,
-                  part.flag_template ?? c.flag_template,
+                  templates.get(part.id ?? "") ??
+                    part.flag_template ??
+                    c.flag_template,
                 ),
               )
             : part.flag_hash;
         if (equal(submitted, expected)) matched = part;
       }
+      if (!matched && flagMode(c) === "dynamic" && data.scope !== "practice") {
+        const issued = await tx.query(
+          "SELECT part_key FROM issued_flags WHERE contest_id=$1 AND challenge_id=$2 AND owner_key=$3 AND flag_hash=$4",
+          [data.scope, cid, owner, submitted],
+        );
+        matched = candidates.find((part) =>
+          issued.some((row) => row.part_key === (part.id ?? "")),
+        );
+      }
       const correct = !!matched,
         submissionId = crypto.randomUUID();
       await tx.query(
-        "INSERT INTO submissions(id,user_id,challenge_id,scope,owner_key,correct,part_id,contest_practice) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+        "INSERT INTO submissions(id,user_id,challenge_id,scope,owner_key,correct,part_id,contest_practice,flag_cipher) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)",
         [
           submissionId,
           u.id,
@@ -191,6 +213,7 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
           correct,
           matched?.id ?? null,
           !!c.contest_practice,
+          correct ? null : seal(data.flag),
         ],
       );
       if (!matched) {

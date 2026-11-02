@@ -1,3 +1,4 @@
+import { can } from "./access-control.js";
 import { isIP } from "node:net";
 import { z } from "zod";
 import type { DB } from "./db.js";
@@ -50,7 +51,10 @@ export async function terminalTarget(db: DB, id: string, user: User) {
         ? `/challenges?challenge=${row.challenge_id}`
         : `/contests/${row.scope}/challenges?challenge=${row.challenge_id}`;
   if (row.scope === "test") {
-    if (user.role !== "admin" || row.requested_by !== user.id)
+    if (
+      !can(user, "challenges.write", row.challenge_id) ||
+      row.requested_by !== user.id
+    )
       return fail(403, "无权访问此靶机");
   } else {
     await challengeAccess(

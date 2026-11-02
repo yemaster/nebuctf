@@ -1,3 +1,4 @@
+import { can } from "./access-control.js";
 import { createHmac } from "node:crypto";
 import type { DB, Row } from "./db.js";
 import type { User } from "./context.js";
@@ -75,7 +76,7 @@ export async function requireScoreboardAccess(
   if (
     !contest ||
     contest.spectator_scoreboard !== false ||
-    user?.role === "admin"
+    can(user, "contests.read", contest.id)
   )
     return;
   if (
@@ -108,7 +109,11 @@ export function contestVisibilitySQL(
       )))))`;
 }
 export async function canViewContest(db: DB, contest: Row, user?: User) {
-  if (contest.visibility !== "private" || user?.role === "admin") return true;
+  if (
+    contest.visibility !== "private" ||
+    can(user, "contests.read", contest.id)
+  )
+    return true;
   if (!user) return false;
   return !!(
     await db.query(

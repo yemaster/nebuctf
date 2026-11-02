@@ -115,6 +115,34 @@ export class DockerEngine {
   ping() {
     return this.call("GET", "/_ping", undefined, true);
   }
+  containerStats(id: string) {
+    return this.call<{
+      networks?: Record<
+        string,
+        {
+          rx_bytes: number;
+          tx_bytes: number;
+          rx_dropped: number;
+          tx_dropped: number;
+        }
+      >;
+    }>(
+      "GET",
+      `/containers/${encodeURIComponent(id)}/stats?stream=false&one-shot=true`,
+      undefined,
+      false,
+      5000,
+    );
+  }
+  stopContainer(id: string, seconds = 8) {
+    return this.call(
+      "POST",
+      `/containers/${encodeURIComponent(id)}/stop?t=${seconds}`,
+      undefined,
+      false,
+      (seconds + 3) * 1000,
+    );
+  }
   inspectImage(image: string) {
     return this.call("GET", `/images/${encodeURIComponent(image)}/json`);
   }

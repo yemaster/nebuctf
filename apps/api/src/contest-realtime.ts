@@ -1,3 +1,4 @@
+import { can } from "./access-control.js";
 import { monitorRevision } from "./contest-monitor.js";
 import { visibleChallengeIds } from "./group-permissions.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
@@ -70,15 +71,21 @@ export function contestRealtimeRoutes(app: FastifyInstance, db: DB) {
         // it must not be rejected using a snapshot that did not include it.
         const peers = [...room.peers];
         const valid = await db.query(
-          `SELECT s.token_hash,u.id,u.role,reg.group_id,reg.team_id,reg.status,reg.permissions,reg.challenge_permissions FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN LATERAL (SELECT r.group_id,r.team_id,r.status,g.permissions,g.challenge_permissions FROM memberships m JOIN registrations r ON r.team_id=m.team_id LEFT JOIN contest_groups g ON g.id=r.group_id WHERE m.user_id=u.id AND r.contest_id=$2 ORDER BY CASE WHEN r.status='accepted' THEN 0 WHEN r.status='suspended' THEN 1 WHEN r.status='pending' THEN 2 ELSE 3 END,r.created_at DESC LIMIT 1) reg ON true WHERE s.token_hash=ANY($1::text[]) AND s.expires_at>now() AND NOT u.disabled AND (($4::boolean AND u.role='admin') OR (NOT $4::boolean AND ((u.role='admin' AND reg.team_id IS NULL) OR ((u.role='admin' OR $3::boolean) AND reg.status='accepted'))))`,
-          [
-            [...new Set(peers.map((p) => p.tokenHash))],
-            scope,
-            contest.published,
-            room.admin,
-          ],
+          `SELECT s.token_hash,u.id,u.role,u.access_profile access,reg.group_id,reg.team_id,reg.status,reg.permissions,reg.challenge_permissions FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN LATERAL (SELECT r.group_id,r.team_id,r.status,g.permissions,g.challenge_permissions FROM memberships m JOIN registrations r ON r.team_id=m.team_id LEFT JOIN contest_groups g ON g.id=r.group_id WHERE m.user_id=u.id AND r.contest_id=$2 ORDER BY CASE WHEN r.status='accepted' THEN 0 WHEN r.status='suspended' THEN 1 WHEN r.status='pending' THEN 2 ELSE 3 END,r.created_at DESC LIMIT 1) reg ON true WHERE s.token_hash=ANY($1::text[]) AND s.expires_at>now() AND NOT u.disabled `,
+          [[...new Set(peers.map((p) => p.tokenHash))], scope],
         );
-        const byToken = new Map(valid.map((user) => [user.token_hash, user]));
+        const byToken = new Map(
+          valid
+            .filter((user) =>
+              room.admin
+                ? can(user as any, "contests.read", scope)
+                : (can(user as any, "contests.read", scope) && !user.team_id) ||
+                  ((can(user as any, "contests.read", scope) ||
+                    contest.published) &&
+                    user.status === "accepted"),
+            )
+            .map((user) => [user.token_hash, user]),
+        );
         const allowed: Peer[] = [];
         const ownerPeers = new Map<string, Peer[]>();
         const audiences = new Map<

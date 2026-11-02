@@ -97,7 +97,7 @@ export function startTerminalWorker(
       const getTarget = async () => {
         if (!ticket.target) return undefined;
         const [user] = await db.query<User>(
-          "SELECT id,username,email,role FROM users WHERE id=$1 AND NOT disabled",
+          "SELECT id,username,email,role,access_profile access FROM users WHERE id=$1 AND NOT disabled",
           [ticket.user],
         );
         if (!user) throw Error("Session expired");

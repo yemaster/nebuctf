@@ -1,4 +1,6 @@
 import { getSetting } from "./settings.js";
+import { submissionLog } from "./submission-log.js";
+import { allowedIds, can } from "./access-control.js";
 import { hintDefinitions } from "./hint-rules.js";
 import {
   publicContest,
@@ -62,7 +64,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
     coalesce((SELECT json_agg(json_build_object('id',g.id,'title',g.title) ORDER BY g.starts_at DESC) FROM contest_challenges cc JOIN contests g ON g.id=cc.contest_id WHERE cc.challenge_id=c.id),'[]') contests,
     (SELECT count(*)::int FROM attachments a WHERE a.challenge_id=c.id) attachment_count FROM challenges c`;
   const listChallenges = async (req: FastifyRequest) => {
-    requireAdmin(req);
+    const user = requireAdmin(req);
     const p = page
       .extend({
         page_size: z.coerce.number().int().min(1).max(100).default(24),
@@ -84,7 +86,8 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
       AND ($3='' OR c.practice=($3='true'))
       AND ($4='' OR ($4='enabled' AND c.published) OR ($4='disabled' AND NOT c.published AND c.publish_at IS NULL) OR ($4='scheduled' AND NOT c.published AND c.publish_at IS NOT NULL))
       AND ($5::uuid[] IS NULL OR c.id=ANY($5::uuid[]))
-      AND ($6='' OR c.challenge_type=$6)`;
+      AND ($6='' OR c.challenge_type=$6)
+      AND ($7::uuid[] IS NULL OR c.id=ANY($7::uuid[]) OR EXISTS(SELECT 1 FROM contest_challenges authorized WHERE authorized.challenge_id=c.id AND ($8::uuid[] IS NULL OR authorized.contest_id=ANY($8::uuid[]))))`;
     const args = [
       p.q,
       p.category,
@@ -92,13 +95,15 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
       p.state,
       p.ids,
       p.challenge_type,
+      allowedIds(user, "challenges.read"),
+      allowedIds(user, "contests.read"),
     ];
     const [count] = await db.query(
       `SELECT count(*)::int total FROM challenges c WHERE ${condition}`,
       args,
     );
     const rows = await db.query(
-      `${challengeSummary} WHERE ${condition} ORDER BY array_position($5::uuid[],c.id),c.created_at DESC,c.id LIMIT $7 OFFSET $8`,
+      `${challengeSummary} WHERE ${condition} ORDER BY array_position($5::uuid[],c.id),c.created_at DESC,c.id LIMIT $9 OFFSET $10`,
       [...args, p.page_size, (p.page - 1) * p.page_size],
     );
     const parts = await db.query(
@@ -108,6 +113,9 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
     return {
       items: rows.map(({ flag_hash, ...c }) => ({
         ...c,
+        contests: c.contests.filter((contest: any) =>
+          can(user, "contests.read", contest.id),
+        ),
         hints: hintDefinitions(c as any),
         parts: parts.filter((p) => p.challenge_id === c.id),
       })),
@@ -383,21 +391,22 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
     coalesce((SELECT json_agg(cc.challenge_id ORDER BY cc.position,cc.challenge_id) FROM contest_challenges cc WHERE cc.contest_id=c.id),'[]') challenge_ids,
     coalesce((SELECT json_agg(json_build_object('challenge_id',cc.challenge_id,'published',cc.published,'release_at',cc.release_at,'scoring',cc.scoring) ORDER BY cc.position,cc.challenge_id) FROM contest_challenges cc WHERE cc.contest_id=c.id),'[]') challenge_settings FROM contests c`;
   app.get("/api/admin/contests", async (req) => {
-    requireAdmin(req);
+    const user = requireAdmin(req),
+      ids = allowedIds(user, "contests.read");
     const p = page
       .extend({
         page_size: z.coerce.number().int().min(1).max(100).default(24),
       })
       .parse(req.query);
     const [count] = await db.query(
-      "SELECT count(*)::int total FROM contests WHERE ($1='' OR title ILIKE '%'||$1||'%')",
-      [p.q],
+      "SELECT count(*)::int total FROM contests WHERE ($1='' OR title ILIKE '%'||$1||'%') AND ($2::uuid[] IS NULL OR id=ANY($2::uuid[]))",
+      [p.q, ids],
     );
     return {
       items: (
         await db.query(
-          `${contestSummary} WHERE ($1='' OR c.title ILIKE '%'||$1||'%') ORDER BY c.starts_at DESC,c.id LIMIT $2 OFFSET $3`,
-          [p.q, p.page_size, (p.page - 1) * p.page_size],
+          `${contestSummary} WHERE ($1='' OR c.title ILIKE '%'||$1||'%') AND ($4::uuid[] IS NULL OR c.id=ANY($4::uuid[])) ORDER BY c.starts_at DESC,c.id LIMIT $2 OFFSET $3`,
+          [p.q, p.page_size, (p.page - 1) * p.page_size, ids],
         )
       ).map((c) => publicContest(c, true)),
       total: count!.total,
@@ -438,6 +447,14 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
             "SELECT * FROM contest_challenges WHERE contest_id=$1",
             [cid],
           );
+          const added = ids.filter(
+            (id) => !previous.some((row) => row.challenge_id === id),
+          );
+          if (
+            !can(u, "challenges.read") &&
+            added.some((id) => !can(u, "challenges.read", id))
+          )
+            fail(403, "新增赛题需要对应题目的查看权限");
           if (
             new Set(
               data.challenge_settings?.map((setting) => setting.challenge_id),
@@ -806,7 +823,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
         memory: config.MAX_MEMORY,
       },
       items: await db.query(
-        "SELECT i.id,coalesce(c.title,'终端') title,i.status,i.kind,i.scope,i.owner_key,i.spec,i.endpoint,i.expires_at,i.error FROM instances i LEFT JOIN challenges c ON c.id=i.challenge_id ORDER BY i.created_at DESC,i.id LIMIT 24 OFFSET $1",
+        "SELECT i.id,coalesce(c.title,'终端') title,i.status,i.kind,i.scope,i.owner_key,coalesce(t.name,u.username,CASE WHEN i.owner_key='shared' THEN '公共' ELSE i.owner_key END) owner_name,i.spec,i.endpoint,i.expires_at,i.error FROM instances i LEFT JOIN challenges c ON c.id=i.challenge_id LEFT JOIN teams t ON i.owner_key='t:'||t.id LEFT JOIN users u ON i.owner_key='u:'||u.id ORDER BY i.created_at DESC,i.id LIMIT 24 OFFSET $1",
         [(p.page - 1) * 24],
       ),
     };
@@ -831,10 +848,12 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
       page: p.page,
       page_size: 10,
       total: (await db.query("SELECT count(*)::int n FROM submissions"))[0]!.n,
-      items: await db.query(
-        "SELECT s.id,u.username,u.avatar_id,c.title,s.scope,s.correct,s.created_at,s.contest_practice,p.title part_title FROM submissions s LEFT JOIN challenge_parts p ON p.id=s.part_id JOIN users u ON u.id=s.user_id JOIN challenges c ON c.id=s.challenge_id ORDER BY s.created_at DESC,s.id DESC LIMIT 10 OFFSET $1",
-        [(p.page - 1) * 10],
-      ),
+      items: (
+        await db.query(
+          "SELECT s.id,u.username,u.avatar_id,c.title,s.scope,s.correct,s.created_at,s.contest_practice,s.flag_cipher,p.title part_title FROM submissions s LEFT JOIN challenge_parts p ON p.id=s.part_id JOIN users u ON u.id=s.user_id JOIN challenges c ON c.id=s.challenge_id ORDER BY s.created_at DESC,s.id DESC LIMIT 10 OFFSET $1",
+          [(p.page - 1) * 10],
+        )
+      ).map(submissionLog),
     };
   });
   app.get("/api/admin/users", async (req) => {
@@ -842,7 +861,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
     const p = page.parse(req.query);
     return {
       items: await db.query(
-        "SELECT id,username,email,role,disabled,created_at,avatar_id FROM users WHERE username ILIKE '%'||$1||'%' ORDER BY created_at DESC LIMIT 50 OFFSET $2",
+        "SELECT id,username,email,role,disabled,created_at,avatar_id,access_profile access FROM users WHERE username ILIKE '%'||$1||'%' ORDER BY created_at DESC LIMIT 50 OFFSET $2",
         [p.q, (p.page - 1) * 50],
       ),
     };
@@ -853,6 +872,24 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
       { disabled } = z.object({ disabled: z.boolean() }).parse(req.body);
     if (uid === u.id) fail(400, "不能禁用自己");
     await db.transaction(async (tx) => {
+      await lock(tx);
+      const [target] = await tx.query(
+        "SELECT role FROM users WHERE id=$1 FOR UPDATE",
+        [uid],
+      );
+      if (target?.role === "admin" && u.role !== "admin")
+        fail(403, "仅超级管理员可以管理此账户");
+      if (
+        disabled &&
+        target?.role === "admin" &&
+        !(
+          await tx.query(
+            "SELECT id FROM users WHERE role='admin' AND NOT disabled AND id<>$1 LIMIT 1",
+            [uid],
+          )
+        ).length
+      )
+        fail(409, "至少保留一名可用的超级管理员");
       await tx.query("UPDATE users SET disabled=$1 WHERE id=$2", [
         disabled,
         uid,

@@ -1,3 +1,4 @@
+import { can } from "./access-control.js";
 import { canViewContest } from "./contest-entry.js";
 import { requireAccepted } from "./registrations.js";
 import { isContestPractice } from "./contest-practice.js";
@@ -12,6 +13,7 @@ import {
   requirePermission,
 } from "./group-permissions.js";
 export interface User {
+  access?: import("./access-control.js").AccessProfile;
   avatar_id?: string | null;
   id: string;
   username: string;
@@ -35,7 +37,7 @@ export async function contestAccess(
   const [contest] = await db.query("SELECT * FROM contests WHERE id=$1", [
     scope,
   ]);
-  if (!contest || (!contest.published && user?.role !== "admin"))
+  if (!contest || (!contest.published && !can(user, "contests.read", scope)))
     fail(404, "比赛不存在");
   if (!(await canViewContest(db, contest!, user))) fail(404, "比赛不存在");
   if (
@@ -80,7 +82,7 @@ async function registeredTeam(db: DB, scope: string, userId: string) {
 // challenge progress belongs to the same team as every other participant.
 export async function progressOwnerFor(db: DB, scope: string, user?: User) {
   if (!user) return "";
-  if (scope === "practice" || user.role !== "admin")
+  if (scope === "practice" || !can(user, "contests.read", scope))
     return ownerFor(db, scope, user);
   const team = await registeredTeam(db, scope, user.id);
   if (team) requireAccepted(team.status, scope);
@@ -96,7 +98,13 @@ export async function challengeAccess(
 ): Promise<Row> {
   const contest = await contestAccess(db, scope, user, active);
   const [c] = await db.query("SELECT * FROM challenges WHERE id=$1", [id]);
-  if (!c || (!c.published && user?.role !== "admin")) fail(404, "题目不存在");
+  if (
+    !c ||
+    (!c.published &&
+      !can(user, "challenges.read", id) &&
+      !(scope !== "practice" && can(user, "contests.read", scope)))
+  )
+    fail(404, "题目不存在");
   if (scope === "practice") {
     if (!c!.practice) fail(404, "题目未开放练习");
     return { ...c!, permissions: allPermissions };
@@ -109,7 +117,7 @@ export async function challengeAccess(
     !link ||
     ((!link.published ||
       (link.release_at && new Date(link.release_at).getTime() > Date.now())) &&
-      user?.role !== "admin")
+      !can(user, "contests.read", scope))
   )
     fail(404, "比赛中没有此题");
   if (!user) fail(401, "请先登录");

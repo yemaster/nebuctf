@@ -33,12 +33,17 @@ export const partEnvironmentName = flagEnvironmentName.refine(
 export const defaultPartEnvironment = (position: number) =>
   `FLAG_${position + 1}`;
 
-export async function flagEnvironmentSpec(db: DB, challenge: Row) {
+export async function flagEnvironmentSpec(
+  db: DB,
+  challenge: Row,
+  scope?: string,
+  owner?: string,
+) {
   const parts = await db.query(
     "SELECT id,flag_env,flag_template FROM challenge_parts WHERE challenge_id=$1 AND role<>'defense' ORDER BY position,id",
     [challenge.id],
   );
-  return {
+  const spec = {
     flag_mode: flagMode(challenge),
     flag_env: challenge.flag_env ?? "FLAG",
     flag_template: challenge.flag_template ?? "",
@@ -53,6 +58,32 @@ export async function flagEnvironmentSpec(db: DB, challenge: Row) {
       ]),
     ),
   };
+  if (
+    scope &&
+    scope !== "practice" &&
+    scope !== "test" &&
+    owner &&
+    spec.flag_mode === "dynamic" &&
+    challenge.challenge_type !== "awd"
+  ) {
+    const keys = parts.length ? parts.map((p) => p.id as string) : [""];
+    const templates = keys.map(
+      (key) => (key ? spec.part_templates[key] : null) ?? spec.flag_template,
+    );
+    await db.query(
+      "INSERT INTO contest_flag_templates(contest_id,challenge_id,owner_key,part_key,template) SELECT $1,$2,$3,key,template FROM unnest($4::text[],$5::text[]) AS input(key,template) ON CONFLICT DO NOTHING",
+      [scope, challenge.id, owner, keys, templates],
+    );
+    const saved = await db.query(
+      "SELECT part_key,template FROM contest_flag_templates WHERE contest_id=$1 AND challenge_id=$2 AND owner_key=$3",
+      [scope, challenge.id, owner],
+    );
+    for (const row of saved) {
+      if (row.part_key) spec.part_templates[row.part_key] = row.template;
+      else spec.flag_template = row.template;
+    }
+  }
+  return spec;
 }
 
 // Persist configuration, not generated values. The snapshot also fixes the template for queued work.

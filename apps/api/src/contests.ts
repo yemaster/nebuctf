@@ -1,3 +1,4 @@
+import { can } from "./access-control.js";
 import {
   registrationFormRoutes,
   registrationAnswers,
@@ -138,12 +139,11 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
           : null,
       teams: count!.teams,
       registered: registration?.status === "accepted",
-      viewer_role:
-        req.user?.role === "admin"
-          ? "staff"
-          : registration?.status === "accepted"
-            ? "participant"
-            : "spectator",
+      viewer_role: can(req.user, "contests.read", cid)
+        ? "staff"
+        : registration?.status === "accepted"
+          ? "participant"
+          : "spectator",
       practice_active: isContestPractice(c),
       writeup_access:
         !!c!.writeup?.enabled &&

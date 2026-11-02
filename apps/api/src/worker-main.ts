@@ -8,6 +8,7 @@ import { AwdWorker } from "./awd-worker.js";
 import { JudgeWorker } from "./judge-worker.js";
 import { tickRounds } from "./rounds.js";
 import { Worker } from "./worker.js";
+import { TrafficWorker } from "./traffic-worker.js";
 import { ImageWorker } from "./image-worker.js";
 if (!config.DATABASE_URL) throw Error("Worker requires shared PostgreSQL");
 // One elected scheduler per Docker domain, with four concurrent provisioning tasks.
@@ -30,6 +31,7 @@ const db = await openDB(),
   judges = new JudgeWorker(db),
   awd = new AwdWorker(db),
   images = new ImageWorker(db);
+const traffic = new TrafficWorker(db);
 const terminalServer = startTerminalWorker(db);
 terminalServer.on("error", (error) => {
   console.error("terminal server failed", error.message);
@@ -46,6 +48,7 @@ while (running) {
   try {
     await worker.ping();
     await worker.tick();
+    traffic.tick();
     await judges.tick();
     await awd.tick();
     if (iteration % 5 === 0) await tickRounds(db);
@@ -76,6 +79,7 @@ while (running) {
   await setTimeout(2000);
 }
 await worker.drain();
+await traffic.drain();
 await judges.drain();
 await awd.drain();
 await images.stop();

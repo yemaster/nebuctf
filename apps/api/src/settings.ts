@@ -84,6 +84,16 @@ export const mailInput = z
   })
   .strict();
 export const defaults = {
+  traffic: {
+    enabled: true,
+    capture_enabled: false,
+    sample_seconds: 15,
+    retention_days: 7,
+    instance_mib: 64,
+    total_mib: 2048,
+    capture_limit: 8,
+    snap_length: 65535,
+  },
   welcome: {
     enabled: false,
     title: "欢迎加入 {site_name}",
@@ -118,6 +128,22 @@ export const defaults = {
   },
 };
 export type Settings = typeof defaults;
+export const trafficInput = z
+  .object({
+    enabled: z.boolean(),
+    capture_enabled: z.boolean(),
+    sample_seconds: z.number().int().min(10).max(120),
+    retention_days: z.number().int().min(1).max(30),
+    instance_mib: z.number().int().min(8).max(1024),
+    total_mib: z.number().int().min(64).max(102400),
+    capture_limit: z.number().int().min(1).max(32),
+    snap_length: z.number().int().min(128).max(65535),
+  })
+  .strict()
+  .refine(
+    (value) => value.total_mib >= value.instance_mib,
+    "总容量不能小于单靶机容量",
+  );
 export async function getSetting<K extends keyof Settings>(
   db: DB,
   key: K,

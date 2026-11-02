@@ -1,4 +1,6 @@
 import { teamLogoRoutes } from "./team-logos.js";
+import { roleRoutes } from "./roles.js";
+import { trafficRoutes } from "./traffic.js";
 import { avatarRoutes } from "./avatars.js";
 import { notificationRoutes } from "./notifications.js";
 import { notificationRealtimeRoutes } from "./notification-realtime.js";
@@ -98,6 +100,8 @@ export async function buildApp(db: DB, logging = false) {
     });
   });
   await authRoutes(app, db);
+  roleRoutes(app, db);
+  trafficRoutes(app, db);
   notificationRoutes(app, db);
   notificationRealtimeRoutes(app, db);
   profileRoutes(app, db);

@@ -12,6 +12,7 @@ import {
   containerPolicyInput,
   mailInput,
   seal,
+  trafficInput,
 } from "./settings.js";
 import { mailTransport, sendMail } from "./mail.js";
 import { resourceUsage } from "./resource-usage.js";
@@ -27,7 +28,7 @@ export function systemAdminRoutes(app: FastifyInstance, db: DB) {
   app.get("/api/admin/settings/:section", async (req) => {
     requireAdmin(req);
     const section = z
-      .enum(["site", "containers", "mail", "welcome"])
+      .enum(["site", "containers", "mail", "welcome", "traffic"])
       .parse((req.params as any).section);
     const settings = await getSetting(db, section);
     if (section === "mail") {
@@ -41,12 +42,13 @@ export function systemAdminRoutes(app: FastifyInstance, db: DB) {
   app.put("/api/admin/settings/:section", async (req) => {
     const user = requireAdmin(req),
       section = z
-        .enum(["site", "containers", "mail", "welcome"])
+        .enum(["site", "containers", "mail", "welcome", "traffic"])
         .parse((req.params as any).section);
     await db.transaction(async (tx) => {
       await lock(tx);
       let value: unknown;
       if (section === "welcome") value = welcomeInput.parse(req.body);
+      else if (section === "traffic") value = trafficInput.parse(req.body);
       else if (section === "site") value = siteInput.parse(req.body);
       else if (section === "containers")
         value = {

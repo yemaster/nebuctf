@@ -5,7 +5,8 @@ import { mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { config } from "./config.js";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
-import { requireAdmin } from "./auth.js";
+import { can, requireAccess } from "./access-control.js";
+import { requireUser, requireAdmin } from "./auth.js";
 import { audit, type DB } from "./db.js";
 import { id } from "./schemas.js";
 import { fail, rate } from "./security.js";
@@ -27,6 +28,7 @@ import {
 
 type Stage = {
   owner: string;
+  kind: "challenge" | "contest";
   directory: string;
   expires: number;
   manifest: ContentManifest | null;
@@ -87,7 +89,9 @@ export function contentTransferRoutes(app: FastifyInstance, db: DB) {
     );
   });
   app.get("/api/admin/transfers/access", async (req) => {
-    requireAdmin(req);
+    const user = requireUser(req);
+    if (!can(user, "challenges.write") && !can(user, "contests.write"))
+      fail(403, "没有导入权限");
     return { ok: true };
   });
   for (const kind of ["challenge", "contest"] as const) {
@@ -133,10 +137,15 @@ export function contentTransferRoutes(app: FastifyInstance, db: DB) {
     );
   }
   app.post("/api/admin/transfers/preview", async (req) => {
-    const user = requireAdmin(req);
+    const user = requireUser(req);
     const { kind } = z
       .object({ kind: z.enum(["challenge", "contest"]) })
       .parse(req.query);
+    requireAccess(
+      user,
+      kind === "contest" ? "contests.write" : "challenges.write",
+    );
+    if (kind === "contest") requireAccess(user, "challenges.write");
     await rate(db, `content-import:${user.id}`, 10, 60);
     await sweep();
     const pending = [...stages.values()].filter((stage) => !stage.result);
@@ -174,6 +183,7 @@ export function contentTransferRoutes(app: FastifyInstance, db: DB) {
       const token = crypto.randomUUID();
       stages.set(token, {
         owner: user.id,
+        kind,
         directory,
         expires: Date.now() + lifetime,
         manifest,
@@ -195,10 +205,15 @@ export function contentTransferRoutes(app: FastifyInstance, db: DB) {
     return stage!;
   };
   app.post("/api/admin/transfers/:id/commit", async (req) => {
-    const user = requireAdmin(req),
+    const user = requireUser(req),
       token = id.parse((req.params as { id: string }).id);
     const options = importOptions.parse(req.body),
       stage = owned(token, user.id);
+    requireAccess(
+      user,
+      stage.kind === "contest" ? "contests.write" : "challenges.write",
+    );
+    if (stage.kind === "contest") requireAccess(user, "challenges.write");
     if (stage.result) return stage.result;
     if (stage.busy) fail(409, "文件包正在导入，请稍后重试");
     claim();
@@ -231,7 +246,7 @@ export function contentTransferRoutes(app: FastifyInstance, db: DB) {
     }
   });
   app.delete("/api/admin/transfers/:id", async (req) => {
-    const user = requireAdmin(req),
+    const user = requireUser(req),
       token = id.parse((req.params as { id: string }).id),
       stage = owned(token, user.id);
     if (stage.busy) fail(409, "文件包正在导入");

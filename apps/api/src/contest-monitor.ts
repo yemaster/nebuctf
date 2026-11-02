@@ -6,6 +6,7 @@ import { id, page } from "./schemas.js";
 import { flagHash, fail } from "./security.js";
 import { flagForInstance } from "./flag-environment.js";
 import { notifyContest } from "./activity-events.js";
+import { submissionLog } from "./submission-log.js";
 
 // Store fingerprints, never Flag values. Only private, successfully issued CTF resources qualify.
 export async function recordIssuedFlags(db: DB, instance: Row) {
@@ -27,7 +28,7 @@ export async function recordIssuedFlags(db: DB, instance: Row) {
     : [null];
   for (const part of parts)
     await db.query(
-      "INSERT INTO issued_flags(contest_id,challenge_id,part_key,owner_key,flag_hash) VALUES($1,$2,$3,$4,$5) ON CONFLICT(contest_id,challenge_id,part_key,owner_key) DO UPDATE SET flag_hash=excluded.flag_hash",
+      "INSERT INTO issued_flags(contest_id,challenge_id,part_key,owner_key,flag_hash) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
       [
         instance.scope,
         instance.challenge_id,
@@ -75,7 +76,7 @@ export async function monitorRevision(db: DB, scope: string) {
   );
   return { revision: JSON.stringify(row) };
 }
-const clueSelect = `SELECT e.*,s.user_id,s.challenge_id,s.created_at submitted_at,u.username,c.title challenge_title,p.title part_title,t.id team_id,t.name team_name,src.name source_team_name,reviewer.username reviewer FROM integrity_events e JOIN submissions s ON s.id=e.submission_id JOIN users u ON u.id=s.user_id JOIN challenges c ON c.id=s.challenge_id LEFT JOIN challenge_parts p ON p.id::text=e.part_key JOIN teams t ON s.owner_key='t:'||t.id JOIN teams src ON src.id=e.source_team_id LEFT JOIN users reviewer ON reviewer.id=e.reviewed_by`;
+const clueSelect = `SELECT e.*,s.flag_cipher,s.user_id,s.challenge_id,s.created_at submitted_at,u.username,c.title challenge_title,p.title part_title,t.id team_id,t.name team_name,src.name source_team_name,reviewer.username reviewer FROM integrity_events e JOIN submissions s ON s.id=e.submission_id JOIN users u ON u.id=s.user_id JOIN challenges c ON c.id=s.challenge_id LEFT JOIN challenge_parts p ON p.id::text=e.part_key JOIN teams t ON s.owner_key='t:'||t.id JOIN teams src ON src.id=e.source_team_id LEFT JOIN users reviewer ON reviewer.id=e.reviewed_by`;
 export function contestMonitorRoutes(app: FastifyInstance, db: DB) {
   async function contest(cid: string) {
     const [c] = await db.query("SELECT id,title FROM contests WHERE id=$1", [
@@ -120,10 +121,12 @@ export function contestMonitorRoutes(app: FastifyInstance, db: DB) {
       page: p.page,
       page_size: 10,
       total: count!.total,
-      items: await db.query(
-        `SELECT e.*,coalesce((SELECT s.contest_practice FROM submissions s WHERE s.id=e.id),false) contest_practice,t.name team_name,t.id team_id,u.username,c.title challenge_title,p.title part_title ${from} ORDER BY e.created_at DESC,e.id DESC LIMIT 10 OFFSET $5`,
-        [...params, (p.page - 1) * 10],
-      ),
+      items: (
+        await db.query(
+          `SELECT e.*,(SELECT s.flag_cipher FROM submissions s WHERE s.id=e.id) flag_cipher,coalesce((SELECT s.contest_practice FROM submissions s WHERE s.id=e.id),false) contest_practice,t.name team_name,t.id team_id,u.username,c.title challenge_title,p.title part_title ${from} ORDER BY e.created_at DESC,e.id DESC LIMIT 10 OFFSET $5`,
+          [...params, (p.page - 1) * 10],
+        )
+      ).map(submissionLog),
     };
   });
   app.get("/api/admin/contests/:id/integrity", async (req) => {
@@ -146,10 +149,12 @@ export function contestMonitorRoutes(app: FastifyInstance, db: DB) {
       page: p.page,
       page_size: 10,
       total: count!.total,
-      items: await db.query(
-        `${clueSelect} WHERE ${where} ORDER BY e.created_at DESC,e.id DESC LIMIT 10 OFFSET $4`,
-        [...params, (p.page - 1) * 10],
-      ),
+      items: (
+        await db.query(
+          `${clueSelect} WHERE ${where} ORDER BY e.created_at DESC,e.id DESC LIMIT 10 OFFSET $4`,
+          [...params, (p.page - 1) * 10],
+        )
+      ).map(submissionLog),
     };
   });
   app.get("/api/admin/contests/:id/integrity/:event", async (req) => {
@@ -161,7 +166,7 @@ export function contestMonitorRoutes(app: FastifyInstance, db: DB) {
       [scope, event],
     );
     if (!row) fail(404, "线索不存在");
-    return row;
+    return submissionLog(row!);
   });
   app.put("/api/admin/contests/:id/integrity/:event", async (req) => {
     const admin = requireAdmin(req),

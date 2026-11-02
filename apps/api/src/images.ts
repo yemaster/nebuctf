@@ -1,3 +1,4 @@
+import { can } from "./access-control.js";
 import { getSetting } from "./settings.js";
 import { flagEnvironmentSpec } from "./flag-environment.js";
 import { resourceUsage } from "./resource-usage.js";
@@ -62,13 +63,14 @@ export function imageRoutes(app: FastifyInstance, db: DB) {
     };
   });
   app.get("/api/admin/images/status", async (req) => {
-    requireAdmin(req);
+    const user = requireAdmin(req);
     const { image } = z.object({ image: imageReference }).parse(req.query);
     validateImage(image);
     const key = imageKey(image),
       [row] = await db.query(`${imageSelect} WHERE i.image=$1`, [key]);
     return {
       ...(row ?? { image: key, present: false, challenges: [] }),
+      ...(!can(user, "images.read") ? { challenges: [] } : {}),
       worker: await imageStatus(db),
     };
   });
@@ -105,10 +107,10 @@ export function imageRoutes(app: FastifyInstance, db: DB) {
     });
   });
   app.get("/api/admin/images/pulls/:id", async (req) => {
-    requireAdmin(req);
+    const user = requireAdmin(req);
     const [job] = await db.query(
-      "SELECT id,image,reference,status,layers,logs,error,created_at,updated_at,finished_at FROM docker_image_pulls WHERE id=$1",
-      [id.parse((req.params as any).id)],
+      "SELECT id,image,reference,status,layers,logs,error,created_at,updated_at,finished_at FROM docker_image_pulls WHERE id=$1 AND ($2 OR requested_by=$3)",
+      [id.parse((req.params as any).id), can(user, "images.read"), user.id],
     );
     if (!job) fail(404, "拉取任务不存在");
     return job;
