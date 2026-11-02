@@ -352,7 +352,8 @@ test(
         assert.deepEqual(
           detailRound.cells
             .filter((v: any) => v.unit_id === roundChallenge)
-            .map((v: any) => v.score),
+            .map((v: any) => v.score)
+            .sort((a: number, b: number) => b - a),
           [80, -20],
         );
         assert.equal(

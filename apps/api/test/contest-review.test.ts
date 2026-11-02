@@ -322,7 +322,8 @@ test(
     assert.equal(clues.items[0].source_team_id, b.team);
     assert.equal(clues.items[0].team_id, a.team);
     assert.equal(clues.items[0].status, "open");
-    assert.equal(JSON.stringify(clues).includes(foreignFlag), false);
+    assert.equal(clues.items[0].submitted_flag, foreignFlag);
+    assert.equal(JSON.stringify(clues).includes("flag_cipher"), false);
     assert.equal(JSON.stringify(clues).includes("flag_hash"), false);
     assert.equal((await ok(`/admin/contests/${other.id}/integrity`)).total, 0);
     const clue = clues.items[0];

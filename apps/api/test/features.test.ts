@@ -547,14 +547,14 @@ test("multi-part challenges, collections and contest workflow", async (t) => {
     async () => {
       const r = await request("POST", "/admin/contests", admin.cookie, {
         title: "跨天比赛",
-        starts_at: "2026-11-01T15:00:00Z",
-        ends_at: "2026-11-01T17:00:00Z",
+        starts_at: "2001-11-01T15:00:00Z",
+        ends_at: "2001-11-01T17:00:00Z",
         published: true,
       });
       assert.equal(r.statusCode, 200, r.body);
       const id = r.json().id;
       const calendar = await get(
-        "/contests/calendar?from=2026-11-01&to=2026-11-03&zone=Asia%2FShanghai",
+        "/contests/calendar?from=2001-11-01&to=2001-11-03&zone=Asia%2FShanghai",
       );
       assert.equal(calendar.statusCode, 200, calendar.body);
       assert.deepEqual(
@@ -568,7 +568,7 @@ test("multi-part challenges, collections and contest workflow", async (t) => {
       assert.equal(
         (
           await get(
-            "/contests?from=2026-11-01T16%3A00%3A00Z&to=2026-11-02T16%3A00%3A00Z",
+            "/contests?from=2001-11-01T16%3A00%3A00Z&to=2001-11-02T16%3A00%3A00Z",
           )
         ).json().total,
         1,
