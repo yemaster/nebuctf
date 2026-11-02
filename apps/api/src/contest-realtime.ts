@@ -159,6 +159,7 @@ export function contestRealtimeRoutes(app: FastifyInstance, db: DB) {
           const visible = await visibleChallengeIds(db, scope, {
             id: user.id,
             role: user.role,
+            access: user.access,
           });
           const payload = await readContestActivity(
             db,

@@ -1,3 +1,4 @@
+import { can } from "./access-control.js";
 import { contestVisibilitySQL } from "./contest-entry.js";
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
@@ -15,7 +16,7 @@ import { digest, fail, rate } from "./security.js";
 
 async function spectatorAccess(db: DB, scope: string, user?: User) {
   const contest = (await contestAccess(db, scope, user, false))!;
-  if (!contest.spectator_enabled && user?.role !== "admin")
+  if (!contest.spectator_enabled && !can(user, "contests.read", scope))
     fail(403, "本场比赛未开放观战大屏", {
       label: "返回比赛",
       href: `/contests/${scope}`,
@@ -290,13 +291,17 @@ export function contestSpectatorRoutes(app: FastifyInstance, db: DB) {
           contest.visibility !== "private";
         if (!publicAccess)
           authorized = await db.query(
-            `SELECT s.token_hash,u.id,u.username,u.email,u.role FROM sessions s JOIN users u ON u.id=s.user_id
-              JOIN contests c ON c.id=$2 WHERE s.token_hash=ANY($1::text[]) AND s.expires_at>now() AND NOT u.disabled
-              AND (u.role='admin' OR (c.published AND c.spectator_enabled AND ${contestVisibilitySQL("c", "u.id", "false")}))`,
+            `SELECT s.token_hash,u.id,u.username,u.email,u.role,u.access_profile access,(c.published AND c.spectator_enabled AND ${contestVisibilitySQL("c", "u.id", "false")}) public_view FROM sessions s JOIN users u ON u.id=s.user_id
+              JOIN contests c ON c.id=$2 WHERE s.token_hash=ANY($1::text[]) AND s.expires_at>now() AND NOT u.disabled`,
             [[...new Set(peers.map((p) => p.tokenHash))], scope],
           );
         const byToken = new Map(
-          authorized.map((user) => [user.token_hash, user]),
+          authorized
+            .filter(
+              (user) =>
+                user.public_view || can(user as User, "contests.read", scope),
+            )
+            .map((user) => [user.token_hash, user]),
         );
         const allowed: Peer[] = [];
         for (const peer of peers) {
@@ -311,6 +316,7 @@ export function contestSpectatorRoutes(app: FastifyInstance, db: DB) {
               username: user.username,
               email: user.email,
               role: user.role,
+              access: user.access,
             };
           }
           allowed.push(peer);
@@ -318,7 +324,10 @@ export function contestSpectatorRoutes(app: FastifyInstance, db: DB) {
         if (!allowed.length) break;
         const data = await snapshot(
           contest,
-          (allowed.find((p) => p.user?.role === "admin") ?? allowed[0])?.user,
+          (
+            allowed.find((p) => can(p.user, "contests.read", scope)) ??
+            allowed[0]
+          )?.user,
         );
         const message = JSON.stringify({ type: "spectator", data });
         const signature = digest(message);

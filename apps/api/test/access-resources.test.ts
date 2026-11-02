@@ -264,6 +264,22 @@ test(
     await t.test(
       "scoped monitor sockets close when the grant is revoked",
       async () => {
+        await db.query(
+          "UPDATE contests SET visibility='private',spectator_enabled=false WHERE id=$1",
+          [contest.id],
+        );
+        await ok(`/contests/${contest.id}/spectate`, manager);
+        assert.equal(
+          (await request(`/contests/${contest.id}/spectate`, alice)).statusCode,
+          403,
+        );
+        const screen = await app.injectWS(
+          `/api/contests/${contest.id}/spectate/ws`,
+          { headers: { cookie: manager.cookie, origin: config.APP_ORIGIN } },
+        );
+        const screenClosed = new Promise<number>((resolve) =>
+          screen.once("close", resolve),
+        );
         const snapshots: unknown[] = [];
         const socket = await app.injectWS(
           `/api/admin/contests/${contest.id}/activity/ws`,
@@ -274,7 +290,8 @@ test(
           },
         );
         try {
-          await new Promise((r) => setTimeout(r, 100));
+          for (let n = 0; n < 100 && !snapshots.length; n++)
+            await new Promise((r) => setTimeout(r, 20));
           assert(snapshots.length, "scoped viewer receives monitor data");
           const closed = new Promise<number>((resolve) =>
             socket.once("close", resolve),
@@ -306,7 +323,10 @@ test(
           try {
             assert.equal(
               await Promise.race([
-                closed,
+                Promise.all([closed, screenClosed]).then((codes) => {
+                  assert.equal(codes[1], 1008);
+                  return codes[0];
+                }),
                 new Promise((_, reject) => {
                   timer = setTimeout(
                     () => reject(Error("monitor remained authorized")),
@@ -321,6 +341,7 @@ test(
           }
         } finally {
           socket.terminate();
+          screen.terminate();
         }
         await ok(
           `/admin/users/${manager.id}/access`,
