@@ -22,7 +22,7 @@ WORKDIR /app
 COPY --chown=node:node --from=runtime-dependencies /app/node_modules ./node_modules
 COPY --chown=node:node --from=build /app/apps/api/dist ./dist
 COPY --chown=node:node apps/api/package.json ./package.json
-RUN mkdir -p /data/files && chown -R node:node /data
+RUN mkdir -p /data/files /captures && chown -R node:node /data /captures
 USER node
 EXPOSE 3000
 CMD ["node", "dist/main.js"]

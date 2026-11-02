@@ -220,3 +220,9 @@ nc 靶机在题目编辑的「连接方式」中设置；前端入口为 `/termi
 ## 用户头像存储
 
 迁移 28 添加 `users.avatar_id` 和 `announcements.created_by`，根据创建审计记录回填历史公告作者。头像经 sharp 处理后存于 `DATA_DIR/avatars/<UUID>.webp`，默认 `/data/avatars`，复用现有 files 数据卷。备份文件卷时保留该目录，无需新增端口或外部存储。运行时 sharp 使用与容器架构匹配的原生依赖，Docker 构建会按 lockfile 安装。
+
+## 比赛流量采集与角色权限
+
+采集镜像需先运行 `docker build -t nebuctf/traffic:local deploy/traffic` 构建，再更新 Compose 服务。平台默认仅开启流量统计，抓包由管理员在流量监测页面启用。新增 `nebuctf_traffic` 数据卷，无新增对外端口。每个采集任务最多 0.1 CPU / 64 MiB，并计入全局资源预算。保留时间、容量、并发及单场开关均可配置。
+
+角色配置入口在「管理中心 → 角色与权限」，用户的权限图标可分配多个角色及指定题目、比赛的权限。现有管理员保留为超级管理员。部署、容量、权限边界和 Flag 兼容说明见[资源、流量与管理权限](RESOURCE-ACCESS-PLAN.md)。

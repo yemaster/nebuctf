@@ -7,6 +7,9 @@ x-app-env: &app-env
   COOKIE_SECURE: ${COOKIE_SECURE:-false}
   CAPTCHA_DIFFICULTY: ${CAPTCHA_DIFFICULTY:-22}
   DATA_DIR: /data
+  TRAFFIC_DIR: /captures
+  TRAFFIC_VOLUME: nebuctf_traffic
+  TRAFFIC_IMAGE: ${TRAFFIC_IMAGE:-nebuctf/traffic:local}
   TERMINAL_IMAGE: ${TERMINAL_IMAGE:-nebuctf/terminal:local}
   TERMINAL_WORKER_URL: ws://worker:8082
   TRUST_PROXY: 172.30.80.10
@@ -46,7 +49,7 @@ services:
     build: { context: ., target: api }
     image: nebuctf-platform:local
     environment: *app-env
-    volumes: [files:/data]
+    volumes: [files:/data, "traffic:/captures:ro"]
     networks: [platform]
     depends_on: { db: { condition: service_healthy } }
     restart: unless-stopped
@@ -108,6 +111,7 @@ services:
     environment: *app-env
     volumes:
       - files:/data
+      - traffic:/captures
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
     networks: [platform]
     depends_on:
@@ -160,3 +164,5 @@ volumes:
   postgres:
   files:
   web-assets:
+  traffic:
+    name: nebuctf_traffic
