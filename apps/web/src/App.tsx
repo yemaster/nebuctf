@@ -1,3 +1,4 @@
+import { createContext, useContext, lazy, Suspense } from "react";
 import { useDocumentTitle } from "./lib/page-title";
 const ContestRegistration = lazy(() =>
   import("./pages/ContestRegistration").then((m) => ({
@@ -29,7 +30,6 @@ import {
   m,
   useReducedMotion,
 } from "motion/react";
-import { createContext, useContext, lazy, Suspense } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { api, useAction, useAPI, client } from "./lib/api";
 import { routeTransition } from "./lib/route-transition";
