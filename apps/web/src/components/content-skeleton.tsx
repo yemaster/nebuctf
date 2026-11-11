@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Skeleton } from "./ui/skeleton";
 import { cn } from "@/lib/utils";
+import { Card, CardHeader, CardContent, CardFooter } from "./ui/card";
+import { Field, FieldGroup } from "./ui/field";
 
 export type SkeletonKind =
   | "content"
@@ -28,6 +30,7 @@ export type SkeletonKind =
   | "submissions"
   | "team"
   | "auth"
+  | "auth-register"
   | "terminal"
   | "resources"
   | "overview"
@@ -69,7 +72,8 @@ export function pageSkeleton(path: string, search = ""): SkeletonKind {
       (!params.get("scope") || params.get("scope") === "practice")
       ? "ranking"
       : "scoreboard";
-  if (path === "/login" || path === "/register") return "auth";
+  if (path === "/login") return "auth";
+  if (path === "/register") return "auth-register";
   if (path === "/account")
     return params.get("section") === "submissions"
       ? "submissions"
@@ -689,17 +693,30 @@ function Body({ kind }: { kind: SkeletonKind }) {
         </>
       );
     case "auth":
+    case "auth-register":
       return (
-        <div className="mx-auto grid min-h-[70dvh] max-w-6xl items-center gap-16 px-8 lg:grid-cols-2">
-          <div className="hidden space-y-6 lg:block">
-            <Skeleton className="h-12 w-56" />
-            <Lines />
-          </div>
-          <div className="space-y-7">
-            <Skeleton className="h-9 w-32" />
-            <FormBody />
-          </div>
-        </div>
+        <Card className="my-auto w-full max-w-sm shrink-0">
+          <CardHeader>
+            <Skeleton className="h-8 w-12" />
+          </CardHeader>
+          <CardContent>
+            <FieldGroup className="gap-5">
+              {repeat(kind === "auth-register" ? 3 : 2, () => (
+                <Field className="text-sm leading-snug">
+                  <div>
+                    <Skeleton className="h-[1lh] w-16" />
+                  </div>
+                  <Skeleton className="h-12 w-full" />
+                </Field>
+              ))}
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </FieldGroup>
+          </CardContent>
+          <CardFooter className="justify-center">
+            <Skeleton className="h-8 w-20" />
+          </CardFooter>
+        </Card>
       );
     case "terminal":
       return (
@@ -890,6 +907,7 @@ export function ContentSkeleton({
     return () => clearTimeout(timer);
   }, [immediate]);
   const visible = immediate || ready;
+  const auth = kind === "auth" || kind === "auth-register";
   const body = <Body kind={kind} />;
   return (
     <div
@@ -904,7 +922,7 @@ export function ContentSkeleton({
         visible &&
           !immediate &&
           "motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150",
-        fullPage && "min-h-[55dvh]",
+        fullPage && (auth ? "h-full min-h-0" : "min-h-[55dvh]"),
         shell && "h-full",
         className,
       )}
@@ -912,7 +930,13 @@ export function ContentSkeleton({
       <span className="sr-only">加载中</span>
       <div
         aria-hidden="true"
-        className={shell ? "flex h-full min-h-0 overflow-hidden" : undefined}
+        className={
+          shell
+            ? "flex h-full min-h-0 overflow-hidden"
+            : fullPage && auth
+              ? "flex h-full min-h-0 flex-col items-center overflow-y-auto px-4 py-8 sm:px-6"
+              : undefined
+        }
       >
         {shell ? (
           <>

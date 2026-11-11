@@ -1,14 +1,5 @@
-import { useSiteSettings, defaultSite } from "@/lib/site-settings";
-import {
-  ArrowRight,
-  BookOpen,
-  Eye,
-  EyeOff,
-  Flag,
-  Loader2,
-  Trophy,
-  CircleAlert,
-} from "lucide-react";
+import { useSiteSettings } from "@/lib/site-settings";
+import { Eye, EyeOff, Loader2, CircleAlert } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import {
   Field as FormField,
@@ -27,6 +18,13 @@ import { api, client } from "@/lib/api";
 import { safeLocalPath } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
 import { QueryState } from "@/components/shared";
 
 import { useState } from "react";
@@ -35,57 +33,22 @@ import { Captcha } from "@/components/captcha";
 import { useCaptcha } from "@/lib/use-captcha";
 export function Auth({ register = false }: { register?: boolean }) {
   const reduced = useReducedMotion();
-  const site = useSiteSettings().data ?? defaultSite;
   return (
-    <div className="grid h-full min-h-0 grid-rows-1 lg:grid-cols-2">
-      <aside
-        data-auth-brand
-        className="hidden flex-col justify-center gap-16 bg-card p-12 lg:flex xl:p-20"
-      >
-        <div className="space-y-6">
-          <p className="text-sm text-muted-foreground">Capture the Flag</p>
-          <p className="break-words text-7xl font-semibold xl:text-8xl">
-            {site.name}
-          </p>
-        </div>
-        <nav aria-label="访客入口" className="grid max-w-md gap-2">
-          {[
-            { to: "/challenges", title: "练习场", icon: Flag },
-            { to: "/contests", title: "比赛", icon: Trophy },
-            { to: "/library", title: "知识库", icon: BookOpen },
-          ].map((item) => (
-            <Button
-              key={item.to}
-              variant="ghost"
-              size="lg"
-              className="h-14 justify-start px-0 text-base hover:px-4"
-              asChild
-            >
-              <Link to={item.to}>
-                <item.icon className="mr-2 text-muted-foreground" />
-                {item.title}
-                <ArrowRight className="ml-auto" />
-              </Link>
-            </Button>
-          ))}
-        </nav>
-      </aside>
-      <section className="flex min-h-0 flex-col items-center overflow-y-auto px-6 py-12 sm:px-12 lg:py-16">
-        <AnimatePresence mode="wait" initial={false}>
-          <m.div
-            key={register ? "register" : "login"}
-            initial={{ opacity: 0, y: reduced ? 0 : 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: reduced ? 0 : 0.16, ease: "easeOut" }}
-            className="my-auto w-full max-w-md shrink-0"
-            data-auth-panel={register ? "register" : "login"}
-          >
-            <AuthForm register={register} />
-          </m.div>
-        </AnimatePresence>
-      </section>
-    </div>
+    <section className="flex h-full min-h-0 flex-col items-center overflow-y-auto px-4 py-8 sm:px-6">
+      <AnimatePresence mode="wait" initial={false}>
+        <m.div
+          key={register ? "register" : "login"}
+          initial={{ opacity: 0, y: reduced ? 0 : 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduced ? 0 : 0.16, ease: "easeOut" }}
+          className="my-auto w-full max-w-sm shrink-0"
+          data-auth-panel={register ? "register" : "login"}
+        >
+          <AuthForm register={register} />
+        </m.div>
+      </AnimatePresence>
+    </section>
   );
 }
 
@@ -122,165 +85,173 @@ function AuthForm({ register }: { register: boolean }) {
   if (register && (site.isLoading || site.error))
     return (
       <QueryState
+        variant="auth-register"
         loading={site.isLoading}
         error={site.error}
         retry={() => void site.refetch()}
       />
     );
   return (
-    <div className="w-full max-w-md space-y-10">
-      <div className="space-y-5">
-        <h1 className="text-4xl font-semibold sm:text-5xl">
-          {register ? "创建账户" : "登录"}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {register ? "已有账户？" : "还没有账户？"}{" "}
-          <Link
-            className="text-primary hover:underline underline-offset-4"
-            to={`${register ? "/login" : "/register"}${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}
-          >
-            {register ? "登录" : "注册"}
-          </Link>
-        </p>
-      </div>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if ((!mailProof && !verification.proof) || action.isPending) return;
-          action.mutate({
-            ...Object.fromEntries(new FormData(e.currentTarget)),
-            captcha: verification.proof,
-            ...(mailProof
-              ? {
-                  email_verification: {
-                    id: mailProof.id,
-                    code: new FormData(e.currentTarget).get("email_code"),
-                  },
-                }
-              : {}),
-          });
-        }}
-      >
-        <FieldGroup className="gap-6">
-          {register && (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <h1 className="text-2xl">{register ? "注册" : "登录"}</h1>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if ((!mailProof && !verification.proof) || action.isPending) return;
+            action.mutate({
+              ...Object.fromEntries(new FormData(e.currentTarget)),
+              captcha: verification.proof,
+              ...(mailProof
+                ? {
+                    email_verification: {
+                      id: mailProof.id,
+                      code: new FormData(e.currentTarget).get("email_code"),
+                    },
+                  }
+                : {}),
+            });
+          }}
+        >
+          <FieldGroup className="gap-5">
+            {register && (
+              <FormField>
+                <FieldLabel htmlFor="auth-username">用户名</FieldLabel>
+                <Input
+                  id="auth-username"
+                  className="h-12"
+                  name="username"
+                  required
+                  minLength={2}
+                  maxLength={32}
+                  autoComplete="username"
+                  disabled={action.isPending}
+                />
+              </FormField>
+            )}
             <FormField>
-              <FieldLabel htmlFor="auth-username">用户名</FieldLabel>
+              <FieldLabel htmlFor={register ? "auth-email" : "auth-identifier"}>
+                {register ? "邮箱" : "用户名或邮箱"}
+              </FieldLabel>
               <Input
-                id="auth-username"
+                id={register ? "auth-email" : "auth-identifier"}
                 className="h-12"
-                name="username"
+                name={register ? "email" : "identifier"}
                 required
-                minLength={2}
-                maxLength={32}
-                autoComplete="username"
+                type={register ? "email" : "text"}
+                readOnly={!!mailProof}
+                maxLength={254}
+                autoComplete={register ? "email" : "username"}
+                autoCapitalize="none"
+                spellCheck={false}
                 disabled={action.isPending}
               />
             </FormField>
-          )}
-          <FormField>
-            <FieldLabel htmlFor={register ? "auth-email" : "auth-identifier"}>
-              {register ? "邮箱" : "用户名或邮箱"}
-            </FieldLabel>
-            <Input
-              id={register ? "auth-email" : "auth-identifier"}
-              className="h-12"
-              name={register ? "email" : "identifier"}
-              required
-              type={register ? "email" : "text"}
-              readOnly={!!mailProof}
-              maxLength={254}
-              autoComplete={register ? "email" : "username"}
-              autoCapitalize="none"
-              spellCheck={false}
-              disabled={action.isPending}
-            />
-          </FormField>
-          <FormField>
-            <FieldLabel htmlFor="auth-password">密码</FieldLabel>
-            <InputGroup className="h-12">
-              <InputGroupInput
-                id="auth-password"
-                name="password"
-                required
-                type={showPassword ? "text" : "password"}
-                minLength={register ? 8 : 1}
-                maxLength={128}
-                autoComplete={register ? "new-password" : "current-password"}
-                placeholder={register ? "至少 8 位" : undefined}
+            <FormField>
+              <FieldLabel htmlFor="auth-password">密码</FieldLabel>
+              <InputGroup className="h-12">
+                <InputGroupInput
+                  id="auth-password"
+                  name="password"
+                  required
+                  type={showPassword ? "text" : "password"}
+                  minLength={register ? 8 : 1}
+                  maxLength={128}
+                  autoComplete={register ? "new-password" : "current-password"}
+                  placeholder={register ? "至少 8 位" : undefined}
+                  disabled={action.isPending}
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    size="icon-sm"
+                    aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                    aria-pressed={showPassword}
+                    onClick={() => setShowPassword((v) => !v)}
+                  >
+                    {showPassword ? <EyeOff /> : <Eye />}
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+            </FormField>
+            {mailProof ? (
+              <div className="space-y-3">
+                <FormField>
+                  <FieldLabel htmlFor="email-code">邮箱验证码</FieldLabel>
+                  <Input
+                    id="email-code"
+                    name="email_code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    minLength={6}
+                    required
+                    autoFocus
+                    className="h-12 text-center text-lg tracking-widest"
+                  />
+                </FormField>
+                <p className="text-xs text-muted-foreground">
+                  已发送至 {mailProof.email}，10 分钟内有效。
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={action.isPending}
+                  onClick={() => {
+                    setMailProof(null);
+                    action.reset();
+                  }}
+                >
+                  更换邮箱或重新发送
+                </Button>
+              </div>
+            ) : (
+              <Captcha
+                verification={verification}
                 disabled={action.isPending}
               />
-              <InputGroupAddon align="inline-end">
-                <InputGroupButton
-                  size="icon-sm"
-                  aria-label={showPassword ? "隐藏密码" : "显示密码"}
-                  aria-pressed={showPassword}
-                  onClick={() => setShowPassword((v) => !v)}
-                >
-                  {showPassword ? <EyeOff /> : <Eye />}
-                </InputGroupButton>
-              </InputGroupAddon>
-            </InputGroup>
-          </FormField>
-          {mailProof ? (
-            <div className="space-y-3">
-              <FormField>
-                <FieldLabel htmlFor="email-code">邮箱验证码</FieldLabel>
-                <Input
-                  id="email-code"
-                  name="email_code"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  pattern="[0-9]{6}"
-                  maxLength={6}
-                  minLength={6}
-                  required
-                  autoFocus
-                  className="h-12 text-center text-lg tracking-widest"
-                />
-              </FormField>
-              <p className="text-xs text-muted-foreground">
-                已发送至 {mailProof.email}，10 分钟内有效。
-              </p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={action.isPending}
-                onClick={() => {
-                  setMailProof(null);
-                  action.reset();
-                }}
+            )}
+            {action.error && (
+              <Alert
+                variant="destructive"
+                className="border-0 bg-destructive/10"
               >
-                更换邮箱或重新发送
-              </Button>
-            </div>
-          ) : (
-            <Captcha verification={verification} disabled={action.isPending} />
-          )}
-          {action.error && (
-            <Alert variant="destructive" className="border-0 bg-destructive/10">
-              <CircleAlert />
-              <AlertTitle>{action.error.message}</AlertTitle>
-            </Alert>
-          )}
-          <Button
-            className="mt-2 h-12 w-full text-base"
-            disabled={action.isPending || (!mailProof && !verification.proof)}
+                <CircleAlert />
+                <AlertTitle>{action.error.message}</AlertTitle>
+              </Alert>
+            )}
+            <Button
+              className="h-12 w-full"
+              disabled={action.isPending || (!mailProof && !verification.proof)}
+            >
+              {action.isPending ? <Loader2 className="animate-spin" /> : null}
+              {action.isPending
+                ? register
+                  ? "注册中"
+                  : "登录中"
+                : register
+                  ? site.data?.email_verification && !mailProof
+                    ? "发送验证码"
+                    : "注册"
+                  : "登录"}
+            </Button>
+          </FieldGroup>
+        </form>
+      </CardContent>
+      <CardFooter className="justify-center">
+        <Button variant="link" size="sm" asChild>
+          <Link
+            to={`${register ? "/login" : "/register"}${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}
           >
-            {action.isPending ? <Loader2 className="animate-spin" /> : null}
-            {action.isPending
-              ? register
-                ? "注册中"
-                : "登录中"
-              : register
-                ? site.data?.email_verification && !mailProof
-                  ? "发送验证码"
-                  : "注册"
-                : "登录"}
-            {!action.isPending && <ArrowRight className="ml-auto" />}
-          </Button>
-        </FieldGroup>
-      </form>
-    </div>
+            {register ? "返回登录" : "注册账户"}
+          </Link>
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }
