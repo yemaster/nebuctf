@@ -40,13 +40,11 @@ test("login identifiers remain separate from registration email validation", () 
 test("username and email logins share identity, proof checks and account limits", async (t) => {
   if (process.env.TEST_POSTGRES === "1" && !config.DATABASE_URL)
     throw Error("TEST_POSTGRES requires an isolated empty DATABASE_URL");
-  const difficulty = config.CAPTCHA_DIFFICULTY;
   const db = await openDB(process.env.TEST_POSTGRES !== "1"),
     app = await buildApp(db);
   t.after(async () => {
     await app.close();
     await db.close();
-    config.CAPTCHA_DIFFICULTY = difficulty;
   });
   const password = "  correct-password-88  ",
     hash = await hashPassword(password);

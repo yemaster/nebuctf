@@ -5,7 +5,6 @@ x-app-env: &app-env
   APP_SECRET: ${APP_SECRET:?set APP_SECRET}
   APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8080}
   COOKIE_SECURE: ${COOKIE_SECURE:-false}
-  CAPTCHA_DIFFICULTY: ${CAPTCHA_DIFFICULTY:-22}
   DATA_DIR: /data
   TRAFFIC_DIR: /captures
   TRAFFIC_VOLUME: nebuctf_traffic

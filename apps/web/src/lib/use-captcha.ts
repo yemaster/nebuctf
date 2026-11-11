@@ -50,7 +50,7 @@ export function useCaptcha(purpose: CaptchaPurpose) {
       setState({ status: "error", message });
     };
     // A failed request or worker cannot leave the form stuck in verification.
-    timer.current = setTimeout(() => error("验证超时，请重试"), 65000);
+    timer.current = setTimeout(() => error("验证超时，请重试"), 10000);
     try {
       if (typeof Worker === "undefined") {
         error("浏览器不支持安全验证，请更新后重试");
@@ -89,25 +89,34 @@ export function useCaptcha(purpose: CaptchaPurpose) {
         }
         engine.terminate();
         worker.current = null;
-        working.current = false;
         clearTimeout(timer.current);
-        const ttl = challenge.expires_in * 1000 - (performance.now() - started);
-        if (ttl <= 0) {
-          error("验证已过期，请重试");
-          return;
-        }
-        setState({
-          status: "verified",
-          proof: { token: challenge.token, nonce: event.data.nonce! },
-        });
-        timer.current = setTimeout(() => {
-          if (current()) setState({ status: "expired" });
-        }, ttl);
+        const complete = () => {
+          if (!current()) return;
+          const ttl =
+            challenge.expires_in * 1000 - (performance.now() - started);
+          if (ttl <= 0) {
+            error("验证已过期，请重试");
+            return;
+          }
+          working.current = false;
+          setState({
+            status: "verified",
+            proof: { token: challenge.token, nonce: event.data.nonce! },
+          });
+          timer.current = setTimeout(() => {
+            if (current()) setState({ status: "expired" });
+          }, ttl);
+        };
+        timer.current = setTimeout(
+          complete,
+          Math.max(0, 500 - (performance.now() - started)),
+        );
       };
       engine.postMessage({
         salt: challenge.salt,
-        difficulty: challenge.difficulty,
-        budget: remaining,
+        target: challenge.target,
+        max_nonce: challenge.max_nonce,
+        budget: Math.min(750, remaining),
       });
     } catch (cause) {
       error(cause instanceof ApiError ? cause.message : "验证加载失败，请重试");

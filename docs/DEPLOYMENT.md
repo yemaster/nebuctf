@@ -36,11 +36,11 @@ API、数据库、Worker 不发布主机端口。数据库只在平台网络可�
 
 ## 登录与战队安全验证
 
-登录、注册、创建和加入战队默认要求计算验证码。`CAPTCHA_DIFFICULTY` 为 SHA-256 前导零位数，默认 22，允许 12–22；相较原先的 18 位，平均计算量增加约 16 倍。实际耗时受设备性能和随机求解影响，不设置固定等待时间。修改后重新创建 API 容器使配置生效。无需第三方账号、站点密钥或部署域名，HTTP 与 HTTPS 都能运行。
+登录、注册、创建和加入战队默认要求计算验证码。新版采用有界 SHA-256 目标求解：服务端随机选择 0–16383 的 nonce，客户端最多尝试 16384 次，避免随机前导零搜索的长尾。原 `CAPTCHA_DIFFICULTY` 配置已移除，现有环境可删除该变量。浏览器从点击起至少 500 ms 后显示通过，正常网络与设备目标为 0.5–1 秒；不保证慢网、后台标签页或极慢设备的上限。无需第三方账号、站点密钥或部署域名，HTTP 与 HTTPS 都能运行。
 
-验证方案参考 [GZCTF HashPow](https://github.com/GZTimeWalker/GZCTF/blob/develop/src/GZCTF/Services/CaptchaService.cs)，浏览器使用 [noble-hashes](https://github.com/paulmillr/noble-hashes) 的 SHA-256。计算放在独立 Worker，页面仍可操作；Worker 静态资源需与前端一同部署，并由同源 CSP 允许加载。PoW 增加自动请求的成本，平台同时保留频率限制。
+浏览器使用 [noble-hashes](https://github.com/paulmillr/noble-hashes) 的 SHA-256，计算放在独立 Worker，页面仍可操作；Worker 静态资源需与前端一同部署，并由同源 CSP 允许加载。PoW 增加自动请求的成本，平台同时保留频率限制。
 
-迁移 17 添加 `captcha_uses` 表及过期索引，用于跨 API 实例的一次性消费，不修改账户或成绩。发布前备份数据库，API 与 Web 一同更新；旧前端页面需刷新后才能提交受保护的表单。API 详情见 [计算验证码](API.md#计算验证码)。
+迁移 17 添加的 `captcha_uses` 表及过期索引继续用于跨 API 实例的一次性消费，本次无需数据库迁移。发布前备份数据库，API 与 Web 一同更新；签名协议升级到版本 2，旧前端页面需刷新、未消费的旧证明需重新计算。API 详情见 [计算验证码](API.md#计算验证码)。
 
 ## 题目访问：端口与泛域名
 

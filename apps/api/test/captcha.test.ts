@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createHash, createHmac } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { openDB } from "../src/db.js";
 import { buildApp } from "../src/app.js";
 import { config } from "../src/config.js";
@@ -8,13 +8,11 @@ import { proofFor } from "./helpers/captcha.js";
 import { solveProof } from "../../web/src/lib/captcha-proof.ts";
 
 test("HashPow gates authentication and team writes with expiring, bound, single-use proofs", async (t) => {
-  const difficulty = config.CAPTCHA_DIFFICULTY;
   const db = await openDB(process.env.TEST_POSTGRES !== "1"),
     app = await buildApp(db);
   t.after(async () => {
     await app.close();
     await db.close();
-    config.CAPTCHA_DIFFICULTY = difficulty;
   });
   const credentials = { email: "proof@example.test", password: "eight888" };
   let alice = "",
@@ -82,7 +80,11 @@ test("HashPow gates authentication and team writes with expiring, bound, single-
       const issued = await send("/captcha/challenge", { purpose: "login" });
       assert.equal(issued.headers["cache-control"], "no-store");
       const challenge = issued.json();
-      const nonce = solveProof(challenge.salt, challenge.difficulty);
+      const nonce = solveProof(
+        challenge.salt,
+        challenge.target,
+        challenge.max_nonce,
+      );
       const accepted = await login({ token: challenge.token, nonce });
       assert.equal(accepted.statusCode, 200, accepted.body);
     },
@@ -109,25 +111,20 @@ test("HashPow gates authentication and team writes with expiring, bound, single-
       const [encoded, signature] = proof.token.split(".");
       const data = JSON.parse(Buffer.from(encoded, "base64url").toString());
       const forged = Buffer.from(
-        JSON.stringify({ ...data, difficulty: 0 }),
+        JSON.stringify({ ...data, target: "00".repeat(32) }),
       ).toString("base64url");
       assert.equal(
         (await login({ ...proof, token: `${forged}.${signature}` })).statusCode,
         400,
       );
-      let invalid = Buffer.alloc(8);
-      for (let n = 0; ; n++) {
-        invalid.writeUInt32BE(n, 4);
-        if (
-          createHash("sha256")
-            .update(Buffer.from(data.salt, "hex"))
-            .update(invalid)
-            .digest()[0]! & 0x80
-        )
-          break;
-      }
+      const invalid = Buffer.from(proof.nonce, "hex");
+      invalid.writeUInt32BE(Number.parseInt(proof.nonce, 16) ^ 1, 4);
       assert.equal(
         (await login({ ...proof, nonce: invalid.toString("hex") })).statusCode,
+        400,
+      );
+      assert.equal(
+        (await login({ ...proof, nonce: "ffffffffffffffff" })).statusCode,
         400,
       );
       assert.equal((await login({ ...proof, nonce: "zz" })).statusCode, 400);

@@ -9,8 +9,6 @@ export async function proofFor(
   cookie = "",
   remoteAddress = "127.0.0.1",
 ) {
-  // Keep integration fixtures fast while still computing and consuming a real proof.
-  config.CAPTCHA_DIFFICULTY = 12;
   const response = await app.inject({
     method: "POST",
     url: "/api/captcha/challenge",

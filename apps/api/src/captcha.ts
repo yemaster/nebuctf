@@ -1,4 +1,10 @@
-import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  randomInt,
+  randomUUID,
+} from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { DB } from "./db.js";
@@ -6,14 +12,16 @@ import { config } from "./config.js";
 import { equal, fail, rate } from "./security.js";
 
 const lifetime = 300;
+const maxNonce = 16383;
 const purposeInput = z.enum(["login", "register", "team-create", "team-join"]);
 type Purpose = z.infer<typeof purposeInput>;
 const signedInput = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   id: z.uuid(),
   purpose: purposeInput,
   salt: z.string().regex(/^[a-f0-9]{64}$/),
-  difficulty: z.number().int().min(12).max(22),
+  target: z.string().regex(/^[a-f0-9]{64}$/),
+  max_nonce: z.literal(maxNonce),
   expires: z.number().int().positive().safe(),
   binding: z.string().regex(/^[a-f0-9]{64}$/),
 });
@@ -36,12 +44,16 @@ export function captchaRoutes(app: FastifyInstance, db: DB) {
     const { purpose } = z.object({ purpose: purposeInput }).parse(req.body);
     if (purpose.startsWith("team-") && !req.user) fail(401, "请先登录");
     await rate(db, `captcha-issue:${req.ip}`, 30, 60);
+    const input = Buffer.alloc(40);
+    randomBytes(32).copy(input);
+    input.writeUInt32BE(randomInt(maxNonce + 1), 36);
     const challenge = {
-      version: 1,
+      version: 2,
       id: randomUUID(),
       purpose,
-      salt: randomBytes(32).toString("hex"),
-      difficulty: config.CAPTCHA_DIFFICULTY,
+      salt: input.subarray(0, 32).toString("hex"),
+      target: createHash("sha256").update(input).digest("hex"),
+      max_nonce: maxNonce,
       expires: Date.now() + lifetime * 1000,
       binding: binding(req),
     };
@@ -51,7 +63,8 @@ export function captchaRoutes(app: FastifyInstance, db: DB) {
     return {
       token: `${encoded}.${mac("challenge", encoded)}`,
       salt: challenge.salt,
-      difficulty: challenge.difficulty,
+      target: challenge.target,
+      max_nonce: challenge.max_nonce,
       expires_at: new Date(challenge.expires).toISOString(),
       expires_in: lifetime,
     };
@@ -85,12 +98,13 @@ export async function consumeCaptcha(
   if (challenge.purpose !== purpose || !equal(challenge.binding, binding(req)))
     fail(400, "验证无效，请重新验证");
   if (challenge.expires <= Date.now()) fail(400, "验证已过期，请重新验证");
+  if (BigInt(`0x${proof.data.nonce}`) > BigInt(challenge.max_nonce))
+    fail(400, "验证未通过，请重试");
   const hash = createHash("sha256")
     .update(Buffer.from(challenge.salt, "hex"))
     .update(Buffer.from(proof.data.nonce, "hex"))
-    .digest();
-  for (let bit = 0; bit < challenge.difficulty; bit++)
-    if (hash[bit >> 3]! & (0x80 >> (bit & 7))) fail(400, "验证未通过，请重试");
+    .digest("hex");
+  if (!equal(hash, challenge.target)) fail(400, "验证未通过，请重试");
   const used = await db.query(
     "INSERT INTO captcha_uses(id,expires_at) SELECT $1,$2::timestamptz WHERE $2::timestamptz>now() ON CONFLICT DO NOTHING RETURNING id",
     [challenge.id, new Date(challenge.expires)],

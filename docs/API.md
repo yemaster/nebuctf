@@ -10,7 +10,7 @@
 | 个人提交 | `GET /submissions?page=1&page_size=10&q=&result=all`，仅当前登录用户的提交记录 |
 | 消息中心 | `GET /notifications`、`/notifications/:id`、`/notifications/summary`；`PUT /notifications/:id`、`/notifications/read-all`；`WS /notifications/live` |
 | 系统消息管理 | `GET/POST /admin/notifications`；`DELETE /admin/notifications/:id` 撤回已发送消息 |
-| 安全验证 | `POST /captcha/challenge`；登录、注册、创建战队和加入战队必须提交一次性 HashPow 结果 |
+| 安全验证 | `POST /captcha/challenge`；登录、注册、创建战队和加入战队必须提交一次性计算证明 |
 | 战队 Logo | `POST/DELETE /teams/:id/logo`；`GET /team-logos/:id` 获取公开图片 |
 | 战队 | `GET /teams/mine`、`/team?team=UUID`；`POST /teams`、`/team/join`、`/team/leave`、`/team/invite`、`/team/captain` |
 | 题库 | `GET /challenges?scope=practice&category=Web&q=&page=1`；`GET /challenges/:id`；`POST /challenges/:id/submit` |
@@ -54,7 +54,7 @@ Flag 提交请求：`{ "flag": "flag{...}", "scope": "practice" }`，返回 `cor
 
 四个写接口 `/auth/login`、`/auth/register`、`/teams`、`/team/join` 默认都必须携带 `captcha: { token, nonce }`。开启注册邮箱验证时，注册用途证明在 `/auth/email-code` 消费，`/auth/register` 改用一次性邮箱证明。先向 `POST /captcha/challenge` 提交 `{ purpose }`，purpose 分别为 `login`、`register`、`team-create`、`team-join`；战队用途要求已登录。
 
-返回 `{ token, salt, difficulty, expires_at, expires_in }`。salt 是 32 字节的十六进制串，nonce 是 8 字节的小写十六进制串；求解条件为 `SHA256(hexDecode(salt) || hexDecode(nonce))` 的前 difficulty 位为零。token 为服务端签名的不透明字符串，原样提交。有效期 300 秒；前端按返回的有效秒数扣除请求与计算耗时，不依赖设备时钟与服务器时钟一致。
+返回 `{ token, salt, target, max_nonce, expires_at, expires_in }`。salt 是 32 字节的十六进制串，target 为 SHA-256 十六进制摘要，max_nonce 固定为 16383。nonce 是 8 字节的大端小写十六进制串，取值 0–max_nonce；求解条件为 `SHA256(hexDecode(salt) || hexDecode(nonce)) == target`。服务端随机选取范围内的答案生成 target，浏览器最多计算 16384 次，不再搜索随机前导零。token 为服务端签名的不透明字符串，原样提交。有效期 300 秒；前端按返回的有效秒数扣除请求、计算及展示等待耗时，不依赖设备时钟与服务器时钟一致。签名协议为版本 2，旧协议证明不再接受，API 与 Web 必须同时更新。
 
 服务端验证签名、用途、来源 IP、登录身份、时效和计算结果，再以数据库唯一键原子消费证明。一次证明只允许一次业务尝试；密码错误、名称重复或邀请码无效之后都需重新验证，不能重复使用。缺失或无效返回 400，签发限流为每 IP 每分钟 30 次，证明校验每分钟 60 次；原有登录、注册及战队业务限流仍然生效。过期的消费记录由 API 定期清理。接口不提供关闭校验的请求参数。
 

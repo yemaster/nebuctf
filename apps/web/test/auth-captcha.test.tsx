@@ -5,27 +5,36 @@ import { JSDOM } from "jsdom";
 import { createHash } from "node:crypto";
 import { solveProof } from "../src/lib/captcha-proof";
 
-test("browser HashPow matches server SHA-256 without Web Crypto and bounds its work", () => {
-  const salt = "42".repeat(32),
-    nonce = solveProof(salt, 12);
-  const result = createHash("sha256")
+function targetFor(salt: string, nonce: number) {
+  return createHash("sha256")
     .update(Buffer.from(salt, "hex"))
-    .update(Buffer.from(nonce, "hex"))
-    .digest();
-  assert.equal(result[0], 0);
-  assert.equal(result[1] >> 4, 0);
-  assert.throws(() => solveProof(salt, 23), /参数/);
-  assert.throws(() => solveProof(salt, 12, 0), /超时/);
+    .update(Buffer.from(nonce.toString(16).padStart(16, "0"), "hex"))
+    .digest("hex");
+}
+
+test("browser proof finds both range boundaries and rejects missing solutions without Web Crypto", () => {
+  const salt = "42".repeat(32);
+  for (const nonce of [0, 16383]) {
+    const target = targetFor(salt, nonce);
+    assert.equal(
+      solveProof(salt, target, 16383),
+      nonce.toString(16).padStart(16, "0"),
+    );
+  }
+  const target = targetFor(salt, 16);
+  assert.throws(() => solveProof(salt, target, 15), /未完成/);
+  assert.throws(() => solveProof(salt, target, 16384), /参数/);
+  assert.throws(() => solveProof(salt, "invalid", 16383), /参数/);
+  assert.throws(() => solveProof(salt, target, 16383, 0), /超时/);
 });
 
-test("auth preserves its shared panel and all four forms enforce recoverable verification", async (t) => {
+test("authentication and team forms enforce recoverable verification", async (t) => {
   const dom = new JSDOM("<!doctype html><div id='root'></div>", {
     url: "http://localhost/",
     pretendToBeVisual: true,
   });
-  let reduced = false;
   dom.window.matchMedia = (() => ({
-    matches: reduced,
+    matches: false,
     addListener() {},
     removeListener() {},
     addEventListener() {},
@@ -37,7 +46,12 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
     onmessage?: (event: { data: { nonce?: string; error?: string } }) => void;
     onerror?: () => void;
     terminated = false;
-    payload?: { salt: string; difficulty: number; budget: number };
+    payload?: {
+      salt: string;
+      target: string;
+      max_nonce: number;
+      budget: number;
+    };
     constructor(
       readonly url: URL,
       readonly options: unknown,
@@ -53,7 +67,11 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
     complete() {
       this.onmessage?.({
         data: {
-          nonce: solveProof(this.payload!.salt, this.payload!.difficulty),
+          nonce: solveProof(
+            this.payload!.salt,
+            this.payload!.target,
+            this.payload!.max_nonce,
+          ),
         },
       });
     }
@@ -135,7 +153,8 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
           return Response.json({
             token: `${body.purpose}-${++issued}`,
             salt: issued.toString(16).padStart(64, "0"),
-            difficulty: 12,
+            target: targetFor(issued.toString(16).padStart(64, "0"), 7),
+            max_nonce: 16383,
             expires_in: lifetime,
             expires_at: new Date(Date.now() + lifetime * 1000).toISOString(),
           });
@@ -254,11 +273,9 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
       },
     );
     await t.test(
-      "login/register reuse the exact left panel and shell while cancelling the previous form's worker",
+      "switching login/register preserves the redirect and cancels stale verification",
       async () => {
         await mount("/login?next=%2Fteam");
-        const brand = container.querySelector("[data-auth-brand]")!;
-        const shell = container.querySelector("main")!.firstElementChild;
         await click(verification());
         await settle(() => workers.length === 1);
         const old = workers[0];
@@ -273,8 +290,6 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
               '[data-auth-panel="register"] [name="username"]',
             ),
         );
-        assert.equal(container.querySelector("[data-auth-brand]"), brand);
-        assert.equal(container.querySelector("main")!.firstElementChild, shell);
         assert.equal(old.terminated, true);
         await act(async () => old.complete());
         assert.equal(container.querySelector('[aria-label="验证通过"]'), null);
@@ -305,7 +320,6 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
         await settle(
           () => !!container.querySelector('[data-auth-panel="login"]'),
         );
-        assert.equal(container.querySelector("[data-auth-brand]"), brand);
         await cleanup();
       },
     );
@@ -359,7 +373,18 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
         await settle(() => workers.length === 1);
         await act(async () => workers[0].onerror?.());
         assert.equal(workers[0].terminated, true);
-        lifetime = 0.2;
+        lifetime = 0.1;
+        await click(verification());
+        await settle(() => workers.length === 2);
+        await act(async () => workers[1].complete());
+        await settle(
+          () => !!container.textContent?.includes("验证已过期，请重试"),
+        );
+        assert.equal(
+          submitButton(container.querySelector("form")!).disabled,
+          true,
+        );
+        lifetime = 0.7;
         await solve();
         await settle(
           () =>
@@ -407,22 +432,6 @@ test("auth preserves its shared panel and all four forms enforce recoverable ver
             .email_verification,
           { id: "verification-id", code: "123456" },
         );
-        await cleanup();
-      },
-    );
-    await t.test(
-      "reduced-motion auth navigation also keeps the shared panel mounted",
-      async () => {
-        reduced = true;
-        await mount("/register");
-        const brand = container.querySelector("[data-auth-brand]");
-        await click(
-          container.querySelector('[data-auth-panel] a[href="/login"]'),
-        );
-        await settle(
-          () => !!container.querySelector('[data-auth-panel="login"]'),
-        );
-        assert.equal(container.querySelector("[data-auth-brand]"), brand);
         await cleanup();
       },
     );

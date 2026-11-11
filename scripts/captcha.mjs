@@ -12,26 +12,18 @@ export const captchaPurpose = (path) => purposes[path];
 export function solveCaptcha(challenge) {
   if (
     !/^[a-f0-9]{64}$/.test(challenge.salt) ||
-    !Number.isInteger(challenge.difficulty) ||
-    challenge.difficulty < 12 ||
-    challenge.difficulty > 22
+    !/^[a-f0-9]{64}$/.test(challenge.target) ||
+    !Number.isInteger(challenge.max_nonce) ||
+    challenge.max_nonce < 0 ||
+    challenge.max_nonce > 16383
   )
     throw Error("Invalid captcha challenge");
   const input = Buffer.alloc(40);
   Buffer.from(challenge.salt, "hex").copy(input);
-  const deadline = Date.now() + 60000;
-  for (let nonce = 0; nonce <= 0xffffffff; nonce++) {
-    if ((nonce & 1023) === 0 && Date.now() >= deadline)
-      throw Error("Captcha computation timed out");
+  const target = Buffer.from(challenge.target, "hex");
+  for (let nonce = 0; nonce <= challenge.max_nonce; nonce++) {
     input.writeUInt32BE(nonce, 36);
-    const hash = createHash("sha256").update(input).digest();
-    let valid = true;
-    for (let bit = 0; bit < challenge.difficulty; bit++)
-      if (hash[bit >> 3] & (0x80 >> (bit & 7))) {
-        valid = false;
-        break;
-      }
-    if (valid)
+    if (createHash("sha256").update(input).digest().equals(target))
       return {
         token: challenge.token,
         nonce: nonce.toString(16).padStart(16, "0"),
