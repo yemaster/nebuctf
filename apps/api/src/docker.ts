@@ -178,6 +178,26 @@ export class DockerEngine {
     const image = (await this.inspectImage(tag)) as { Id: string };
     return image.Id;
   }
+  async commitPatch(
+    container: string,
+    id: string,
+    imageConfig: Record<string, unknown>,
+  ) {
+    const params = new URLSearchParams({
+      container,
+      repo: "nebuctf-patch",
+      tag: id,
+      pause: "false",
+    });
+    const image = await this.call<{ Id: string }>(
+      "POST",
+      `/commit?${params}`,
+      imageConfig,
+      false,
+      30000,
+    );
+    return image.Id;
+  }
   removeImage(id: string) {
     return this.call("DELETE", `/images/${encodeURIComponent(id)}`);
   }

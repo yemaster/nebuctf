@@ -80,6 +80,15 @@ export function readPatch(input: Buffer): PatchFile[] {
       throw Error("补丁路径冲突");
   return files;
 }
+export function readUpdatePackage(input: Buffer): PatchFile[] {
+  if (input[0] !== 0x1f || input[1] !== 0x8b)
+    throw Error("补丁包必须是 tar.gz");
+  const files = readPatch(input);
+  const entrypoint = files.find((file) => file.name === "update.sh");
+  if (!entrypoint || !entrypoint.data.length)
+    throw Error("补丁包根目录必须包含非空的普通文件 update.sh");
+  return files;
+}
 export function makeTar(files: PatchFile[]) {
   const chunks: Buffer[] = [];
   for (const file of files) {
@@ -118,13 +127,13 @@ export function makeTar(files: PatchFile[]) {
   chunks.push(Buffer.alloc(1024));
   return Buffer.concat(chunks);
 }
-export function patchContext(base: string, root: string, files: PatchFile[]) {
+export function patchContext(base: string, files: PatchFile[]) {
   return makeTar([
     {
       name: "Dockerfile",
       executable: false,
       data: Buffer.from(
-        `FROM ${base}\nCOPY --chown=65534:65534 patch/ ${root}/\nUSER 65534:65534\n`,
+        `FROM ${base}\nCOPY --chown=65534:65534 patch/ /.nebuctf-update/\nUSER 65534:65534\n`,
       ),
     },
     ...files.map((file) => ({ ...file, name: "patch/" + file.name })),

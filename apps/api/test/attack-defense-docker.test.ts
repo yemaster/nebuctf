@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gzipSync } from "node:zlib";
 import { openDB } from "../src/db.js";
 import { config } from "../src/config.js";
 import { DockerEngine } from "../src/docker.js";
@@ -83,6 +84,7 @@ test(
       patch = {
         checker_image: "nebuctf/example-checker:local",
         patch_root: "/app",
+        update_timeout: 2,
         timeout: 15,
         cpu: 250,
         memory: 128,
@@ -135,22 +137,34 @@ test(
       "UPDATE challenge_parts SET flag_template='Attack{[TEAM_HASH]}' WHERE id=$1",
       [attack],
     );
-    async function patchJob(challenge: string, type: string, contents: string) {
+    async function patchJob(
+      challenge: string,
+      type: string,
+      contents: string,
+      script = '#!/bin/sh\nset -eu\ncp "$PATCH_DIR/files/repaired.py" ./settings.py\n',
+    ) {
       const id = crypto.randomUUID();
       jobs.push(id);
       await mkdir(patchStorage(), { recursive: true });
       await writeFile(
         join(patchStorage(), id),
-        makeTar([
-          {
-            name: "settings.py",
-            data: Buffer.from(contents),
-            executable: false,
-          },
-        ]),
+        gzipSync(
+          makeTar([
+            {
+              name: "update.sh",
+              data: Buffer.from(script),
+              executable: false,
+            },
+            {
+              name: "files/repaired.py",
+              data: Buffer.from(contents),
+              executable: false,
+            },
+          ]),
+        ),
       );
       await db.query(
-        "INSERT INTO judge_jobs(id,challenge_id,scope,owner_key,requested_by,status,patch_id,patch_name,spec,deadline_at) VALUES($1,$2,$3,$4,$5,'queued',$1,'patch.tar',$6,now()+interval '2 minutes')",
+        "INSERT INTO judge_jobs(id,challenge_id,scope,owner_key,requested_by,status,patch_id,patch_name,spec,deadline_at) VALUES($1,$2,$3,$4,$5,'queued',$1,'defense.tar.gz',$6,now()+interval '2 minutes')",
         [
           id,
           challenge,
@@ -179,6 +193,28 @@ test(
       await judge.run(job!);
       return (await db.query("SELECT * FROM judge_jobs WHERE id=$1", [id]))[0]!;
     }
+    const rejectedUpdate = await patchJob(
+      cid,
+      "awdp",
+      "VULNERABLE = False\n",
+      "exit 7\n",
+    );
+    assert.equal(rejectedUpdate.result.verdict, "update_error");
+    assert.equal(rejectedUpdate.result.update_exit_code, 7);
+    assert.equal(rejectedUpdate.result.functional, undefined);
+    const timedOutUpdate = await patchJob(
+      cid,
+      "awdp",
+      "VULNERABLE = False\n",
+      "sleep 10\n",
+    );
+    assert.equal(timedOutUpdate.result.verdict, "update_error");
+    assert.match(timedOutUpdate.error, /更新脚本执行超时/);
+    assert.equal(
+      (await db.query("SELECT 1 FROM part_solves WHERE part_id=$1", [defense]))
+        .length,
+      0,
+    );
     const passed = await patchJob(cid, "awdp", "VULNERABLE = False\n");
     assert.equal(passed.status, "passed", passed.error);
     assert.equal(passed.result.verdict, "defended");

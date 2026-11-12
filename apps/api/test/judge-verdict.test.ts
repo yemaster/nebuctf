@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { gzipSync } from "node:zlib";
 import { openDB } from "../src/db.js";
 import { JudgeWorker } from "../src/judge-worker.js";
 import { config } from "../src/config.js";
@@ -40,15 +41,18 @@ test("patch worker reports functional, exploit, success and infrastructure outco
     patch = {
       checker_image: "nebuctf/check:local",
       patch_root: "/app",
+      update_timeout: 2,
       timeout: 10,
       cpu: 100,
       memory: 32,
     };
-  for (const [name, functional, defense, expected, steps] of [
-    ["service failure", 1, 0, "service_error", ["functional"]],
-    ["exploit works", 0, 1, "exploit_success", ["functional", "defense"]],
-    ["checker error", 0, 2, "error", ["functional", "defense"]],
-    ["repaired", 0, 0, "defended", ["functional", "defense"]],
+  for (const [name, updateExit, functional, defense, expected, steps] of [
+    ["update failure", 7, 0, 0, "update_error", []],
+    ["update timeout", "timeout", 0, 0, "update_error", []],
+    ["service failure", 0, 1, 0, "service_error", ["functional"]],
+    ["exploit works", 0, 0, 1, "exploit_success", ["functional", "defense"]],
+    ["checker error", 0, 0, 2, "error", ["functional", "defense"]],
+    ["repaired", 0, 0, 0, "defended", ["functional", "defense"]],
   ] as const)
     await t.test(name, async () => {
       const cid = crypto.randomUUID(),
@@ -91,16 +95,25 @@ test("patch worker reports functional, exploit, success and infrastructure outco
       await mkdir(patchStorage(), { recursive: true });
       await writeFile(
         join(patchStorage(), jid),
-        makeTar([
-          {
-            name: "settings.py",
-            data: Buffer.from("safe=True"),
-            executable: false,
-          },
-        ]),
+        gzipSync(
+          makeTar([
+            {
+              name: "update.sh",
+              data: Buffer.from(
+                '#!/bin/sh\nset -eu\ncp "$PATCH_DIR/files/settings.py" ./settings.py\n',
+              ),
+              executable: false,
+            },
+            {
+              name: "files/settings.py",
+              data: Buffer.from("safe=True"),
+              executable: false,
+            },
+          ]),
+        ),
       );
       await db.query(
-        "INSERT INTO judge_jobs(id,challenge_id,scope,owner_key,requested_by,status,patch_id,patch_name,spec,deadline_at) VALUES($1,$2,'practice',$3,$4,'queued',$1,'patch.tar',$5,now()+interval '2 minutes')",
+        "INSERT INTO judge_jobs(id,challenge_id,scope,owner_key,requested_by,status,patch_id,patch_name,spec,deadline_at) VALUES($1,$2,'practice',$3,$4,'queued',$1,'defense.tar.gz',$5,now()+interval '2 minutes')",
         [
           jid,
           cid,
@@ -126,6 +139,7 @@ test("patch worker reports functional, exploit, success and infrastructure outco
           Config: {},
         }),
         buildPatch: async () => `nebuctf-patch:${jid}`,
+        commitPatch: async () => `nebuctf-patch:${jid}`,
         createNetwork: async (c: any) => {
           networks.set(c.Name, { Id: c.Name, ...c });
         },
@@ -134,15 +148,17 @@ test("patch worker reports functional, exploit, success and infrastructure outco
           networks.delete(name);
         },
         createContainer: async (c: any) => {
-          const prefix = c.name.endsWith("-target")
-            ? "FLAG="
-            : "EXPECTED_FLAG=";
-          const flag = c.Env.find((v: string) => v.startsWith(prefix));
-          assert.equal(
-            flag,
-            prefix + expectedFlag,
-            "target and both checker stages receive the exact attack template flag",
-          );
+          if (!c.name.endsWith("-update")) {
+            const prefix = c.name.endsWith("-target")
+              ? "FLAG="
+              : "EXPECTED_FLAG=";
+            const flag = c.Env.find((v: string) => v.startsWith(prefix));
+            assert.equal(
+              flag,
+              prefix + expectedFlag,
+              "target and both checker stages receive the exact attack template flag",
+            );
+          }
           const v = {
             Config: c,
             NetworkSettings: {
@@ -157,6 +173,10 @@ test("patch worker reports functional, exploit, success and infrastructure outco
         startContainer: async () => {},
         inspectContainer: async (id: string) => containers.get(id) ?? missing(),
         waitContainer: async (id: string) => {
+          if (id.endsWith("-update")) {
+            if (updateExit === "timeout") throw Error("Docker API deadline");
+            return { StatusCode: updateExit };
+          }
           const mode = containers
             .get(id)
             .Config.Env.find((v: string) => v.startsWith("CHECK_MODE="))
@@ -177,6 +197,12 @@ test("patch worker reports functional, exploit, success and infrastructure outco
         await db.query("SELECT * FROM judge_jobs WHERE id=$1", [jid])
       )[0]!;
       assert.equal(result.result.verdict, expected);
+      if (updateExit === 7) {
+        assert.equal(result.result.update_exit_code, 7);
+        assert.match(result.error, /退出码 7/);
+      } else if (updateExit === "timeout") {
+        assert.match(result.error, /更新脚本执行超时/);
+      }
       assert.equal(
         result.status,
         expected === "defended" ? "passed" : "failed",

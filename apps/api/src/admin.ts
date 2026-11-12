@@ -12,6 +12,7 @@ import { recordContestNotice } from "./activity-events.js";
 import { isDeepStrictEqual } from "node:util";
 import {
   flagMode,
+  patchConfigInput,
   resourceProfiles,
   runtimeResourceProfiles,
 } from "./challenge-model.js";
@@ -113,6 +114,9 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
     return {
       items: rows.map(({ flag_hash, ...c }) => ({
         ...c,
+        patch_config: c.patch_config
+          ? patchConfigInput.parse(c.patch_config)
+          : null,
         contests: c.contests.filter((contest: any) =>
           can(user, "contests.read", contest.id),
         ),
@@ -134,6 +138,9 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
     const { flag_hash, ...challenge } = row!;
     return {
       ...challenge,
+      patch_config: challenge.patch_config
+        ? patchConfigInput.parse(challenge.patch_config)
+        : null,
       hints: hintDefinitions(challenge as any),
       parts: await db.query(
         "SELECT id,title,description,position,role,flag_env,flag_template,initial_points,minimum_points FROM challenge_parts WHERE challenge_id=$1 ORDER BY position",
@@ -223,6 +230,8 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
           )
             fail(400, "静态题目必须配置 flag");
           if (old) {
+            if (old.patch_config)
+              old.patch_config = patchConfigInput.parse(old.patch_config);
             const used =
               (
                 await tx.query(

@@ -32,6 +32,7 @@ export type Objective = {
 export type PatchConfig = {
   checker_image: string;
   patch_root: string;
+  update_timeout?: number;
   timeout: number;
   cpu: number;
   memory: number;

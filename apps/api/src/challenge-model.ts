@@ -213,9 +213,10 @@ export const patchConfigInput = z.object({
     .string()
     .regex(
       /^\/(?:app|srv|opt)(?:\/[a-zA-Z0-9_-]+)*$/,
-      "补丁目录必须位于 /app、/srv 或 /opt 内",
+      "执行工作目录必须位于 /app、/srv 或 /opt 内",
     )
     .default("/app"),
+  update_timeout: z.number().int().min(1).max(120).default(30),
   timeout: z.number().int().min(10).max(120).default(60),
   cpu: z.number().int().min(100).max(2000).default(500),
   memory: z.number().int().min(64).max(1024).default(256),

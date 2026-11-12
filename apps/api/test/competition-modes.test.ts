@@ -1,7 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { gzipSync } from "node:zlib";
-import { readFile, mkdtemp, rm, stat, readdir } from "node:fs/promises";
+import {
+  readFile,
+  mkdtemp,
+  rm,
+  stat,
+  readdir,
+  mkdir,
+  writeFile,
+} from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDB } from "../src/db.js";
@@ -9,11 +18,15 @@ import { buildApp } from "../src/app.js";
 import { config } from "../src/config.js";
 import { sessionCookie } from "../src/auth.js";
 import { digest, dynamicFlag, flagHash } from "../src/security.js";
-import { objectiveInput, gradeObjective } from "../src/challenge-model.js";
+import {
+  objectiveInput,
+  gradeObjective,
+  patchConfigInput,
+} from "../src/challenge-model.js";
 import { contestScoringInput } from "../src/competition-rules.js";
 import { ensureRound, tickRounds } from "../src/rounds.js";
 import { AwdWorker } from "../src/awd-worker.js";
-import { makeTar, readPatch, patchContext } from "../src/patch-archive.js";
+import { makeTar, readPatch, readUpdatePackage } from "../src/patch-archive.js";
 
 test("objective grading and bounded patch archives", () => {
   const single = objectiveInput.parse({
@@ -57,9 +70,35 @@ test("objective grading and bounded patch archives", () => {
   );
   assert.throws(() => readPatch(makeTar([files[0]!, files[0]!])));
   assert.throws(() => readPatch(Buffer.alloc(2048)));
-  const context = readPatch(patchContext("sha256:abc", "/app", files));
-  assert.equal(context[0]!.name, "Dockerfile");
-  assert(!context[0]!.data.toString().includes("RUN"));
+  const entrypoint = {
+    name: "update.sh",
+    data: Buffer.from("#!/bin/sh\nexit 0\n"),
+    executable: false,
+  };
+  assert.deepEqual(
+    readUpdatePackage(gzipSync(makeTar([entrypoint, ...files]))),
+    [entrypoint, ...files],
+  );
+  assert.throws(() => readUpdatePackage(makeTar([entrypoint])), /tar.gz/);
+  assert.throws(() => readUpdatePackage(gzipSync(makeTar(files))), /update.sh/);
+  assert.throws(() =>
+    readUpdatePackage(
+      gzipSync(makeTar([{ ...entrypoint, name: "nested/update.sh" }])),
+    ),
+  );
+  assert.throws(() =>
+    readUpdatePackage(
+      gzipSync(makeTar([{ ...entrypoint, data: Buffer.alloc(0) }])),
+    ),
+  );
+  assert.throws(() => readUpdatePackage(Buffer.from([0x1f, 0x8b, 0])));
+  for (const update_timeout of [0, 121, 1.5])
+    assert(
+      !patchConfigInput.safeParse({
+        checker_image: "nebuctf/checker:1",
+        update_timeout,
+      }).success,
+    );
   assert(
     !contestScoringInput.safeParse({
       mode: "round",
@@ -194,6 +233,28 @@ test("mixed contest questions, scoped scores, clocks, objectives, rounds and AWD
       },
     ],
   });
+  await t.test(
+    "administrator saves and reads custom update settings",
+    async () => {
+      const editable = await ok(`/admin/challenges/${awdp.id}`, admin);
+      await ok(
+        `/admin/challenges/${awdp.id}`,
+        admin,
+        {
+          ...editable,
+          patch_config: {
+            ...editable.patch_config,
+            patch_root: "/srv/work",
+            update_timeout: 17,
+          },
+        },
+        "PUT",
+      );
+      const saved = await ok(`/admin/challenges/${awdp.id}`, admin);
+      assert.equal(saved.patch_config.patch_root, "/srv/work");
+      assert.equal(saved.patch_config.update_timeout, 17);
+    },
+  );
   const awd = await ok("/admin/challenges", admin, {
     ...base,
     flag: undefined,
@@ -452,21 +513,88 @@ test("mixed contest questions, scoped scores, clocks, objectives, rounds and AWD
           },
           payload: Buffer.concat([
             Buffer.from(
-              `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="patch.tar"\r\nContent-Type: application/x-tar\r\n\r\n`,
+              `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="patch.tar.gz"\r\nContent-Type: application/gzip\r\n\r\n`,
             ),
             data,
             Buffer.from(`\r\n--${boundary}--\r\n`),
           ]),
         });
       };
-      const archive = makeTar([
-        {
-          name: "settings.py",
-          data: Buffer.from("safe = True"),
-          executable: false,
-        },
-      ]);
+      const archive = gzipSync(
+        makeTar([
+          {
+            name: "update.sh",
+            data: Buffer.from(
+              '#!/bin/sh\nset -eu\ncp "$PATCH_DIR/files/settings.py" .\n',
+            ),
+            executable: false,
+          },
+          {
+            name: "files/settings.py",
+            data: Buffer.from("safe = True"),
+            executable: false,
+          },
+        ]),
+      );
       try {
+        await db.query(
+          "UPDATE challenges SET patch_config=patch_config - 'update_timeout' WHERE id=$1",
+          [awdp.id],
+        );
+        assert.equal(
+          (await ok(`/admin/challenges/${awdp.id}`, admin)).patch_config
+            .update_timeout,
+          30,
+        );
+        assert.equal(
+          (await ok(`/challenges/${awdp.id}/patches?scope=${contest.id}`))
+            .submission.timeout,
+          30,
+        );
+        await db.query(
+          `UPDATE challenges SET patch_config=patch_config || '{"patch_root":"/srv/work","update_timeout":17}'::jsonb WHERE id=$1`,
+          [awdp.id],
+        );
+        const exampleUrl = `/challenges/${awdp.id}/patches/example?scope=${contest.id}`;
+        assert.equal(
+          (await app.inject({ url: "/api" + exampleUrl })).statusCode,
+          401,
+        );
+        assert.equal(
+          (
+            await req(
+              `/challenges/${ctf.id}/patches/example?scope=${contest.id}`,
+            )
+          ).statusCode,
+          400,
+        );
+        const example = await req(exampleUrl);
+        assert.equal(example.statusCode, 200, example.body);
+        assert.equal(example.headers["content-type"], "application/gzip");
+        assert.match(
+          String(example.headers["content-disposition"]),
+          /defense-example\.tar\.gz/,
+        );
+        const exampleFiles = readUpdatePackage(example.rawPayload);
+        assert.deepEqual(
+          exampleFiles.map((file) => file.name),
+          ["update.sh", "files/example.conf"],
+        );
+        const packageDir = join(dir, "example"),
+          workdir = join(dir, "work");
+        await mkdir(join(packageDir, "files"), { recursive: true });
+        await mkdir(workdir);
+        for (const file of exampleFiles)
+          await writeFile(join(packageDir, file.name), file.data);
+        const updated = spawnSync("/bin/sh", [join(packageDir, "update.sh")], {
+          cwd: workdir,
+          env: { ...process.env, PATCH_DIR: packageDir },
+        });
+        assert.equal(updated.status, 0, updated.stderr.toString());
+        assert.deepEqual(
+          await readFile(join(workdir, "example.conf")),
+          exampleFiles[1]!.data,
+        );
         assert.equal(
           (await upload(archive, alice, "https://untrusted.example"))
             .statusCode,
@@ -475,13 +603,15 @@ test("mixed contest questions, scoped scores, clocks, objectives, rounds and AWD
         assert.equal(
           (
             await upload(
-              makeTar([
-                {
-                  name: "../escape",
-                  data: Buffer.from("x"),
-                  executable: false,
-                },
-              ]),
+              gzipSync(
+                makeTar([
+                  {
+                    name: "../escape",
+                    data: Buffer.from("x"),
+                    executable: false,
+                  },
+                ]),
+              ),
             )
           ).statusCode,
           400,
@@ -496,6 +626,13 @@ test("mixed contest questions, scoped scores, clocks, objectives, rounds and AWD
           `/challenges/${awdp.id}/patches?scope=${contest.id}`,
         );
         assert.equal(own.items[0].status, "queued");
+        assert.deepEqual(own.submission, {
+          format: "tar.gz",
+          entrypoint: "update.sh",
+          workdir: "/srv/work",
+          timeout: 17,
+          restart_required: false,
+        });
         assert(!("patch_id" in own.items[0]));
         assert(!("spec" in own.items[0]));
         assert.equal(

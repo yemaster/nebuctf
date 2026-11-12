@@ -62,15 +62,15 @@ export function ChallengeForm({
     c?.flag_mode ?? (c?.kind.startsWith("dynamic") ? "dynamic" : "static"),
   );
   const [objective, setObjective] = useState(c?.objective ?? newObjective());
-  const [patch, setPatch] = useState<PatchConfig>(
-    c?.patch_config ?? {
-      checker_image: "",
-      patch_root: "/app",
-      timeout: 60,
-      cpu: 500,
-      memory: 256,
-    },
-  );
+  const [patch, setPatch] = useState<PatchConfig>({
+    checker_image: "",
+    patch_root: "/app",
+    timeout: 60,
+    cpu: 500,
+    memory: 256,
+    ...c?.patch_config,
+    update_timeout: c?.patch_config?.update_timeout ?? 30,
+  });
   const [awd, setAwd] = useState(
     c?.awd_config ?? { checker_image: "", timeout: 20 },
   );
@@ -547,7 +547,7 @@ export function ChallengeForm({
                 <CheckerImageTools image={patch.checker_image} />
               )}
             </Field>
-            <Field label="补丁覆盖目录">
+            <Field label="更新脚本执行目录">
               <Input
                 required
                 value={patch.patch_root}
@@ -559,6 +559,12 @@ export function ChallengeForm({
             </Field>
             {(
               [
+                {
+                  key: "update_timeout",
+                  label: "更新超时（秒）",
+                  min: 1,
+                  max: 120,
+                },
                 {
                   key: "timeout",
                   label: "单项校验超时（秒）",
@@ -582,6 +588,13 @@ export function ChallengeForm({
                 />
               </Field>
             ))}
+            <p className="text-xs text-muted-foreground md:col-span-2">
+              基础镜像须包含 /bin/sh 和更新所需离线工具。平台在执行目录运行
+              update.sh，包内文件通过 PATCH_DIR=/.nebuctf-update 读取；更新阶段
+              以隔离的 root 身份运行，禁用网络，不可后台运行或在线安装依赖。
+              成功后平台按镜像原有入口启动服务（非 root、只读根文件系统），
+              脚本无需也不得启动或重启服务。CPU、内存限制同时用于更新。
+            </p>
             {type === "awd" && (
               <>
                 <Field label="服务巡检镜像">

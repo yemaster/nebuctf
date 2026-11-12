@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { gzipSync } from "node:zlib";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -74,7 +75,7 @@ test(
         patch_root: "/app",
         timeout: 10,
         cpu: 100,
-        memory: 32,
+        memory: 64,
       };
     for (const [id, type] of [
       [cid, "awdp"],
@@ -199,7 +200,7 @@ test(
         },
         payload: Buffer.concat([
           Buffer.from(
-            '--limit-upload\r\nContent-Disposition: form-data; name="file"; filename="patch.tar"\r\nContent-Type: application/x-tar\r\n\r\n',
+            '--limit-upload\r\nContent-Disposition: form-data; name="file"; filename="patch.tar.gz"\r\nContent-Type: application/gzip\r\n\r\n',
           ),
           data,
           Buffer.from("\r\n--limit-upload--\r\n"),
@@ -212,15 +213,34 @@ test(
           (await upload(Buffer.from("bad archive"))).statusCode,
           400,
         );
-        const archive = makeTar([
+        const files = [
           {
-            name: "settings.py",
+            name: "update.sh",
+            data: Buffer.from(
+              '#!/bin/sh\nset -eu\ncp "$PATCH_DIR/files/settings.py" .\n',
+            ),
+            executable: false,
+          },
+          {
+            name: "files/settings.py",
             data: Buffer.from("safe=True"),
             executable: false,
           },
-        ]);
+        ];
+        assert.equal((await upload(makeTar(files))).statusCode, 400);
+        assert.equal(
+          (await request(`/challenges/${cid}/patches?scope=${scope}`)).json()
+            .usage.used,
+          0,
+        );
+        const archive = gzipSync(makeTar(files));
         const accepted = await upload(archive);
         assert.equal(accepted.statusCode, 200, accepted.body);
+        const [job] = await db.query(
+          "SELECT spec FROM judge_jobs WHERE id=$1",
+          [accepted.json().id],
+        );
+        assert.equal(job.spec.patch.update_timeout, 30);
         await db.query(
           "UPDATE judge_jobs SET status='failed',result='{\"verdict\":\"service_error\"}',error='test',finished_at=now() WHERE id=$1",
           [accepted.json().id],

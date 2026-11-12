@@ -1090,3 +1090,21 @@ amd64 后端/Web 镜像构建通过（含 TypeScript 与 Vite）。实际发现�
 正式公网真实 Chrome 检查桌面登录与 390×844 注册页面，无横向溢出；`/api/health` 为 HTTP 200。实际验证码通过后，以不存在账号提交得到预期 HTTP 401「账号或密码错误」，未创建或修改正式账号；独立注册页面无运行错误。原有账号与业务数据保持迁移源状态。
 
 当前生成清单为新端 `/opt/nebuctf/deploy/production.yaml`，配套 `production-api-first.yaml`；后端版本 `split-20261111`，Web 版本 `split-20261111-proxy`。最终回滚备份为两端 `/opt/nebuctf-backups/tencent-20261111-final/`，本机为 `.data/tencent-migration-D03LOs/tencent-20261111-final/`。旧端容器和数据保留、服务停止；不能直接重新开放过期旧库写入。预演库、临时目录、测试账号凭据和验证脚本已清理。
+
+## 2026-11-11：AWDP 更新脚本防御提交流程上线
+
+已部署到 tencent-sh，发布标识 `awdp-20261111-081248`。API、Scheduler、Docker Runtime/gateway 使用 `nebuctf-api:awdp-20261111-081248`，Web 使用 `nebuctf-web:awdp-20261111-081248`；镜像均为 amd64。传输归档两端 SHA-256 一致，为 `4a38530405594a39c9a06bd4d5349feee3120fe3e5952a1fa2e59d2706877eff`。
+
+切换前停止 API/Scheduler，并确认旧 Runtime 的活跃判题数为零，再优雅停止旧 Runtime/gateway；随后按 API → Scheduler/Web → Runtime/gateway 顺序切换。API、Scheduler、Web 各一个 Pod Ready，Runtime/gateway 均 healthy。新旧 `schema.sql` SHA-256 相同，无数据库结构变更；保留现有数据、密钥和账号。
+
+公网 `http://101.34.76.52:61001/api/health` 返回 HTTP 200。以现有管理员会话验证练习 AWDP 的防御接口返回 `tar.gz`、根目录 `update.sh`、执行目录 `/app`、默认更新超时 30 秒及无需手动重启；示例下载为 HTTP 200、`application/gzip`，归档只含普通文件 `update.sh` 和 `files/example.conf`。真实 Chrome 验证线上提交说明弹窗及后台执行目录/更新超时字段，未提交正式防御包、未修改题目配置或成绩，结束后退出验证会话。
+
+本地上线前已通过类型检查、定向 API/判题回归、真实 Docker 的脚本失败/超时/修复成功及 AWD 替换场景，并通过浏览器实际上传修复包完成防御判定。线上本次验证不重复写入正式比赛成绩。
+
+当前生成清单 `/opt/nebuctf/deploy/production.yaml`、`production-api-first.yaml`，Kustomization 版本及 `/opt/nebuctf-backups/runtime.env` 的发布标识均已更新。旧镜像保留；切换前清单、运行环境和 Kustomization 备份保存在 `/opt/nebuctf-releases/awdp-20261111-081248/`，可回退到后端 `split-20261111`、Web `split-20261111-proxy`。
+
+## 2026-11-11：防御提交帮助分区与列表
+
+Web 发布 `awdp-help-20261111-082327`，API、Scheduler、Runtime/gateway 保持 `awdp-20261111-081248`，无数据库修改。Web 镜像构建包含 TypeScript 检查与 Vite 构建并通过；传输归档两端 SHA-256 一致，为 `7e2372ea00b6b8beddff243cfa8acb74fd15db3b665769ba30ab655322abc623`，Web rollout 成功。
+
+真实 Chrome 在公网以现有账号打开练习题防守说明：1440×1000、390×844 均显示「提交方法」「提交要求」「结果说明」三个带颜色与图标的小标题，五种结果独立成列表。移动页面宽度和内容宽度均为 390，弹窗内容宽度等于可用宽度，无横向溢出；未启动题目环境、未提交补丁或写入比赛成绩。发布前清单备份在 `/opt/nebuctf-releases/awdp-help-20261111-082327/`。

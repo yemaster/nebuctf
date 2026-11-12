@@ -1,3 +1,4 @@
+import { gzipSync } from "node:zlib";
 import { getSetting } from "./settings.js";
 import { submissionUsage, requireSubmissionSlot } from "./submission-policy.js";
 import { notifyContest } from "./activity-events.js";
@@ -13,8 +14,8 @@ import { config } from "./config.js";
 import { audit, lock, type DB } from "./db.js";
 import { id, scope as scopeSchema } from "./schemas.js";
 import { fail, rate } from "./security.js";
-import { readPatch } from "./patch-archive.js";
-import { resourceProfiles } from "./challenge-model.js";
+import { makeTar, readUpdatePackage } from "./patch-archive.js";
+import { patchConfigInput, resourceProfiles } from "./challenge-model.js";
 import { resourceCooldown } from "./resources.js";
 export const patchStorage = () => join(config.DATA_DIR, "patches");
 export function judgeRoutes(app: FastifyInstance, db: DB) {
@@ -29,11 +30,11 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
       fail(400, "此题不接受补丁");
     await rate(db, `patch-upload:${user.id}`, 3, 60);
     const file = await req.file();
-    if (!file) return fail(400, "请选择 tar 或 tar.gz 补丁包");
+    if (!file) return fail(400, "请选择包含根目录 update.sh 的 tar.gz 补丁包");
     const data = await file.toBuffer();
     if (file.file.truncated) fail(413, "补丁超过 20 MiB");
     try {
-      readPatch(data);
+      readUpdatePackage(data);
     } catch (e) {
       fail(400, (e as Error).message);
     }
@@ -74,7 +75,7 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
         const profile = resourceProfiles(current).container!;
         const policy = await getSetting(tx, "containers");
         const usage = await resourceUsage(tx, owner),
-          pc = current.patch_config;
+          pc = patchConfigInput.parse(current.patch_config);
         if (
           (policy.max_instances !== null &&
             usage.n + 2 > policy.max_instances) ||
@@ -104,7 +105,7 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
                 scope,
                 owner,
               ),
-              patch: current.patch_config,
+              patch: pc,
               type: current.challenge_type,
               contest_scoring: current.contest_scoring,
               contest_practice: !!current.contest_practice,
@@ -128,6 +129,7 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
       scope = scopeSchema.parse((req.query as any).scope);
     const c = await challengeAccess(db, cid, scope, user, false);
     const owner = await ownerFor(db, scope, user);
+    const pc = c.patch_config ? patchConfigInput.parse(c.patch_config) : null;
     const [cooldown] = await db.query(
       "SELECT expires_at FROM rate_limits WHERE key=$1",
       [`resource:${owner}:${scope}:${cid}:patch`],
@@ -135,11 +137,58 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
     return {
       next_operation_at: cooldown?.expires_at ?? null,
       usage: (await submissionUsage(db, c, scope, owner)).defense,
+      submission: pc
+        ? {
+            format: "tar.gz",
+            entrypoint: "update.sh",
+            workdir: pc.patch_root,
+            timeout: pc.update_timeout,
+            restart_required: false,
+          }
+        : null,
       items: await db.query(
         "SELECT id,status,patch_name,error,result - 'image' result,created_at,finished_at FROM judge_jobs WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3 ORDER BY created_at DESC LIMIT 10",
         [cid, scope, owner],
       ),
     };
+  });
+  app.get<{
+    Params: { id: string };
+    Querystring: { scope?: string };
+  }>("/api/challenges/:id/patches/example", async (req, reply) => {
+    const user = requireUser(req),
+      cid = id.parse(req.params.id),
+      scope = scopeSchema.parse(req.query.scope);
+    const c = await challengeAccess(db, cid, scope, user, true, "submit");
+    requirePermission(c.permissions, "resources");
+    if (!["awdp", "awd"].includes(c.challenge_type) || !c.patch_config)
+      fail(400, "此题不接受补丁");
+    return reply
+      .type("application/gzip")
+      .header(
+        "Content-Disposition",
+        'attachment; filename="defense-example.tar.gz"',
+      )
+      .send(
+        gzipSync(
+          makeTar([
+            {
+              name: "update.sh",
+              data: Buffer.from(
+                '#!/bin/sh\nset -eu\n# Replace files/ with your repaired files before submitting.\ncp -R "$PATCH_DIR/files/." .\n',
+              ),
+              executable: false,
+            },
+            {
+              name: "files/example.conf",
+              data: Buffer.from(
+                "# Illustrative payload only; replace with the challenge's repaired files.\n",
+              ),
+              executable: false,
+            },
+          ]),
+        ),
+      );
   });
   app.get("/api/admin/judges", async (req) => {
     requireAdmin(req);

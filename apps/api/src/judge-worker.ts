@@ -7,7 +7,7 @@ import { containerConfig } from "./worker.js";
 import { flagForInstance } from "./flag-environment.js";
 import { validateImage } from "./resources.js";
 import { patchStorage } from "./judge.js";
-import { readPatch, patchContext } from "./patch-archive.js";
+import { readUpdatePackage, patchContext } from "./patch-archive.js";
 import { creditSolve } from "./solve.js";
 import { ownerPermissions, requirePermission } from "./group-permissions.js";
 
@@ -73,7 +73,7 @@ export class JudgeWorker {
     await Promise.allSettled(this.jobs.values());
   }
   private async cleanup(job: Row, keepImage = false) {
-    for (const suffix of ["target", "functional", "defense"]) {
+    for (const suffix of ["target", "update", "functional", "defense"]) {
       const name = `nebuctf-judge-${job.id}-${suffix}`;
       try {
         const info = await this.docker.inspectContainer(name);
@@ -92,10 +92,12 @@ export class JudgeWorker {
     } catch (e) {
       if ((e as any).statusCode !== 404) throw e;
     }
-    if (!keepImage)
-      await this.docker.removeImage(`nebuctf-patch:${job.id}`).catch((e) => {
-        if (![404, 409].includes(e.statusCode)) throw e;
-      });
+    for (const suffix of keepImage ? ["-source"] : ["", "-source"])
+      await this.docker
+        .removeImage(`nebuctf-patch:${job.id}${suffix}`)
+        .catch((e) => {
+          if (![404, 409].includes(e.statusCode)) throw e;
+        });
     await unlink(join(patchStorage(), job.patch_id)).catch((e) => {
       if (e.code !== "ENOENT") throw e;
     });
@@ -151,10 +153,10 @@ export class JudgeWorker {
   async run(job: Row) {
     let keep = false,
       verdict = "error";
-    const remaining = () => {
+    const remaining = (limit = job.spec.patch.timeout) => {
       const ms = new Date(job.deadline_at).getTime() - Date.now();
       if (ms < 1000) throw Error("补丁校验超时，请重新提交");
-      return Math.min(job.spec.patch.timeout, Math.floor(ms / 1000));
+      return Math.min(limit, Math.floor(ms / 1000));
     };
     try {
       const claimed = await this.db.query(
@@ -180,13 +182,79 @@ export class JudgeWorker {
       const info = (await this.docker.inspectImage(base.image)) as any;
       if (info.Config?.OnBuild?.length)
         throw Error("基础镜像不能包含 ONBUILD 指令");
-      const files = readPatch(
+      const files = readUpdatePackage(
         await readFile(join(patchStorage(), job.patch_id)),
       );
-      const image = await this.docker.buildPatch(
-        `nebuctf-patch:${job.id}`,
-        patchContext(info.Id, patch.patch_root, files),
+      const source = await this.docker.buildPatch(
+        `nebuctf-patch:${job.id}-source`,
+        patchContext(info.Id, files),
         { [label]: job.id },
+      );
+      await this.db.query(
+        'UPDATE judge_jobs SET result=result || \'{"stage":"updating"}\',updated_at=now() WHERE id=$1',
+        [job.id],
+      );
+      await notifyContest(this.db, job.scope).catch(() => {});
+      const updater = containerConfig({
+        id: job.id,
+        challenge_id: job.challenge_id,
+        kind: "static_container",
+        spec: { ...base, image: source, cpu: patch.cpu, memory: patch.memory },
+      });
+      updater.name = `nebuctf-judge-${job.id}-update`;
+      updater.Labels = { [label]: job.id };
+      updater.User = "0:0";
+      updater.Entrypoint = ["/bin/sh"];
+      updater.Cmd = ["-eu", "/.nebuctf-update/update.sh"];
+      updater.WorkingDir = patch.patch_root;
+      updater.Env = ["PATCH_DIR=/.nebuctf-update"];
+      updater.NetworkDisabled = true;
+      updater.ExposedPorts = {};
+      updater.HostConfig.NetworkMode = "none";
+      updater.HostConfig.PortBindings = {};
+      updater.HostConfig.ReadonlyRootfs = false;
+      const update = await this.docker.createContainer(updater);
+      const updateTimeout = remaining(patch.update_timeout ?? 30);
+      await this.docker.startContainer(update.Id);
+      let updateExit: number;
+      try {
+        updateExit = (
+          await this.docker.waitContainer(update.Id, updateTimeout * 1000)
+        ).StatusCode;
+      } catch (e) {
+        if (
+          ["Docker API timeout", "Docker API deadline"].includes(
+            (e as Error).message,
+          )
+        ) {
+          verdict = "update_error";
+          throw Error("更新脚本执行超时，请检查脚本后重新提交");
+        }
+        throw e;
+      }
+      if (updateExit !== 0) {
+        verdict = "update_error";
+        await this.db.query(
+          "UPDATE judge_jobs SET result=result || jsonb_build_object('update_exit_code',$2::int),updated_at=now() WHERE id=$1",
+          [job.id, updateExit],
+        );
+        throw Error(`更新脚本执行失败（退出码 ${updateExit}）`);
+      }
+      remaining();
+      // Restore service startup metadata; never persist the updater's root shell or environment.
+      const image = await this.docker.commitPatch(update.Id, job.id, {
+        ...info.Config,
+        Entrypoint: info.Config?.Entrypoint ?? [],
+        Cmd: info.Config?.Cmd ?? [],
+        Env: info.Config?.Env ?? [],
+        WorkingDir: info.Config?.WorkingDir ?? "",
+        User: "65534:65534",
+        Labels: { ...info.Config?.Labels, [label]: job.id },
+      });
+      await this.docker.removeContainer(update.Id);
+      await this.db.query(
+        "UPDATE judge_jobs SET result=result || '{\"update\":true}',updated_at=now() WHERE id=$1",
+        [job.id],
       );
       remaining();
       await this.db.query(
@@ -323,6 +391,7 @@ export class JudgeWorker {
             JSON.stringify({
               verdict: "defended",
               stage: "complete",
+              update: true,
               functional: true,
               defense: true,
               ...(job.spec.type === "awd" ? { image } : {}),
@@ -349,9 +418,10 @@ export class JudgeWorker {
         "当前组别没有此题的作答权限",
         "当前组别没有此题的靶机与附件使用权限",
       ];
-      const error = allowed.includes((e as Error).message)
-        ? (e as Error).message
-        : "补丁构建或校验失败，请检查补丁后重试";
+      const error =
+        verdict === "update_error" || allowed.includes((e as Error).message)
+          ? (e as Error).message
+          : "补丁构建或校验失败，请检查补丁后重试";
       await this.db.query(
         "UPDATE judge_jobs SET status='failed',error=$2,result=result || jsonb_build_object('verdict',$3::text),finished_at=now(),updated_at=now() WHERE id=$1",
         [job.id, error, verdict],

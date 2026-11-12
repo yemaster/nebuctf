@@ -207,8 +207,9 @@ API 进程每 2 秒检查到期题目，在事务内启用、清除计划时间�
 | `POST /contests/:id/objective-paper` | `{finalize,answers:[{id,answer:{choices,blanks},revision}]}`；保存草稿可传变更子集，交卷须包含全部可提交题目 |
 | `GET /challenges/:id/answer?scope=` | 本队客观题草稿与最终提交状态 |
 | `POST /challenges/:id/answer` | `{scope,answer:{choices,blanks},finalize}`；最终提交后不可修改 |
-| `POST /challenges/:id/patches?scope=` | multipart 补丁包，返回持久化任务 ID |
-| `GET /challenges/:id/patches?scope=` | 本人的/本队最近 10 个校验任务、判定结果、剩余额度与冷却时间，不返回内部镜像或文件路径 |
+| `POST /challenges/:id/patches?scope=` | multipart `tar.gz`，根目录含非空普通文件 `update.sh`；验证通过后返回持久化任务 ID |
+| `GET /challenges/:id/patches?scope=` | 本人的/本队最近 10 个校验任务、判定结果、剩余额度、冷却时间及 submission 提交说明，不返回内部镜像或文件路径 |
+| `GET /challenges/:id/patches/example?scope=` | 鉴权并检查作答与资源权限，下载 `application/gzip` 附件 `defense-example.tar.gz`；含根目录 update.sh 与 files/example.conf |
 | `GET /challenges/:id/rounds?scope=` | 当前轮次、自己的累计积分与最近轮次明细 |
 | `GET /challenges/:id/arena?scope=` | AWD 对抗地址、服务检查与轮次信息 |
 | `POST /challenges/:id/attack` | `{scope,flag}`，AWD 攻击提交 |
@@ -436,17 +437,22 @@ POST 最多 200 题，单填空 500 字符、每题最多 10 个空位，总请�
 
 题目详情返回 `submission_usage:{flag,defense}`，每项为 `{limit,used,remaining}`。无限时 limit/remaining 为 null。Flag 正误、重复提交及 AWD 无效攻击均计次；格式、权限、速率限制等在受理前拒绝的请求不计次。防御申请以任务成功入队为准，后续判题失败仍计次；无效补丁包、冷却拒绝及资源不足不计次。服务端在事务中锁定队伍/题目额度，耗尽返回 409。
 
-补丁列表返回 `{items,usage,next_operation_at}`。items 中的 `result` 含 `verdict` 和 `stage`：
+补丁列表返回 `{items,usage,next_operation_at,submission}`。防守题的 `submission` 为 `{format:"tar.gz",entrypoint:"update.sh",workdir:"/app",timeout:30,restart_required:false}`；工作目录、脚本时限取自题目配置，不含检查器设置，不接受补丁的题目为 null。示例包脚本通过 `cp -R "$PATCH_DIR/files/." .` 复制示意文件，须替换为真正的修复文件后提交；不是通用有效防御。下载同样需要有效登录会话、题目访问、作答阶段和资源权限。
+
+管理端 `patch_config.update_timeout` 为整数 1–120 秒，默认 30；保存、读取已有配置与任务快照均补齐默认值。`patch_root` 是 `/app`、`/srv`、`/opt` 及其子目录内的执行工作目录，默认 `/app`，不再自动覆盖文件。平台以 `/bin/sh` 执行根目录 `update.sh`（无需可执行位），以 `PATCH_DIR=/.nebuctf-update` 提供包路径，脚本成功后自动启动原服务；无需脚本启动/重启服务，禁止后台运行或联网安装依赖。更新器隔离规则见 [比赛规则](COMPETITION-RULES.md#awdp--awd-补丁与检查器)。
+
+items 中的 `result` 含 `verdict` 和 `stage`：
 
 | verdict | 界面结果 | 含义 |
 | --- | --- | --- |
-| checking | Check 中 | 构建、正常服务检测或漏洞利用检测 |
+| checking | 更新中 / Check 中 | 构建、运行更新脚本、正常服务检测或漏洞利用检测 |
+| update_error | 更新失败 | 更新脚本非零退出或超时，未运行检查器 |
 | service_error | 服务异常 | 正常服务检测退出码为 1 |
 | exploit_success | EXP 利用成功 | 漏洞利用检测退出码为 1，漏洞仍能利用 |
 | defended | 防御成功 | 两项检测均返回 0，成绩处理完成 |
 | error | 校验异常 | 构建、超时、检查器错误或任务中断 |
 
-原有任务 status（queued/building/checking/passed/failed/cancelled）保留；stage 为 queued/building/functional/defense/complete。`result.image` 只供 Worker 使用，不返回选手。
+原有任务 status（queued/building/checking/passed/failed/cancelled）保留；stage 为 queued/building/updating/functional/defense/complete。updating 时 status 仍为 building。更新成功写入 `result.update=true`；脚本非零退出可含整数 `result.update_exit_code`。超时仅返回安全说明，不返回原始脚本或检查器输出。`result.image` 只供 Worker 使用，不返回选手。
 
 比赛动态 WebSocket 另推送 `{type:"judges",revision}`，仅通知当前队伍刷新补丁及题目状态，不包含补丁文件名、任务 ID 或结果内容。客户端使用同一比赛连接，判题期间另有 1 秒轮询兜底，防守页空闲时 10 秒刷新；练习场通过轮询更新。截止后仍可查看已有结果。
 
