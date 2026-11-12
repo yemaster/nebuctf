@@ -6,13 +6,12 @@ import { openDB } from "./db.js";
 import { config } from "./config.js";
 import { AwdWorker } from "./awd-worker.js";
 import { JudgeWorker } from "./judge-worker.js";
-import { tickRounds } from "./rounds.js";
 import { Worker } from "./worker.js";
 import { TrafficWorker } from "./traffic-worker.js";
 import { ImageWorker } from "./image-worker.js";
 if (!config.DATABASE_URL) throw Error("Worker requires shared PostgreSQL");
-// One elected scheduler per Docker domain, with four concurrent provisioning tasks.
-// The session lock fences competing schedulers; losing the connection terminates this process.
+// One elected runtime per Docker domain, with four concurrent provisioning tasks.
+// The session lock fences competing runtimes; losing the connection terminates this process.
 const leader = new pg.Client({
   connectionString: config.DATABASE_URL,
   keepAlive: true,
@@ -24,7 +23,7 @@ const election = await leader.query(
 );
 if (!election.rows[0].elected) {
   await leader.end();
-  throw Error("A worker already owns this scheduling domain");
+  throw Error("A worker already owns this execution domain");
 }
 const db = await openDB(),
   worker = new Worker(db),
@@ -51,7 +50,6 @@ while (running) {
     traffic.tick();
     await judges.tick();
     await awd.tick();
-    if (iteration % 5 === 0) await tickRounds(db);
     await images
       .tick()
       .catch((e) =>
@@ -62,15 +60,6 @@ while (running) {
     if (iteration % 5 === 0) {
       await db.query(
         "INSERT INTO system_settings(key,value) VALUES('worker_heartbeat','{}') ON CONFLICT(key) DO UPDATE SET updated_at=now()",
-      );
-      await db.query("DELETE FROM email_verifications WHERE expires_at<now()");
-    }
-    if (iteration % 30 === 0) {
-      await db.query(
-        "UPDATE ai_calls SET status=504,elapsed_ms=LEAST(2147483647,extract(epoch FROM (expires_at-created_at))*1000)::int WHERE id IN (SELECT id FROM ai_calls WHERE status=0 AND expires_at<now() ORDER BY expires_at LIMIT 5000)",
-      );
-      await db.query(
-        "DELETE FROM ai_calls WHERE id IN (SELECT id FROM ai_calls WHERE created_at<now()-interval '90 days' ORDER BY created_at LIMIT 5000)",
       );
     }
   } catch (e) {

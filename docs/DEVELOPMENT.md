@@ -18,6 +18,8 @@ npm run format
 
 `.env` 由 Compose 使用，原生 Node 进程不会自动读取它。生产镜像不包含 PGlite 或开发工具。管理员通过 CLI 创建，账号密码经 stdin，不在命令行参数中传递。
 
+根目录 `npm run dev` 在 PostgreSQL 模式启动独立 Scheduler；直接启动 API 工作区时另运行 `npm run scheduler:dev -w apps/api`。生产入口为 `node dist/scheduler-main.js`，API 不再执行定时任务。PGlite 开发模式由 API 复用同一串行 DB handle 执行相同 Scheduler，不能启动第二个嵌入数据库写进程。Scheduler 负责发布、提醒、轮次与非执行数据清理；Runtime（`worker-main.ts`）保留 Docker 资源、终端与执行心跳。
+
 ## 组织方式
 
 - HTTP 接口位于 `apps/api/src`，按身份、战队、题目、赛事、资源、学习与管理划分模块；`schemas.ts` 负责输入，`context.ts` 负责共享权限上下文。

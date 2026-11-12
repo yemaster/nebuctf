@@ -1,52 +1,24 @@
 import { openDB } from "./db.js";
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
-import { publishScheduledChallenges } from "./challenge-publication.js";
-import { publishNotificationReminders } from "./notifications.js";
+import { runScheduler } from "./scheduler.js";
+const schedulerAbort = new AbortController();
 const db = await openDB(),
   app = await buildApp(db, true);
-const gc = setInterval(
-  () =>
-    db
-      .query("DELETE FROM sessions WHERE expires_at<now()")
-      .then(() => db.query("DELETE FROM rate_limits WHERE expires_at<now()"))
-      .then(() => db.query("DELETE FROM captcha_uses WHERE expires_at<now()"))
-      .catch((err) => app.log.error(err)),
-  300000,
-);
-gc.unref();
-let publication: Promise<unknown> | undefined;
-const publish = () => {
-  if (publication) return;
-  publication = publishScheduledChallenges(db)
-    .catch((err) => app.log.error(err))
-    .finally(() => {
-      publication = undefined;
-    });
-};
-publish();
-const publisher = setInterval(publish, 2000);
-publisher.unref();
-let reminders: Promise<unknown> | undefined;
-const remind = () => {
-  if (reminders) return;
-  reminders = publishNotificationReminders(db)
-    .catch((err) => app.log.error(err))
-    .finally(() => {
-      reminders = undefined;
-    });
-};
-remind();
-const reminderTimer = setInterval(remind, 30000);
-reminderTimer.unref();
+// PGlite must have one process and one serialized DB handle. Development embeds
+// the same scheduler; PostgreSQL development runs its standalone elected entrypoint.
+const scheduling =
+  config.NODE_ENV === "development" && !config.DATABASE_URL
+    ? runScheduler(db, schedulerAbort.signal, (error) => app.log.error(error))
+    : undefined;
+let closing = false;
 for (const signal of ["SIGTERM", "SIGINT"])
   process.once(signal, async () => {
-    clearInterval(gc);
-    clearInterval(publisher);
-    clearInterval(reminderTimer);
+    if (closing) return;
+    closing = true;
+    schedulerAbort.abort();
     await app.close();
-    await publication;
-    await reminders;
+    await scheduling;
     await db.close();
     process.exit(0);
   });

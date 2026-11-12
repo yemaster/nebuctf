@@ -8,6 +8,8 @@
     "typecheck": "tsc --noEmit",
     "start": "node dist/main.js",
     "worker": "tsx src/worker-main.ts",
+    "scheduler": "tsx src/scheduler-main.ts",
+    "scheduler:dev": "tsx watch src/scheduler-main.ts",
     "test": "tsx --test test/*.test.ts",
     "seed": "tsx src/cli.ts seed",
     "admin": "tsx src/cli.ts admin"

@@ -1,6 +1,12 @@
 import { spawn } from "node:child_process";
-const children = ["apps/api", "apps/web"].map((workspace) =>
-  spawn("npm", ["run", "dev", "-w", workspace], { stdio: "inherit" }),
+const services = [
+  ["apps/api", "dev"],
+  ["apps/web", "dev"],
+];
+// A separate process is safe only with PostgreSQL, never with embedded PGlite.
+if (process.env.DATABASE_URL) services.push(["apps/api", "scheduler:dev"]);
+const children = services.map(([workspace, script]) =>
+  spawn("npm", ["run", script, "-w", workspace], { stdio: "inherit" }),
 );
 let stopping = false;
 function stop() {

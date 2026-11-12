@@ -1,6 +1,6 @@
 # NebuCTF
 
-自托管的 CTF 竞赛与学习平台。React + shadcn/ui、Fastify、PostgreSQL；Docker Compose 部署。实现范围和真实验收状态分别见 [方案](docs/PLAN.md) 与 [验证记录](docs/VERIFICATION.md)。首版已完成真实 Docker 资源与数据库集成验收；浏览器视觉验收和生产压力测试仍待完成。本次运行入口与账号说明见 [本地测试](docs/LOCAL_TEST.md)。
+自托管的 CTF 竞赛与学习平台。React + shadcn/ui、Fastify、PostgreSQL；支持 Docker Compose，或 k3s 平台配合独立 Docker 执行域，部署边界见 [部署文档](docs/DEPLOYMENT.md)。实现范围和真实验收状态分别见 [方案](docs/PLAN.md) 与 [验证记录](docs/VERIFICATION.md)。本次运行入口与账号说明见 [本地测试](docs/LOCAL_TEST.md)。
 
 ## 功能
 
@@ -37,7 +37,7 @@ node scripts/admin.mjs
 
 ## 本地开发
 
-需要 Node.js 24.14+。生产使用 PostgreSQL，本地 API 可使用 PGlite；容器 Worker/gateway 必须连接共享 PostgreSQL。
+需要 Node.js 24.14+。生产使用 PostgreSQL，本地 API 可使用 PGlite；独立 Scheduler、Runtime/gateway 必须连接共享 PostgreSQL。
 
 ```sh
 npm ci
@@ -51,7 +51,7 @@ npm run dev
 DATA_DIR="$PWD/.data" node scripts/admin.mjs --local
 ```
 
-使用 PostgreSQL 时通过环境变量设置 DATABASE_URL；环境变量不会由程序自动从 `.env` 读取，Compose 会自动使用根目录 `.env`。API、Worker、gateway 必须使用相同的数据库和 APP_SECRET。启动 Worker：`npm run worker -w apps/api`；网关：`node --import tsx apps/api/src/gateway-main.ts`。
+使用 PostgreSQL 时通过环境变量设置 DATABASE_URL；环境变量不会由程序自动从 `.env` 读取，Compose 会自动使用根目录 `.env`。API、Scheduler、Runtime、gateway 必须使用相同的数据库和 APP_SECRET。根目录 `npm run dev` 在 PostgreSQL 模式同时启动 Scheduler；直接运行 API 工作区时另启 `npm run scheduler:dev -w apps/api`。PGlite 开发模式由 API 进程复用同一 DB handle 运行 Scheduler，不能另开嵌入数据库进程。Runtime：`npm run worker -w apps/api`；网关：`node --import tsx apps/api/src/gateway-main.ts`。
 
 ## 检查
 
@@ -70,11 +70,11 @@ npm run format
 
 | 路径 | 用途 |
 | --- | --- |
-| `apps/api/src` | HTTP API、领域规则、SQL、Worker、反向代理网关 |
+| `apps/api/src` | HTTP API、领域规则、SQL、Scheduler、Docker Runtime、反向代理网关 |
 | `apps/web/src` | 前端页面、数据请求、shadcn/ui 组件 |
 | `apps/api/test` | 权限、计分、隔离、调度、技能图与数据库集成测试 |
 | `examples` | 动态附件生成器和靶机镜像示例 |
-| `deploy` | Nginx、通配符代理、防火墙和 Docker 地址池示例 |
+| `deploy` | Compose/k3s 混合部署、节点引导、Nginx、通配符代理与隔离防火墙 |
 | `docs` | 实现方案、部署、出题、用户/管理员教程、验收记录 |
 
 本项目独立实现，参考 [GZCTF](https://github.com/GZTimeWalker/GZCTF)、[Ret2Shell](https://github.com/ret2shell/ret2shell) 与 [CTFd](https://docs.ctfd.io/) 的公开功能设计。未复制其源码、品牌或界面资产。

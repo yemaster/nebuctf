@@ -71,6 +71,34 @@ services:
       timeout: 5s
       retries: 5
     logging: *logging
+  scheduler:
+    image: nebuctf-platform:local
+    build: { context: ., target: api }
+    command: [node, dist/scheduler-main.js]
+    environment: *app-env
+    networks: [platform]
+    depends_on: { db: { condition: service_healthy } }
+    stop_grace_period: 120s
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=32m,noexec,nosuid"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "const fs=require('fs');process.exit(Date.now()-Number(fs.readFileSync('/tmp/scheduler-health','utf8'))<120000?0:1)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *logging
   gateway:
     image: nebuctf-platform:local
     build: { context: ., target: api }
@@ -148,7 +176,9 @@ services:
     depends_on: { api: { condition: service_healthy } }
     restart: unless-stopped
     read_only: true
-    tmpfs: ["/tmp:size=64m,noexec,nosuid"]
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+      - /etc/nginx/conf.d:size=1m,uid=101,gid=101,nosuid,nodev,noexec
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 128m

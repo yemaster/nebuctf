@@ -1059,3 +1059,34 @@ Web 类型检查通过。真实 Chrome 分别拦截 Auth 模块与 `/api/site` �
 
 已部署到 huawei-sh，仅重建和替换 Web；API、数据库、Worker、Gateway 容器 ID 不变。生产构建、Nginx 配置与公网健康检查通过。公网 Chrome 延迟真实 Auth 模块和站点配置请求，检查桌面登录及移动深色注册的加载前后，骨架与表单位置和宽高一致，无横向溢出、无页面运行错误。回退镜像 `nebuctf-web:before-auth-skeleton-20261110`，源码备份 `/opt/nebuctf/.data/deploy-auth-skeleton-20261110/source.tar.gz`，新镜像标记 `nebuctf-web:auth-skeleton-20261110`。
 
+
+## 2026-11-11：Scheduler 拆分与 tencent-sh 混合部署迁移
+
+正式入口为 `http://101.34.76.52:61001`，保持 HTTP，未配置 HTTPS。Web、API、Scheduler 运行于 k3s 的 `nebuctf` 命名空间，PostgreSQL 运行于 `platform-data`；Runtime、gateway 与题目继续使用 Docker。没有部署 Registry 或 Agent 评测服务。
+
+amd64 后端/Web 镜像构建通过（含 TypeScript 与 Vite）。实际发现并修复 Nginx 动态 resolver 不应用 Pod DNS search 后缀的问题：Compose 默认 `NGINX_API_UPSTREAM=api:3000`，k3s 使用 `api.nebuctf.svc.cluster.local:3000`，复用同一模板。Traefik 保留客户端地址并禁用 NodePort 分配，已清除初始分配，避免占用题目端口池。
+
+预演使用独立 `nebuctf_preview` 库及临时账号，不对正式库执行写入型 smoke。真实链路验证包括：
+
+- 登录/注册、管理员出题、动态端口 Flag 校验；公网实际题目端口 30001 返回 HTTP 200，配置池为 `30000-50000`。
+- 泛域名 gateway HTTP/WS、每实例独立 Flag、Cookie/转发头隔离、公共容器、动态 ZIP 附件校验与资源回收。
+- 内置 `scripts/smoke.mjs` 随后因源数据没有固定题名「初识 Flag」而停止；静态附件上传/下载另用真实 fixture 请求补验通过。
+- 真实终端 PTY 输入/输出、UID 65534，终端内无 ServiceAccount token/Docker Socket，无法连接数据库 `10.43.0.20:5432`，结束后回收。
+- 比赛报名后创建真实题目，活动 WebSocket 接收更新，正确提交后榜单为 500 分；抓包 sidecar 收集实际 HTTP 请求，停止环境后通过 API 下载 PCAP，验证文件魔数及本次唯一请求标记。
+
+旧端先停止 API/Worker，断言活跃实例与判题为零，再停止 Web/gateway，完成一致性逻辑备份与文件归档后停止数据库。最终备份在旧端、新端及本机各保留一份；五个归档文件的 SHA-256 在新端全部校验通过。恢复使用独立、非超级用户的 `nebuctf` 应用角色，并按 API 迁移 → Scheduler/Web → Docker Runtime/gateway 顺序启动。原 `APP_SECRET` 已核对并保留。
+
+| 数据 | 旧端冻结时 | 新端正式库 |
+| --- | ---: | ---: |
+| 用户 | 7 | 7 |
+| 战队 | 4 | 4 |
+| 题目 | 10 | 10 |
+| 比赛 | 8 | 8 |
+| 提交 | 78 | 78 |
+| 静态附件记录 | 0 | 0 |
+
+切换后 API/Scheduler/Web/PostgreSQL 各一个 Pod 全部 Ready，Runtime/gateway 均 healthy。应用角色 `rolsuper/rolcreatedb/rolcreaterole/rolreplication` 均为 false；宿主机采样总内存 3729 MiB，available 1888 MiB（无运行题目，不是新增项目的保证预算）。
+
+正式公网真实 Chrome 检查桌面登录与 390×844 注册页面，无横向溢出；`/api/health` 为 HTTP 200。实际验证码通过后，以不存在账号提交得到预期 HTTP 401「账号或密码错误」，未创建或修改正式账号；独立注册页面无运行错误。原有账号与业务数据保持迁移源状态。
+
+当前生成清单为新端 `/opt/nebuctf/deploy/production.yaml`，配套 `production-api-first.yaml`；后端版本 `split-20261111`，Web 版本 `split-20261111-proxy`。最终回滚备份为两端 `/opt/nebuctf-backups/tencent-20261111-final/`，本机为 `.data/tencent-migration-D03LOs/tencent-20261111-final/`。旧端容器和数据保留、服务停止；不能直接重新开放过期旧库写入。预演库、临时目录、测试账号凭据和验证脚本已清理。

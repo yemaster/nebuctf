@@ -1,0 +1,92 @@
+# These local PVs deliberately survive PVC deletion. No dynamic provisioner.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: platform-postgres
+spec:
+  capacity:
+    storage: 12Gi
+  accessModes: [ReadWriteOnce]
+  storageClassName: ""
+  persistentVolumeReclaimPolicy: Retain
+  claimRef:
+    namespace: platform-data
+    name: postgres
+  local:
+    path: /srv/platform/postgres
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [tencent-sh]
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nebuctf-data
+spec:
+  capacity:
+    storage: 16Gi
+  accessModes: [ReadWriteOnce]
+  storageClassName: ""
+  persistentVolumeReclaimPolicy: Retain
+  claimRef:
+    namespace: nebuctf
+    name: data
+  local:
+    path: /srv/nebuctf/data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [tencent-sh]
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nebuctf-traffic
+spec:
+  capacity:
+    storage: 8Gi
+  accessModes: [ReadWriteOnce]
+  storageClassName: ""
+  persistentVolumeReclaimPolicy: Retain
+  claimRef:
+    namespace: nebuctf
+    name: traffic
+  local:
+    path: /srv/nebuctf/traffic
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [tencent-sh]
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nebuctf-web-assets
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes: [ReadWriteOnce]
+  storageClassName: ""
+  persistentVolumeReclaimPolicy: Retain
+  claimRef:
+    namespace: nebuctf
+    name: web-assets
+  local:
+    path: /srv/nebuctf/web-assets
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [tencent-sh]

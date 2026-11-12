@@ -28,7 +28,8 @@ EXPOSE 3000
 CMD ["node", "dist/main.js"]
 
 FROM nginxinc/nginx-unprivileged:1.28-alpine AS web
-COPY --chown=nginx:nginx deploy/nginx.conf /etc/nginx/conf.d/default.conf
+ENV NGINX_RESOLVER=127.0.0.11 NGINX_TRUSTED_PROXY_CIDR=127.0.0.1/32 NGINX_API_UPSTREAM=api:3000 NGINX_ENVSUBST_FILTER=^NGINX_
+COPY --chown=nginx:nginx deploy/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --chown=nginx:nginx --from=build /app/apps/web/dist /usr/share/nginx/html
 USER root
 RUN mkdir -p /var/cache/nebuctf/assets && chown -R nginx:nginx /var/cache/nebuctf

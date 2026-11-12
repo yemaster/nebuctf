@@ -1,0 +1,115 @@
+# Hybrid execution domain only. API/Scheduler/web/PostgreSQL run in k3s.
+# Use a root-readable --env-file; never mount the Docker socket into a Pod.
+name: nebuctf-runtime
+x-app-env: &app-env
+  NODE_ENV: production
+  DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL using 10.43.0.20 and the nebuctf role}
+  APP_SECRET: ${APP_SECRET:?set the migrated APP_SECRET}
+  APP_ORIGIN: ${APP_ORIGIN:-http://101.34.76.52:61001}
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  DATA_DIR: /data
+  TRAFFIC_DIR: /captures
+  TRAFFIC_VOLUME: nebuctf_traffic
+  TRAFFIC_IMAGE: ${TRAFFIC_IMAGE:-nebuctf/traffic:local}
+  TERMINAL_IMAGE: ${TERMINAL_IMAGE:-nebuctf/terminal:local}
+  TERMINAL_WORKER_URL: ws://172.31.80.3:8082
+  IMAGE_PREFIXES: ${IMAGE_PREFIXES:-nebuctf/}
+  CHALLENGE_HOST: ${CHALLENGE_HOST:-101.34.76.52}
+  CHALLENGE_BIND: ${CHALLENGE_BIND:-0.0.0.0}
+  CHALLENGE_PORT_RANGE: ${CHALLENGE_PORT_RANGE:-30000-50000}
+  CHALLENGE_DOMAIN: ${CHALLENGE_DOMAIN:-labs.localhost}
+  DOMAIN_SCHEME: ${DOMAIN_SCHEME:-http}
+  GATEWAY_CONTAINER: nebuctf-gateway
+  MAX_INSTANCES: ${MAX_INSTANCES:-2}
+  MAX_OWNER_INSTANCES: ${MAX_OWNER_INSTANCES:-2}
+  MAX_CPU: ${MAX_CPU:-1000}
+  MAX_MEMORY: ${MAX_MEMORY:-512}
+services:
+  nebuctf-gateway:
+    image: nebuctf-api:${NEBUCTF_RELEASE:?set NEBUCTF_RELEASE to the imported release tag}
+    pull_policy: never
+    container_name: nebuctf-gateway
+    labels: { io.nebuctf.gateway: "true" }
+    command: [node, dist/gateway-main.js]
+    user: "1000:1000"
+    environment: *app-env
+    networks:
+      management:
+        ipv4_address: 172.31.80.4
+    ports: ["127.0.0.1:${GATEWAY_HTTP_PORT:-8081}:8081"]
+    stop_grace_period: 120s
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=32m,noexec,nosuid"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 96m
+    cpus: 0.25
+    pids_limit: 128
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8081/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging: &logging
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+  runtime:
+    image: nebuctf-api:${NEBUCTF_RELEASE:?set NEBUCTF_RELEASE to the imported release tag}
+    pull_policy: never
+    container_name: nebuctf-worker
+    command: [node, dist/worker-main.js]
+    # The socket group is Docker-root-equivalent. Do not chmod the socket 0666.
+    user: "1000:${DOCKER_GID:?set DOCKER_GID from the host Docker socket}"
+    environment: *app-env
+    volumes:
+      - type: bind
+        source: /srv/nebuctf/data
+        target: /data
+        bind:
+          create_host_path: false
+      - traffic:/captures
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+    networks:
+      management:
+        ipv4_address: 172.31.80.3
+    depends_on:
+      nebuctf-gateway:
+        condition: service_healthy
+    stop_grace_period: 120s
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=64m,noexec,nosuid"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 128
+    healthcheck:
+      test: [CMD, node, -e, "const fs=require('fs');process.exit(Date.now()-Number(fs.readFileSync('/tmp/worker-health','utf8'))<120000?0:1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging: *logging
+networks:
+  management:
+    name: nebuctf_management
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: nebu-mgmt
+    ipam:
+      config:
+        - subnet: 172.31.80.0/24
+          gateway: 172.31.80.1
+volumes:
+  # Capture sidecars resolve this exact volume name through the Docker API.
+  # It MUST point at the same directory as the k3s traffic local PV.
+  traffic:
+    name: nebuctf_traffic
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /srv/nebuctf/traffic

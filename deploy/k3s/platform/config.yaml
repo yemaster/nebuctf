@@ -1,0 +1,54 @@
+# Non-secret defaults. Live Secrets are created separately, never generated
+# from committed credentials. API and Scheduler must use the same APP_SECRET.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  NODE_ENV: production
+  APP_ORIGIN: http://101.34.76.52:61001
+  COOKIE_SECURE: "false"
+  DATA_DIR: /data
+  TRAFFIC_DIR: /captures
+  TRAFFIC_VOLUME: nebuctf_traffic
+  TRAFFIC_IMAGE: nebuctf/traffic:local
+  TERMINAL_IMAGE: nebuctf/terminal:local
+  IMAGE_PREFIXES: nebuctf/
+  CHALLENGE_HOST: 101.34.76.52
+  CHALLENGE_BIND: 0.0.0.0
+  CHALLENGE_PORT_RANGE: 30000-50000
+  CHALLENGE_DOMAIN: labs.localhost
+  DOMAIN_SCHEME: http
+  GATEWAY_CONTAINER: nebuctf-gateway
+  MAX_INSTANCES: "2"
+  MAX_OWNER_INSTANCES: "2"
+  MAX_CPU: "1000"
+  MAX_MEMORY: "512"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+data:
+  HOST: 0.0.0.0
+  PORT: "3000"
+  TERMINAL_WORKER_URL: ws://172.31.80.3:8082
+  # API ingress is restricted to web Pods. Trust only the cluster Pod CIDR.
+  TRUST_PROXY: 10.42.0.0/16
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scheduler-config
+data:
+  # No listening port, filesystem PVC, Docker socket, or Kubernetes API token.
+  TERMINAL_PORT: "0"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-config
+data:
+  NGINX_RESOLVER: 10.43.0.10
+  NGINX_TRUSTED_PROXY_CIDR: 10.42.0.0/16
+  NGINX_API_UPSTREAM: api.nebuctf.svc.cluster.local:3000

@@ -1,0 +1,26 @@
+# Apply before the root Kustomization during initial install/schema upgrades.
+# Inherits the root image substitutions but keeps DB-only Scheduler and web
+# stopped until API startup migrations and readiness have completed.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../k3s
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: scheduler
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 0
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: web
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 0
