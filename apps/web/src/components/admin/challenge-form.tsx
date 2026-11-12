@@ -277,6 +277,8 @@ export function ChallengeForm({
                   <MarkdownEditor
                     id="challenge-description"
                     name="description"
+                    label="题目内容"
+                    placeholder="使用 Markdown 编写题面"
                     value={description}
                     onChange={setDescription}
                     disabled={pending || readOnly}

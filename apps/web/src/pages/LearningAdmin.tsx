@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { api, useAction, useAPI } from "@/lib/api";
 import type { Article, LearningTree } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Input, Textarea } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   NativeSelect,
@@ -20,7 +20,7 @@ import {
   Pagination,
   Loading,
 } from "@/components/shared";
-import { Markdown } from "@/components/markdown";
+import { MarkdownEditor } from "@/components/markdown-editor";
 import {
   AdminToolbar,
   EditorHeading,
@@ -167,8 +167,7 @@ function ArticleForm({
   save: (body: Record<string, unknown>) => void;
   pending: boolean;
 }) {
-  const [body, setBody] = useState(a?.body ?? ""),
-    [preview, setPreview] = useState(false);
+  const [body, setBody] = useState(a?.body ?? "");
   return (
     <form
       id="article-form"
@@ -220,29 +219,15 @@ function ArticleForm({
         </Field>
       </div>
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium">Markdown 正文</h2>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setPreview(!preview)}
-          >
-            {preview ? "继续编辑" : "预览"}
-          </Button>
-        </div>
-        {preview ? (
-          <div className="min-h-80">
-            <Markdown>{body}</Markdown>
-          </div>
-        ) : (
-          <Textarea
-            aria-label="Markdown 正文"
-            rows={20}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            maxLength={200000}
-          />
-        )}
+        <h2 className="text-sm font-medium">Markdown 正文</h2>
+        <MarkdownEditor
+          id="article-body"
+          name="body"
+          label="知识库文章正文"
+          value={body}
+          onChange={setBody}
+          maxLength={200000}
+        />
       </section>
       <div className="flex items-center justify-between">
         <label className="flex items-center gap-2 text-sm">

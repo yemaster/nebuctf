@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext, useEffect, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import MDEditor, {
   commands,
   EditorContext,
@@ -37,9 +38,18 @@ import { useTheme } from "./theme-provider";
 import type { MarkdownEditorProps } from "./markdown-editor";
 import "./markdown-editor.css";
 
-const EditorOptionsContext = createContext({
+const EditorOptionsContext = createContext<{
+  disabled: boolean;
+  maxLength: number;
+  label: string;
+  id: string;
+  validationRef: RefObject<HTMLTextAreaElement | null> | null;
+}>({
   disabled: false,
   maxLength: 20000,
+  label: "Markdown 正文",
+  id: "",
+  validationRef: null,
 });
 const formatting: ICommand[] = [
   {
@@ -89,17 +99,31 @@ const tools = new Map<ICommand, [string, typeof Bold]>([
 function FullscreenLifecycle() {
   const { fullscreen, dispatch, container, textarea, markdown, preview } =
     useContext(EditorContext);
-  const { maxLength } = useContext(EditorOptionsContext);
+  const { maxLength, label, id, validationRef } =
+    useContext(EditorOptionsContext);
   useEffect(() => {
     if (!textarea) return;
     textarea.tabIndex = preview === "preview" ? -1 : 0;
     textarea.setAttribute("aria-hidden", String(preview === "preview"));
     textarea.setCustomValidity(
-      (markdown?.length ?? 0) > maxLength ? `题面最多 ${maxLength} 个字符` : "",
+      (markdown?.length ?? 0) > maxLength
+        ? `${label}最多 ${maxLength} 个字符`
+        : "",
     );
     if ((markdown?.length ?? 0) > maxLength && preview === "preview")
       dispatch?.({ preview: "edit" });
-  }, [textarea, markdown, maxLength, preview, dispatch]);
+  }, [textarea, markdown, maxLength, label, preview, dispatch]);
+  useEffect(() => {
+    const validation = validationRef?.current;
+    if (!validation) return;
+    const revealInvalidSource = () => {
+      if (preview === "preview")
+        flushSync(() => dispatch?.({ preview: "edit" }));
+      validation.ownerDocument.getElementById(id)?.focus();
+    };
+    validation.addEventListener("invalid", revealInvalidSource);
+    return () => validation.removeEventListener("invalid", revealInvalidSource);
+  }, [validationRef, id, preview, dispatch]);
   useEffect(() => {
     if (!fullscreen) return;
     const overflow = document.body.style.overflow;
@@ -237,7 +261,7 @@ const components: MDEditorProps["components"] = {
     source ? (
       <Markdown>{source}</Markdown>
     ) : (
-      <p className="text-sm text-muted-foreground">暂无题面</p>
+      <p className="text-sm text-muted-foreground">暂无内容</p>
     ),
 };
 
@@ -247,10 +271,19 @@ export default function MarkdownEditorImpl({
   onChange,
   disabled = false,
   maxLength = 20000,
-}: MarkdownEditorProps) {
+  label = "Markdown 正文",
+  placeholder = "使用 Markdown 编写内容",
+  required = false,
+  height = 420,
+  validationRef,
+}: MarkdownEditorProps & {
+  validationRef: RefObject<HTMLTextAreaElement | null>;
+}) {
   const { resolved } = useTheme();
   return (
-    <EditorOptionsContext.Provider value={{ disabled, maxLength }}>
+    <EditorOptionsContext.Provider
+      value={{ disabled, maxLength, label, id, validationRef }}
+    >
       <MDEditor
         className="nebuctf-markdown-editor"
         data-color-mode={resolved}
@@ -260,20 +293,21 @@ export default function MarkdownEditorImpl({
         extraCommands={modes}
         components={components}
         preview="edit"
-        height={420}
+        height={height}
         minHeight={280}
         maxHeight={900}
         defaultTabEnable
         overflow={false}
         textareaProps={{
           id,
-          "aria-label": "题目内容",
+          "aria-label": label,
           maxLength,
+          required,
           "aria-invalid": value.length > maxLength,
           "aria-describedby":
             value.length > maxLength ? `${id}-error` : undefined,
           disabled,
-          placeholder: "使用 Markdown 编写题面",
+          placeholder,
         }}
       />
     </EditorOptionsContext.Provider>

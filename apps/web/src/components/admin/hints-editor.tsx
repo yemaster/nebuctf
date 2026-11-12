@@ -2,7 +2,7 @@ import type { HintDefinition } from "@/lib/hints";
 import { randomUUID } from "@/lib/random-uuid";
 import { ArrowUp, ArrowDown, Plus, X } from "lucide-react";
 import { Button } from "../ui/button";
-import { Textarea } from "../ui/input";
+import { MarkdownEditor } from "../markdown-editor";
 import { FieldLabel } from "../ui/field";
 
 export function HintsEditor({
@@ -62,18 +62,17 @@ export function HintsEditor({
               </Button>
             </div>
           </div>
-          <Textarea
+          <MarkdownEditor
             id={`hint-${hint.id}`}
-            aria-label={`提示 ${index + 1}`}
+            name={`hint-${hint.id}`}
+            label={`提示 ${index + 1}`}
             value={hint.content}
-            onChange={(e) =>
+            onChange={(content) =>
               onChange(
-                value.map((v, i) =>
-                  i === index ? { ...v, content: e.target.value } : v,
-                ),
+                value.map((v) => (v.id === hint.id ? { ...v, content } : v)),
               )
             }
-            rows={2}
+            height={280}
             maxLength={2000}
             disabled={disabled}
           />

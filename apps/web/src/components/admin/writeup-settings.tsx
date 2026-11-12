@@ -1,5 +1,6 @@
 import { Field } from "../shared";
-import { Input, Textarea } from "../ui/input";
+import { Input } from "../ui/input";
+import { MarkdownEditor } from "../markdown-editor";
 import { Switch } from "../ui/switch";
 import { Checkbox } from "../ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
@@ -134,13 +135,16 @@ export function WriteupSettings({
           </Field>
         </div>
         <Field label="提交要求">
-          <Textarea
-            aria-label="WriteUp 提交要求"
+          <MarkdownEditor
+            id="writeup-note"
+            name="writeup_note"
+            label="WriteUp 提交要求"
             value={value.note}
             maxLength={5000}
-            rows={5}
-            onChange={(e) => set({ note: e.target.value })}
+            height={280}
+            onChange={(note) => set({ note })}
             placeholder="填写文档内容、命名方式等要求，支持 Markdown"
+            disabled={!value.enabled || disabled}
           />
         </Field>
       </fieldset>

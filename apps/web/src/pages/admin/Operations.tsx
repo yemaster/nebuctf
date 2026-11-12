@@ -26,7 +26,8 @@ import type {
 } from "@/lib/types";
 import { date, statusNames } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input, Textarea } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
+import { MarkdownEditor } from "@/components/markdown-editor";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -170,70 +171,86 @@ export function AnnouncementEditor() {
         />
       )}
       {(!id || data.data) && (
-        <form
-          id="announcement-form"
+        <AnnouncementForm
           key={id ?? "new"}
-          className="grid gap-5 rounded-xl bg-card p-6 lg:p-8"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            save.mutate({
-              title: f.get("title"),
-              body: f.get("body"),
-              contest_id: f.get("contest_id") || null,
-            });
-          }}
-        >
-          <Field label="发布范围">
-            <NativeSelect
-              name="contest_id"
-              defaultValue={data.data?.contest_id ?? ""}
-            >
-              <NativeSelectOption value="">全站公告</NativeSelectOption>
-              {contests.data?.items.map((c) => (
-                <NativeSelectOption key={c.id} value={c.id}>
-                  {c.title}
-                </NativeSelectOption>
-              ))}
-              {data.data?.contest_id &&
-                !contests.data?.items.some(
-                  (c) => c.id === data.data?.contest_id,
-                ) && (
-                  <NativeSelectOption value={data.data.contest_id}>
-                    当前比赛
-                  </NativeSelectOption>
-                )}
-            </NativeSelect>
-          </Field>
-          <Field label="标题">
-            <Input
-              name="title"
-              defaultValue={data.data?.title}
-              required
-              maxLength={120}
-            />
-          </Field>
-          <Field label="内容">
-            <Textarea
-              name="body"
-              defaultValue={data.data?.body}
-              rows={12}
-              required
-              maxLength={10000}
-            />
-          </Field>
-          <Button
-            type="submit"
-            className="justify-self-end"
-            disabled={save.isPending}
-          >
-            保存公告
-          </Button>
-        </form>
+          notice={data.data ?? null}
+          contests={contests.data?.items ?? []}
+          pending={save.isPending}
+          save={(body) => save.mutate(body)}
+        />
       )}
     </>
   );
 }
+
+function AnnouncementForm({
+  notice,
+  contests,
+  pending,
+  save,
+}: {
+  notice: AdminNotice | null;
+  contests: Contest[];
+  pending: boolean;
+  save: (body: Record<string, unknown>) => void;
+}) {
+  const [body, setBody] = useState(notice?.body ?? "");
+  return (
+    <form
+      id="announcement-form"
+      className="grid gap-5 rounded-xl bg-card p-6 lg:p-8"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const f = new FormData(e.currentTarget);
+        save({
+          title: f.get("title"),
+          body: f.get("body"),
+          contest_id: f.get("contest_id") || null,
+        });
+      }}
+    >
+      <Field label="发布范围">
+        <NativeSelect name="contest_id" defaultValue={notice?.contest_id ?? ""}>
+          <NativeSelectOption value="">全站公告</NativeSelectOption>
+          {contests.map((c) => (
+            <NativeSelectOption key={c.id} value={c.id}>
+              {c.title}
+            </NativeSelectOption>
+          ))}
+          {notice?.contest_id &&
+            !contests.some((c) => c.id === notice.contest_id) && (
+              <NativeSelectOption value={notice.contest_id}>
+                当前比赛
+              </NativeSelectOption>
+            )}
+        </NativeSelect>
+      </Field>
+      <Field label="标题">
+        <Input
+          name="title"
+          defaultValue={notice?.title}
+          required
+          maxLength={120}
+        />
+      </Field>
+      <Field label="内容">
+        <MarkdownEditor
+          id="announcement-body"
+          name="body"
+          label="公告正文"
+          value={body}
+          onChange={setBody}
+          required
+          maxLength={10000}
+        />
+      </Field>
+      <Button type="submit" className="justify-self-end" disabled={pending}>
+        保存公告
+      </Button>
+    </form>
+  );
+}
+
 export function ResourceAdmin() {
   const write = useManagementWrite();
   const { page, setPage } = useAdminList();

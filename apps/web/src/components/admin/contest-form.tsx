@@ -26,7 +26,8 @@ import type { ContestQuestion } from "@/lib/competition";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { Contest } from "@/lib/types";
 import { Button } from "../ui/button";
-import { Input, Textarea } from "../ui/input";
+import { Input } from "../ui/input";
+import { MarkdownEditor } from "../markdown-editor";
 import { Switch } from "../ui/switch";
 import { Field } from "../shared";
 import {
@@ -60,6 +61,7 @@ export function ContestForm({
   const [formVersion, setFormVersion] = useState(0),
     [draftSaved, setDraftSaved] = useState<boolean | null>(null);
   const [registrationIssue, setRegistrationIssue] = useState("");
+  const [description, setDescription] = useState(c?.description ?? "");
   const [registrationFields, setRegistrationFields] = useState(
     c?.registration_form ?? [],
   );
@@ -153,6 +155,7 @@ export function ContestForm({
     setDraftSaved(writeDraft(draftKey, snapshot));
   }, [
     formVersion,
+    description,
     pending,
     allowedTeams,
     selected,
@@ -385,11 +388,17 @@ export function ContestForm({
                 />
               </Field>
               <Field label="比赛说明">
-                <Textarea
+                <MarkdownEditor
+                  id="contest-description"
                   name="description"
-                  defaultValue={c?.description}
+                  label="比赛说明"
+                  value={description}
+                  onChange={(value) => {
+                    dirty.current = true;
+                    setDescription(value);
+                  }}
                   maxLength={10000}
-                  rows={8}
+                  disabled={pending || readOnly}
                 />
               </Field>
               <label className="flex items-center gap-2 text-sm">
