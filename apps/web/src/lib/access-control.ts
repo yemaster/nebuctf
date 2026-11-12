@@ -41,6 +41,7 @@ export const adminSection = (section: string) =>
       problemsets: "content",
       articles: "content",
       learning: "content",
+      help: "content",
       submissions: "logs",
       audit: "logs",
     }) as Record<string, string>

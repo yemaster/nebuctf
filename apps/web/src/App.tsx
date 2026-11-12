@@ -51,6 +51,9 @@ const Announcements = lazy(() =>
 const Home = lazy(() =>
   import("./pages/Home").then((m) => ({ default: m.Home })),
 );
+const Help = lazy(() =>
+  import("./pages/Help").then((m) => ({ default: m.Help })),
+);
 const Contests = lazy(() =>
   import("./pages/Contests").then((m) => ({ default: m.Contests })),
 );
@@ -151,6 +154,8 @@ function AppShell() {
   const adminPage =
     location.pathname === "/admin" || location.pathname.startsWith("/admin/");
   const authPage = ["/login", "/register"].includes(location.pathname);
+  const helpPage =
+    location.pathname === "/help" || location.pathname.startsWith("/help/");
   const expanding = cardTransition.native && !cardTransition.pending;
   const transition = routeTransition(location.pathname);
   const instant = reduced || cardTransition.native || transition.duration === 0;
@@ -195,7 +200,9 @@ function AppShell() {
                       ? `contest-manage:${contestId}`
                       : authPage
                         ? "auth"
-                        : location.pathname
+                        : helpPage
+                          ? "help"
+                          : location.pathname
                 }
                 initial={instant ? false : { opacity: 0, y: transition.y }}
                 animate={{ opacity: 1, y: 0 }}
@@ -210,7 +217,7 @@ function AppShell() {
                   duration: instant ? 0 : transition.duration,
                   ease: "easeOut",
                 }}
-                className={`h-full min-h-0 bg-background ${adminPage || spectating || contestManaging ? "overflow-hidden" : workbench || authPage ? "overflow-y-auto lg:overflow-hidden" : "overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8"}`}
+                className={`h-full min-h-0 bg-background ${adminPage || spectating || contestManaging ? "overflow-hidden" : workbench || authPage ? "overflow-y-auto lg:overflow-hidden" : helpPage ? "overflow-hidden px-4 py-6 sm:px-6 lg:px-10 lg:py-8" : "overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8"}`}
               >
                 <m.div
                   initial={false}
@@ -228,6 +235,7 @@ function AppShell() {
                   data-card-content={expanding ? "waiting" : "visible"}
                   className={
                     workbench ||
+                    helpPage ||
                     authPage ||
                     adminPage ||
                     spectating ||
@@ -238,6 +246,7 @@ function AppShell() {
                 >
                   <PageBoundary>
                     <PageLoadingBoundary
+                      fill={helpPage}
                       enabled={
                         !workbench &&
                         !authPage &&
@@ -255,6 +264,7 @@ function AppShell() {
                             element={<ContestSpectator />}
                           />
                           <Route path="/" element={<Home />} />
+                          <Route path="/help/:slug?" element={<Help />} />
                           <Route path="/challenges" element={<Challenges />} />
                           <Route
                             path="/problemsets"

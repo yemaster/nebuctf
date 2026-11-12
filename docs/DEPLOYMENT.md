@@ -384,3 +384,11 @@ nc 靶机在题目编辑的「连接方式」中设置；前端入口为 `/termi
 采集镜像需先运行 `docker build -t nebuctf/traffic:local deploy/traffic` 构建，再更新 Compose 服务。平台默认仅开启流量统计，抓包由管理员在流量监测页面启用。新增 `nebuctf_traffic` 数据卷，无新增对外端口。每个采集任务最多 0.1 CPU / 64 MiB，并计入全局资源预算。保留时间、容量、并发及单场开关均可配置。
 
 角色配置入口在「管理中心 → 角色与权限」，用户的权限图标可分配多个角色及指定题目、比赛的权限。现有管理员保留为超级管理员。部署、容量、权限边界和 Flag 兼容说明见[资源、流量与管理权限](RESOURCE-ACCESS-PLAN.md)。
+
+## 帮助文档持久化
+
+迁移 34 创建独立的 `help_documents` 表，并只在迁移首次执行时初始化默认中文文档。管理入口为 `/admin/help`，公开入口为 `/help/:slug`。正文、目录分组、排序和发布状态均保存在业务数据库；修改后不需要构建或重启 Web。后续启动不会覆盖管理员编辑，也不会恢复已删除的文档；公开目录无已发布文档时显示空状态，不回退到内置副本。知识库继续使用原有独立内容。
+
+迁移 35 为帮助文档增加可空的 `created_by` / `updated_by` 外键，用户删除时置空。新建记录两者均为操作者，后续保存只更新最后编辑人。升级时仅一次从 `help.save` 审计中恢复与文档 `created_at`、`updated_at` 精确吻合的人员；初始化文档没有创建审计，或历史审计缺失/已清理时保留空署名并显示「未记录」，不把首次编辑者冒充创建人。迁移不修改正文、发布状态或原有时间。
+
+升级需部署配套 API/Web；Scheduler 共用 API 镜像，按现有流程更新即可，本次功能不要求切换 Runtime/gateway。备份业务库时包含 `help_documents`。tencent-sh 的应用在 `nebuctf` 命名空间，PostgreSQL StatefulSet 在 `platform-data`，实际业务数据库名为 `nebuctf`；不要只备份 `POSTGRES_DB` 指向的默认 `postgres` 库。使用 `pg_restore --list` 确认归档含用户和业务表。回滚应用镜像时保留新增帮助表及其内容，不删除文档数据。

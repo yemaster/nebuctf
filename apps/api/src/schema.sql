@@ -343,3 +343,30 @@ CREATE TABLE IF NOT EXISTS traffic_files(id uuid PRIMARY KEY,instance_id uuid NO
 CREATE INDEX IF NOT EXISTS traffic_files_instance ON traffic_files(instance_id,created_at DESC,id DESC);
 CREATE INDEX IF NOT EXISTS traffic_files_retention ON traffic_files(created_at);
 INSERT INTO schema_migrations(version) VALUES(33) ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS help_documents(
+ id uuid PRIMARY KEY,
+ slug varchar(80) NOT NULL UNIQUE CHECK(slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+ title varchar(160) NOT NULL CHECK(length(trim(title))>0),
+ category varchar(40) NOT NULL CHECK(length(trim(category))>0),
+ position integer NOT NULL CHECK(position BETWEEN 0 AND 100000),
+ body text NOT NULL CHECK(length(body)<=200000),
+ published boolean NOT NULL DEFAULT false,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ updated_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS help_documents_order ON help_documents(position,title,id);
+CREATE INDEX IF NOT EXISTS help_documents_published_order ON help_documents(position,title,id) WHERE published;
+
+ALTER TABLE help_documents ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE help_documents ADD COLUMN IF NOT EXISTS updated_by uuid REFERENCES users(id) ON DELETE SET NULL;
+UPDATE help_documents d SET created_by=(
+ SELECT l.actor_id FROM audit_logs l JOIN users u ON u.id=l.actor_id
+ WHERE l.action='help.save' AND l.target=d.id::text AND l.created_at=d.created_at
+ ORDER BY l.created_at,l.id LIMIT 1
+) WHERE d.created_by IS NULL AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=35);
+UPDATE help_documents d SET updated_by=(
+ SELECT l.actor_id FROM audit_logs l JOIN users u ON u.id=l.actor_id
+ WHERE l.action='help.save' AND l.target=d.id::text AND l.created_at=d.updated_at
+ ORDER BY l.created_at DESC,l.id DESC LIMIT 1
+) WHERE d.updated_by IS NULL AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=35);
+INSERT INTO schema_migrations(version) VALUES(35) ON CONFLICT DO NOTHING;

@@ -21,6 +21,7 @@ export type SkeletonKind =
   | "announcements"
   | "cards"
   | "article"
+  | "help"
   | "tree"
   | "table"
   | "form"
@@ -54,6 +55,7 @@ export function pageSkeleton(path: string, search = ""): SkeletonKind {
   const params = new URLSearchParams(search);
   if (path === "/") return "home";
   if (path === "/messages") return "messages";
+  if (path === "/help" || path.startsWith("/help/")) return "help";
   if (path === "/challenges")
     return params.has("challenge") || params.has("problemset")
       ? params.get("challenge") === "objective"
@@ -402,6 +404,50 @@ function Tree() {
 }
 function Body({ kind }: { kind: SkeletonKind }) {
   switch (kind) {
+    case "help":
+      return (
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden lg:flex-row">
+          <div className="mb-6 flex shrink-0 items-center justify-between border-b pb-3 lg:hidden">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-8 w-24" />
+          </div>
+          <aside className="hidden h-full w-64 shrink-0 space-y-7 overflow-hidden pr-4 lg:block xl:w-72">
+            {repeat(4, () => (
+              <div className="space-y-4">
+                <Skeleton className="h-4 w-24" />
+                {repeat(3, () => (
+                  <Skeleton className="h-5 w-4/5" />
+                ))}
+              </div>
+            ))}
+          </aside>
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden lg:pl-12 xl:pl-16">
+            <div className="grid min-w-0 items-start gap-12 pr-2 xl:grid-cols-[minmax(0,1fr)_12rem]">
+              <div className="min-w-0 space-y-10">
+                <div className="space-y-6">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-10 w-3/4" />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Skeleton className="size-6 rounded-full" />
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-3 w-32" />
+                  </div>
+                </div>
+                {repeat(3, () => (
+                  <div className="space-y-6">
+                    <Skeleton className="h-7 w-1/3" />
+                    <Lines count={4} />
+                  </div>
+                ))}
+              </div>
+              <aside className="hidden space-y-5 xl:block">
+                <Skeleton className="h-4 w-24" />
+                <Lines count={5} />
+              </aside>
+            </div>
+          </div>
+        </div>
+      );
     case "home":
       return (
         <>
@@ -908,6 +954,7 @@ export function ContentSkeleton({
   }, [immediate]);
   const visible = immediate || ready;
   const auth = kind === "auth" || kind === "auth-register";
+  const help = kind === "help";
   const body = <Body kind={kind} />;
   return (
     <div
@@ -922,7 +969,7 @@ export function ContentSkeleton({
         visible &&
           !immediate &&
           "motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150",
-        fullPage && (auth ? "h-full min-h-0" : "min-h-[55dvh]"),
+        fullPage && (auth || help ? "h-full min-h-0" : "min-h-[55dvh]"),
         shell && "h-full",
         className,
       )}
@@ -935,7 +982,9 @@ export function ContentSkeleton({
             ? "flex h-full min-h-0 overflow-hidden"
             : fullPage && auth
               ? "flex h-full min-h-0 flex-col items-center overflow-y-auto px-4 py-8 sm:px-6"
-              : undefined
+              : fullPage && help
+                ? "h-full min-h-0"
+                : undefined
         }
       >
         {shell ? (

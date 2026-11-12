@@ -7,6 +7,7 @@ import {
   BookOpen,
   Bell,
   ChevronDown,
+  CircleHelp,
   GitBranch,
   LogOut,
   Menu,
@@ -55,6 +56,7 @@ const secondary = [
   { to: "/announcements", name: "公告" },
   { to: "/library", name: "知识库" },
 ];
+const help = { to: "/help", name: "使用帮助" };
 const account = [
   { to: "/messages", name: "消息中心", icon: Bell },
   { to: "/team", name: "我的战队", icon: Users },
@@ -206,8 +208,8 @@ export function SiteHeader({
             </SheetHeader>
             <nav aria-label="移动端导航" className="grid gap-2 px-4 pb-6">
               {(contestId
-                ? [...items, ...management]
-                : [...items, ...learning, secondary[0]!]
+                ? [...items, ...management, help]
+                : [...items, ...learning, secondary[0]!, help]
               ).map((item) => (
                 <SheetClose asChild key={item.to}>
                   <Button
@@ -220,6 +222,14 @@ export function SiteHeader({
                   >
                     <Link
                       to={item.to}
+                      target={
+                        contestId && item.to === help.to ? "_blank" : undefined
+                      }
+                      rel={
+                        contestId && item.to === help.to
+                          ? "noopener noreferrer"
+                          : undefined
+                      }
                       aria-current={active(item.to) ? "page" : undefined}
                     >
                       {item.name}
@@ -319,6 +329,26 @@ export function SiteHeader({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          <Button
+            variant="ghost"
+            asChild
+            className={cn(
+              navigationClass(active(help.to)),
+              contestId && "w-11 px-3 has-[>svg]:px-3",
+            )}
+          >
+            <Link
+              to={help.to}
+              target={contestId ? "_blank" : undefined}
+              rel={contestId ? "noopener noreferrer" : undefined}
+              aria-label={help.name}
+              title={help.name}
+              data-nav-active={active(help.to) || undefined}
+              aria-current={active(help.to) ? "page" : undefined}
+            >
+              {contestId ? <CircleHelp /> : "帮助"}
+            </Link>
+          </Button>
           <NavigationIndicator
             activeKey={`${pathname}:${items.map((item) => item.to).join(",")}:${management.length}`}
           />

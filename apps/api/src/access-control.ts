@@ -132,6 +132,7 @@ export function authorizeManagement(req: FastifyRequest, user: User) {
         learning: "content",
         trees: "content",
         problemsets: "content",
+        help: "content",
         traffic: "traffic",
         announcements: "announcements",
         notifications: "messages",

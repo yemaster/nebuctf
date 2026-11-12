@@ -23,6 +23,7 @@ const pages: Record<string, string> = {
   "/register": "注册",
   "/account": "我的账户",
   "/messages": "消息中心",
+  "/help": "使用帮助",
 };
 const admin: Record<string, string> = {
   overview: "概览",
@@ -35,6 +36,7 @@ const admin: Record<string, string> = {
   contests: "比赛",
   problemsets: "题单",
   articles: "文档",
+  help: "帮助文档",
   learning: "技能树",
   announcements: "公告",
   resources: "资源",
@@ -109,6 +111,7 @@ export function pageTitle(
     return lookup(`/problemsets/${id}?`, true)?.title ?? "题单";
   if (area === "library" && id)
     return lookup(`/articles/${id}`)?.title ?? "文档";
+  if (area === "help" && id) return lookup(`/help/${id}`)?.title ?? "帮助文档";
   if (area === "learning" && id)
     return lookup(`/learning/trees/${id}`)?.title ?? "技能树";
   if (area === "terminal" && params.get("target"))
@@ -132,6 +135,7 @@ export function pageNavigationLabel(pathname: string, search: string) {
   const [, area, id, section, sub, managed] = path.split("/");
   if (area === "challenges") return "练习";
   if (area === "terminal") return "终端";
+  if (area === "help") return "帮助文档";
   if (area === "contests" && id)
     return section === "manage"
       ? (management[sub ?? "teams"] ?? "比赛管理")

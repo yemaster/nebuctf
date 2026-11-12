@@ -11,22 +11,33 @@ import {
 import { AnimatePresence } from "motion/react";
 import { TransitionSurface } from "./transition-surface";
 import { PageLoadingContext } from "@/lib/page-loading";
+import { cn } from "@/lib/utils";
 
 export function PageLoadingBoundary({
   children,
   enabled = true,
+  fill = false,
 }: {
   children: ReactNode;
   enabled?: boolean;
+  fill?: boolean;
 }) {
   return enabled ? (
-    <RegisteredLoadingBoundary>{children}</RegisteredLoadingBoundary>
+    <RegisteredLoadingBoundary fill={fill}>
+      {children}
+    </RegisteredLoadingBoundary>
   ) : (
     children
   );
 }
 
-function RegisteredLoadingBoundary({ children }: { children: ReactNode }) {
+function RegisteredLoadingBoundary({
+  children,
+  fill,
+}: {
+  children: ReactNode;
+  fill: boolean;
+}) {
   const placeholders = useRef(new Set<symbol>());
   const [pending, setPending] = useState(false);
   const register = useCallback(() => {
@@ -40,7 +51,9 @@ function RegisteredLoadingBoundary({ children }: { children: ReactNode }) {
   }, []);
   return (
     <PageLoadingContext.Provider value={register}>
-      <LoadingTransition pending={pending}>{children}</LoadingTransition>
+      <LoadingTransition pending={pending} fill={fill}>
+        {children}
+      </LoadingTransition>
     </PageLoadingContext.Provider>
   );
 }
@@ -72,9 +85,11 @@ export function LoadingFallback() {
 export function LoadingTransition({
   pending,
   children,
+  fill = false,
 }: {
   pending: boolean;
   children: ReactNode;
+  fill?: boolean;
 }) {
   const [indicator, setIndicator] = useState(false);
   const shownAt = useRef<number | null>(null);
@@ -91,9 +106,15 @@ export function LoadingTransition({
   }, [pending]);
   const waiting = pending || indicator;
   return (
-    <div className="relative min-h-[55dvh]" aria-busy={waiting}>
+    <div
+      className={cn("relative", fill ? "h-full min-h-0" : "min-h-[55dvh]")}
+      aria-busy={waiting}
+    >
       <div
-        className={waiting ? "absolute inset-x-0 top-0" : undefined}
+        className={cn(
+          fill && "h-full min-h-0",
+          waiting && (fill ? "absolute inset-0" : "absolute inset-x-0 top-0"),
+        )}
         inert={waiting || undefined}
         aria-hidden={waiting || undefined}
         style={{ visibility: waiting ? "hidden" : undefined }}
@@ -104,9 +125,9 @@ export function LoadingTransition({
         {waiting && (
           <TransitionSurface
             key="loading"
-            flow
+            flow={!fill}
             loading={indicator}
-            loadingClassName="min-h-[55dvh]"
+            loadingClassName={fill ? "h-full" : "min-h-[55dvh]"}
           />
         )}
       </AnimatePresence>

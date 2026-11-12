@@ -7,6 +7,7 @@ import {
   BookOpen,
   Clock3,
   Code2,
+  CircleHelp,
   Flag,
   GitBranch,
   Menu,
@@ -385,6 +386,16 @@ export function SiteFooter({
             </Link>
           </DropdownMenuItem>
         ))}
+        <DropdownMenuItem asChild>
+          <Link
+            to="/help"
+            target={contestId ? "_blank" : undefined}
+            rel={contestId ? "noopener noreferrer" : undefined}
+          >
+            <CircleHelp />
+            使用帮助
+          </Link>
+        </DropdownMenuItem>
         {!contestId && (
           <DropdownMenuItem asChild>
             <a

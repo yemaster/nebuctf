@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Library,
   FileText,
+  BookOpen,
   Network,
   Trophy,
   Megaphone,
@@ -119,6 +120,12 @@ const ArticleAdmin = lazy(() =>
 const ArticleEditor = lazy(() =>
   import("./LearningAdmin").then((m) => ({ default: m.ArticleEditor })),
 );
+const HelpAdmin = lazy(() =>
+  import("./admin/Help").then((m) => ({ default: m.HelpAdmin })),
+);
+const HelpEditor = lazy(() =>
+  import("./admin/Help").then((m) => ({ default: m.HelpEditor })),
+);
 const TreeAdmin = lazy(() =>
   import("./LearningAdmin").then((m) => ({ default: m.TreeAdmin })),
 );
@@ -161,6 +168,7 @@ const groups = [
       { path: "challenges", title: "题目", icon: Flag },
       { path: "problemsets", title: "题单", icon: Library },
       { path: "articles", title: "文档", icon: FileText },
+      { path: "help", title: "帮助文档", icon: BookOpen },
       { path: "learning", title: "技能树", icon: Network },
     ],
   },
@@ -389,6 +397,9 @@ function AdminLayout() {
                   <Route path="articles" element={<ArticleAdmin />} />
                   <Route path="articles/new" element={<ArticleEditor />} />
                   <Route path="articles/:id/edit" element={<ArticleEditor />} />
+                  <Route path="help" element={<HelpAdmin />} />
+                  <Route path="help/new" element={<HelpEditor />} />
+                  <Route path="help/:id/edit" element={<HelpEditor />} />
                   <Route path="learning" element={<TreeAdmin />} />
                   <Route path="learning/new" element={<TreeEditor />} />
                   <Route path="learning/:id/edit" element={<TreeEditor />} />

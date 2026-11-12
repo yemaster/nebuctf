@@ -533,3 +533,21 @@ items 中的 `result` 含 `verdict` 和 `stage`：
 - `POST /teams/:id/logo`：队长提交 multipart 图片，最大 5 MiB，处理为 256×256 WebP 后返回 `{logo_id}`；`DELETE` 移除。`GET /team-logos/:id` 公开读取，支持 ETag/304 和不可变缓存。战队摘要与比赛榜单条目包含 `logo_id`，更换后返回新的图片 UUID。只接受静态 PNG/JPEG/WebP，限制解码像素和并发处理。
 
 操作教程见 [报名表单与战队 Logo](REGISTRATION_FORMS.md)。
+
+## 帮助文档
+
+独立于知识库，数据库迁移 34 建表，迁移 35 增加维护人员署名。以下路径以 `/api` 为前缀。
+
+| 方法与路径 | 权限 | 返回或行为 |
+| --- | --- | --- |
+| `GET /help` | 公开 | `{items}`，仅已发布文档元数据，按 `position,title,id` 排序 |
+| `GET /help/:slug` | 公开 | 已发布文档全文；不存在或未发布均为 404，管理员也不例外 |
+| `GET /admin/help?q=&page=` | `content.read` | 搜索标题、标识、分组和正文；每页 24 条，返回 `{items,total,page}` |
+| `GET /admin/help/:id` | `content.read` | 包含草稿的完整文档 |
+| `POST /admin/help` | `content.write` | 新建，返回 `{id}` |
+| `PUT /admin/help/:id` | `content.write` | 更新，返回 `{id}`；未知 ID 为 404 |
+| `DELETE /admin/help/:id` | `content.write` | 删除，返回 `{ok:true}`；未知 ID 为 404 |
+
+保存字段为 `{slug,title,category,position,body,published}`。`slug` 最多 80 字符，只允许小写字母、数字和单连字符分段；标题最多 160 字，分组最多 40 字；`position` 为 0–100000 整数；Markdown 正文最多 200000 字符。重复标识返回 409。写操作保留同源 Origin/CSRF 校验，并记录 `help.save` / `help.delete` 审计。
+
+公开目录元数据为 `{id,slug,title,category,position,updated_at}`，不含正文或署名；完整文档另含 `body,published,created_at,author,editor`。`author` 和 `editor` 为 `{id,username,avatar_id}` 或 `null`，分别对应创建人与最后编辑人，用户名和头像随用户资料更新。管理列表包含发布状态、创建时间及两类署名。创建时由服务端将两类署名设为当前操作者，更新只变更最后编辑人，不接受客户端指定人员；用户删除后相应署名变为 `null`，文档保留。初始化默认内容后记录迁移版本，重启不重置正文、发布状态、排序或已删除文档。

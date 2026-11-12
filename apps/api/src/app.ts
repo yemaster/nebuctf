@@ -22,6 +22,7 @@ import cookie from "@fastify/cookie";
 import multipart from "@fastify/multipart";
 import { ZodError } from "zod";
 import { learningRoutes } from "./learning.js";
+import { helpRoutes } from "./help.js";
 import { authRoutes } from "./auth.js";
 import { profileRoutes } from "./profiles.js";
 import { teamRoutes } from "./teams.js";
@@ -137,6 +138,7 @@ export async function buildApp(db: DB, logging = false) {
   adminRoutes(app, db);
   contentTransferRoutes(app, db);
   learningRoutes(app, db);
+  helpRoutes(app, db);
   problemsetRoutes(app, db);
   contestPosterRoutes(app, db);
   writeupRoutes(app, db);

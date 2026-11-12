@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import pg from "pg";
 import { config } from "./config.js";
+import { seedHelp } from "./seed-help.js";
 interface Embedded {
   query(sql: string, params?: unknown[]): Promise<{ rows: unknown[] }>;
   transaction<T>(fn: (tx: Embedded) => Promise<T>): Promise<T>;
@@ -133,6 +134,7 @@ export async function openDB(memory = false): Promise<DB> {
     for (const statement of schema.split(";").filter((s) => s.trim()))
       await tx.query(statement);
   });
+  await seedHelp(db);
   return db;
 }
 export async function audit(
