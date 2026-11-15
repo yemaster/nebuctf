@@ -70,7 +70,9 @@ export default defineConfig({
   lastUpdated: true,
   markdown: { codeCopyButtonTitle: '复制代码' },
   sitemap: { hostname: `${origin}${base}` },
-  head: [ ['meta', { name: 'theme-color', content: '#ffffff' }] ],
+  head: [
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}favicon.svg` }],
+  ],
   themeConfig: {
     siteTitle: 'NebuCTF',
     nav: [
