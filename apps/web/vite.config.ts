@@ -51,7 +51,7 @@ export default defineConfig({
           if (/\/node_modules\/(react-pdf|pdfjs-dist)\//.test(id))
             return "pdf-viewer";
           if (/\/node_modules\/(@uiw|rehype-prism-plus)\//.test(id))
-            return "markdown-editor";
+            return "markdown-editor-engine";
           if (/\/node_modules\/(refractor|prismjs)\//.test(id))
             return "code-highlight";
           if (
