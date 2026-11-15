@@ -21,7 +21,9 @@ test("score preview uses the same bounded quadratic curve as contest scoring", (
 
 test(
   "contest tabs, score overrides, objective submission and shared start controls",
-  { timeout: 15000 },
+  // This suite now runs 20 DOM workflows sequentially. Give shared CI runners
+  // room for the whole suite; individual state waits remain bounded below.
+  { timeout: 60000 },
   async (t) => {
     const dom = new JSDOM('<!doctype html><div id="root"></div>', {
         url: "http://localhost/",
