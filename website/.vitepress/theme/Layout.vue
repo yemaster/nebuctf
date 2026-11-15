@@ -6,13 +6,18 @@ import { withBase } from 'vitepress'
 <template>
   <DefaultTheme.Layout>
     <template #home-hero-image>
-      <figure class="product-preview">
-        <a :href="withBase('/guide/solve.html')" aria-label="了解答题工作区">
-          <img class="preview-light" :src="withBase('/workspace-light.webp')" width="1200" height="720" alt="NebuCTF 答题工作区：左侧切换题目，右侧阅读题面与提交答案" fetchpriority="high" />
-          <img class="preview-dark" :src="withBase('/workspace-dark.webp')" width="1200" height="720" alt="NebuCTF 答题工作区：左侧切换题目，右侧阅读题面与提交答案" fetchpriority="high" />
-        </a>
-        <figcaption>答题工作区 · 本地示例题库</figcaption>
-      </figure>
+      <div class="hero-brand">
+        <div class="hero-logo-motion">
+          <img
+            class="hero-logo"
+            :src="withBase('/logo.png')"
+            width="768"
+            height="768"
+            alt="NebuCTF 星球旗帜标识"
+            fetchpriority="high"
+          />
+        </div>
+      </div>
     </template>
     <template #home-features-after>
       <section class="home-workflow" aria-labelledby="prepare-title">

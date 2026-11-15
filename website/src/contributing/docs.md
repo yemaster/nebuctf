@@ -9,7 +9,7 @@ npm ci --prefix website
 npm run dev --prefix website
 ```
 
-首页使用 VitePress 的产品首页布局，通过 `.vitepress/theme` 的布局插槽加入界面预览和办赛路线。截图取自本地示例题库，明暗主题各一张；更新截图时保留示例说明，不使用正式账号或比赛数据。项目介绍位于 `guide/introduction.md`。所有文档共用完整的左侧章节目录，按开始、使用平台、组织比赛、制作题目、部署与维护、参考和参与开发分组。
+首页使用 VitePress 的产品首页布局，通过 `.vitepress/theme` 的布局插槽加入品牌 Logo 和办赛路线。首页主视觉使用 `public/logo.png`，导航与浏览器标签页分别使用小尺寸的 `mark.png` 和 `favicon.png`。项目介绍位于 `guide/introduction.md`。所有文档共用完整的左侧章节目录，按开始、使用平台、组织比赛、制作题目、部署与维护、参考和参与开发分组。
 
 页面位于 `website/src`。修改 Markdown 即可预览，导航与章节在 `website/.vitepress/config.ts` 配置。
 

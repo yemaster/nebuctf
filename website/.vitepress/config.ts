@@ -69,7 +69,7 @@ export default defineConfig({
   markdown: { codeCopyButtonTitle: '复制代码' },
   sitemap: { hostname: `${origin}${base}` },
   head: [
-    ['link', { rel: 'icon', type: 'image/png', sizes: '64x64', href: `${base}favicon.png` }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '64x64', href: `${base}favicon.png?v=2` }],
   ],
   themeConfig: {
     siteTitle: 'NebuCTF',
