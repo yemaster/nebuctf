@@ -225,6 +225,7 @@ test(
             attachments_per_team: null,
             containers_total: null,
             attachments_total: null,
+            container_starts_per_team: null,
           },
         );
       },

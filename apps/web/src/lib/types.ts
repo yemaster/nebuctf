@@ -131,6 +131,7 @@ export interface Contest {
   visibility?: "public" | "private";
   resource_limits?: {
     containers_per_team: number | null;
+    container_starts_per_team?: number | null;
     attachments_per_team: number | null;
     containers_total: number | null;
     attachments_total: number | null;

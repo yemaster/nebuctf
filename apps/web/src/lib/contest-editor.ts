@@ -133,6 +133,12 @@ export function validateContestQuestions(
         Date.parse(s.release_at) >= Date.parse(ends))
     )
       return error("上线时间须在比赛开始之后、结束之前。");
+    const limit = s.container_start_limit;
+    if (
+      limit?.mode === "custom" &&
+      (limit.count === null || !integer(limit.count, 0, 10000))
+    )
+      return error("靶机开启次数须为 0–10000 的整数。");
     const v = s.scoring;
     if (
       (v.mode !== "inherit" && !v.points) ||

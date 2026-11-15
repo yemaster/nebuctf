@@ -237,7 +237,7 @@ export class Worker {
             ? `${config.DOMAIN_SCHEME}://${i.id}.${config.CHALLENGE_DOMAIN}`
             : `${config.CHALLENGE_HOST}:${binding!.HostPort}`;
       const rows = await this.db.query(
-        "UPDATE instances SET status='running',expires_at=CASE WHEN owner_key='shared' THEN max_expires_at ELSE LEAST(now()+(spec->>'ttl')::int * interval '1 second',max_expires_at) END,container_id=$1,endpoint=$2,upstream_host=$4,upstream_port=$5,updated_at=now() WHERE id=$3 AND status='starting' AND expires_at>now() RETURNING id",
+        "UPDATE instances SET status='running',started_at=coalesce(started_at,now()),expires_at=CASE WHEN owner_key='shared' THEN max_expires_at ELSE LEAST(now()+(spec->>'ttl')::int * interval '1 second',max_expires_at) END,container_id=$1,endpoint=$2,upstream_host=$4,upstream_port=$5,updated_at=now() WHERE id=$3 AND status='starting' AND expires_at>now() RETURNING id",
         [
           info.Id,
           endpoint,

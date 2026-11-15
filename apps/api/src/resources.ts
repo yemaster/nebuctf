@@ -1,3 +1,7 @@
+import {
+  containerStartPolicy,
+  requireContainerStart,
+} from "./container-start-policy.js";
 import { isContestPractice } from "./contest-practice.js";
 import { filterContestLogic } from "./contest-logic.js";
 import { withQueuePositions } from "./resource-queue.js";
@@ -125,6 +129,8 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
         [cid, scope, owner, activeStatuses, c.resource_type],
       );
       if (existing) return existing;
+      if (c.resource_type === "container" && !challenge.contest_practice)
+        await requireContainerStart(tx, scope, owner, cid);
       const { policy, replacements } = await allocationPlan(
         tx,
         scope,
@@ -285,6 +291,10 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
     );
     return {
       next_operation_at: row?.expires_at ?? null,
+      starts:
+        c.resource_type === "container" && !challenge.contest_practice
+          ? await containerStartPolicy(db, scope, owner, cid)
+          : null,
       quota: await contestResourcePolicy(db, scope, owner, c.resource_type),
       auto_destroy:
         c.resource_type === "container" &&

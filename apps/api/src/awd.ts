@@ -1,4 +1,8 @@
 import {
+  requireContainerStart,
+  containerStartPolicy,
+} from "./container-start-policy.js";
+import {
   lockContestChoices,
   bindContestChoice,
   contestLogicState,
@@ -97,6 +101,7 @@ export function awdRoutes(app: FastifyInstance, db: DB) {
         protocol: resourceProfiles(c).container?.protocol ?? "http",
       })),
       history,
+      starts: await containerStartPolicy(db, scope, owner, cid),
       resource_blocked: hasEnvironment
         ? null
         : ((await contestResourcePolicy(db, scope, owner, "container"))
@@ -179,6 +184,7 @@ export function awdRoutes(app: FastifyInstance, db: DB) {
         "SELECT id FROM instances WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3 AND status IN ('queued','starting','running') FOR UPDATE",
         [cid, scope, owner],
       );
+      await requireContainerStart(tx, scope, owner, cid);
       // Check replacement capacity before destroying a working service after a limit was lowered.
       await requireContestResourceSlot(
         tx,

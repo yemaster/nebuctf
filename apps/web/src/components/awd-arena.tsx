@@ -1,3 +1,7 @@
+import {
+  ContainerStartHint,
+  type ContainerStartUsage,
+} from "./container-start-hint";
 import { Copy, ExternalLink, RotateCw, Terminal } from "lucide-react";
 import { api, ApiError, useAPI, useAction } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
@@ -17,6 +21,7 @@ import { QueryState } from "./shared";
 import { ResourceError } from "./resource-error";
 import { OperationProgress } from "./operation-progress";
 type Arena = {
+  starts?: ContainerStartUsage | null;
   resource_blocked?: {
     message: string;
     action: { label: string; href: string };
@@ -85,6 +90,7 @@ export function AwdArena({ id, scope }: { id: string; scope: string }) {
         error={query.error}
         retry={() => void query.refetch()}
       />
+      <ContainerStartHint value={query.data?.starts} />
       {query.data?.resource_blocked && (
         <ResourceError
           error={
@@ -184,6 +190,7 @@ export function AwdArena({ id, scope }: { id: string; scope: string }) {
                       aria-label="重启我的靶机"
                       disabled={
                         restart.isPending ||
+                        !!query.data?.starts?.blocked ||
                         ["starting", "stopping", "queued"].includes(
                           i.status ?? "",
                         )

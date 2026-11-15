@@ -1,3 +1,7 @@
+import {
+  ContainerStartHint,
+  type ContainerStartUsage,
+} from "./container-start-hint";
 import { Link, useLocation } from "react-router-dom";
 import { FileArchive, Server, RotateCw } from "lucide-react";
 import { useUser } from "@/App";
@@ -107,6 +111,7 @@ function ResourceLaunch({
   const policy = useAPI<{
     next_operation_at: string | null;
     auto_destroy?: boolean;
+    starts?: ContainerStartUsage | null;
     quota?: {
       team_used: number;
       team_limit: number | null;
@@ -204,7 +209,14 @@ function ResourceLaunch({
             />
           )}
           {current && !canStart && !instances.error && (
-            <InstanceRow key={current.id} instance={current} compact />
+            <div>
+              <InstanceRow key={current.id} instance={current} compact />
+              {policy.data?.starts && (
+                <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+                  <ContainerStartHint value={policy.data.starts} />
+                </div>
+              )}
+            </div>
           )}
           {canStart &&
             !instances.isLoading &&
@@ -235,6 +247,7 @@ function ResourceLaunch({
                       </Badge>
                     )}
                   </ItemTitle>
+                  <ContainerStartHint value={policy.data?.starts} />
                   {policy.data?.quota?.team_limit != null && (
                     <p className="text-xs text-muted-foreground">
                       本队 {policy.data.quota.team_used} /{" "}
@@ -251,6 +264,7 @@ function ResourceLaunch({
                       cooldown > 0 ||
                       policy.isLoading ||
                       policy.isError ||
+                      !!policy.data?.starts?.blocked ||
                       (!!policy.data?.quota?.blocked && !canReplace)
                     }
                     onClick={() => start.mutate([])}
@@ -262,17 +276,19 @@ function ResourceLaunch({
                     ) : (
                       <Server />
                     )}
-                    {cooldown
-                      ? `${cooldown} 秒后可${attachment ? "生成" : "启动"}`
-                      : start.isPending
-                        ? "创建中"
-                        : error
-                          ? attachment
-                            ? "重新生成"
-                            : "重试启动"
-                          : attachment
-                            ? "生成附件"
-                            : "启动靶机"}
+                    {policy.data?.starts?.blocked
+                      ? "无法开启"
+                      : cooldown
+                        ? `${cooldown} 秒后可${attachment ? "生成" : "启动"}`
+                        : start.isPending
+                          ? "创建中"
+                          : error
+                            ? attachment
+                              ? "重新生成"
+                              : "重试启动"
+                            : attachment
+                              ? "生成附件"
+                              : "启动靶机"}
                   </Button>
                 </ItemActions>
                 <ItemFooter className="flex-col items-stretch gap-3 empty:hidden">

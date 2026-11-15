@@ -1,3 +1,4 @@
+import { containerStartLimitInput } from "./container-start-policy.js";
 import { z } from "zod";
 import type { Row } from "./db.js";
 import { fail } from "./security.js";
@@ -66,6 +67,7 @@ export const contestScoringInput = z
   });
 export type ContestScoring = z.infer<typeof contestScoringInput>;
 export const contestChallengeInput = z.object({
+  container_start_limit: containerStartLimitInput.optional(),
   challenge_id: z.string().uuid(),
   published: z.boolean().default(true),
   release_at: z.iso.datetime().nullable().default(null),

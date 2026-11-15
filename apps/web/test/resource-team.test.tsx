@@ -679,6 +679,79 @@ test(
         },
       );
       await t.test(
+        "remaining starts are visible and exhaustion blocks launch even with automatic replacement",
+        async () => {
+          const policy = `/challenges/${id}/instance-policy?scope=practice&resource_type=container`;
+          await mount(`/challenges?challenge=${id}`, {
+            [`/challenges/${id}?scope=practice`]: {
+              ...challenge,
+              kind: "dynamic_container",
+            },
+            "/instances?scope=practice": { items: [] },
+            [policy]: {
+              next_operation_at: null,
+              auto_destroy: true,
+              starts: {
+                limit: 3,
+                used: 1,
+                pending: 0,
+                remaining: 2,
+                blocked: false,
+              },
+            },
+          });
+          try {
+            await settle(
+              () => !!container.textContent?.includes("还剩 2 次开启"),
+            );
+            await act(async () =>
+              cache.setQueryData(["/instances?scope=practice"], {
+                items: [instance],
+              }),
+            );
+            await settle(() => !!container.textContent?.includes("运行中"));
+            assert.ok(container.textContent?.includes("还剩 2 次开启"));
+            await act(async () =>
+              cache.setQueryData(["/instances?scope=practice"], { items: [] }),
+            );
+            await act(async () =>
+              cache.setQueryData([policy], {
+                next_operation_at: null,
+                auto_destroy: true,
+                starts: {
+                  limit: 3,
+                  used: 3,
+                  pending: 0,
+                  remaining: 0,
+                  blocked: true,
+                },
+              }),
+            );
+            await settle(
+              () => !!container.textContent?.includes("开启次数已用完"),
+            );
+            const launch = [
+              ...container.querySelectorAll<HTMLButtonElement>("button"),
+            ].find((b) => b.textContent === "无法开启")!;
+            assert.ok(launch.disabled);
+            await click(launch);
+            assert.ok(!requests.includes(`/challenges/${id}/instances`));
+            await act(async () =>
+              cache.setQueryData([policy], {
+                next_operation_at: null,
+                starts: null,
+              }),
+            );
+            await settle(
+              () => !container.textContent?.includes("开启次数已用完"),
+            );
+            assert.ok(!container.textContent?.includes("次开启"));
+          } finally {
+            await cleanup();
+          }
+        },
+      );
+      await t.test(
         "starting at capacity asks for confirmation and names only the proposed replacements",
         async () => {
           const endpoint = `/challenges/${id}/instances`;

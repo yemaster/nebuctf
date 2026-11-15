@@ -1,5 +1,6 @@
 import { flagTargets } from "./flag-environment.js";
 import { writeGroupFlag } from "./container-runtime.js";
+import { containerStartPolicy } from "./container-start-policy.js";
 import { getSetting } from "./settings.js";
 import { contestResourcePolicy } from "./contest-resource-limits.js";
 import { permissionSQL } from "./group-permissions.js";
@@ -128,7 +129,18 @@ export class AwdWorker {
           owner,
           "container",
         );
-        if (quota?.blocked) continue;
+        if (
+          quota?.blocked ||
+          (
+            await containerStartPolicy(
+              tx,
+              link.contest_id,
+              owner,
+              link.challenge_id,
+            )
+          )?.blocked
+        )
+          continue;
         const [patch] = await tx.query(
           "SELECT id,result->>'image' image FROM judge_jobs WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3 AND status='passed' AND result->>'image' IS NOT NULL ORDER BY finished_at DESC LIMIT 1",
           [link.challenge_id, link.contest_id, owner],

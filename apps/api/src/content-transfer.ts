@@ -612,7 +612,7 @@ export async function importContent(
               }
             : { mode: "inherit", parts: [] };
           await tx.query(
-            "INSERT INTO contest_challenges(contest_id,challenge_id,published,release_at,scoring,position,logic) VALUES($1,$2,$3,$4,$5,$6,$7)",
+            "INSERT INTO contest_challenges(contest_id,challenge_id,published,release_at,scoring,position,logic,container_start_limit) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
             [
               contestId,
               remap(id),
@@ -630,6 +630,12 @@ export async function importContent(
                     }
                   : null,
               }),
+              JSON.stringify(
+                setting?.container_start_limit ?? {
+                  mode: "inherit",
+                  count: null,
+                },
+              ),
             ],
           );
         }

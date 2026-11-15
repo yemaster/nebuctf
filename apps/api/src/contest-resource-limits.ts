@@ -6,6 +6,7 @@ const count = z.number().int().min(0).max(10000).nullable().default(null);
 export const contestResourceLimitsInput = z
   .object({
     containers_per_team: count,
+    container_starts_per_team: count,
     attachments_per_team: count,
     containers_total: count,
     attachments_total: count,

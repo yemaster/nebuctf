@@ -85,7 +85,12 @@ export const defaultQuestionLogic = (): QuestionLogic => ({
   exclusive_group: null,
   dependency: null,
 });
+export type ContainerStartLimit = {
+  mode: "inherit" | "unlimited" | "custom";
+  count: number | null;
+};
 export type ContestQuestion = {
+  container_start_limit?: ContainerStartLimit;
   challenge_id: string;
   published: boolean;
   release_at: string | null;
@@ -151,6 +156,7 @@ export const defaultRound = () => ({
 export function questionSetting(c: Challenge): ContestQuestion {
   return {
     challenge_id: c.id,
+    container_start_limit: { mode: "inherit", count: null },
     published: true,
     release_at: null,
     logic: defaultQuestionLogic(),

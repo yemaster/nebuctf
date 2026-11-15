@@ -426,5 +426,11 @@ CREATE TABLE IF NOT EXISTS docker_image_uploads(
  updated_at timestamptz NOT NULL DEFAULT now());
 INSERT INTO schema_migrations(version) VALUES(41) ON CONFLICT DO NOTHING;
 
+ALTER TABLE contests ALTER COLUMN resource_limits SET DEFAULT '{"containers_per_team":null,"attachments_per_team":null,"containers_total":null,"attachments_total":null,"container_starts_per_team":null}';
+ALTER TABLE contest_challenges ADD COLUMN IF NOT EXISTS container_start_limit jsonb NOT NULL DEFAULT '{"mode":"inherit","count":null}';
+ALTER TABLE instances ADD COLUMN IF NOT EXISTS started_at timestamptz;
+UPDATE instances SET started_at=created_at WHERE container_id IS NOT NULL AND started_at IS NULL AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=42);
+CREATE INDEX IF NOT EXISTS instances_start_usage ON instances(scope,owner_key,challenge_id) WHERE resource_type='container';
 ALTER TABLE challenges ADD COLUMN IF NOT EXISTS flag_targets jsonb;
 ALTER TABLE challenge_parts ADD COLUMN IF NOT EXISTS flag_targets jsonb;
+INSERT INTO schema_migrations(version) VALUES(42) ON CONFLICT DO NOTHING;
