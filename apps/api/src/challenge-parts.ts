@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import {
   defaultPartEnvironment,
   partEnvironmentName,
@@ -197,6 +198,7 @@ export function prepareParts(
     return {
       ...p,
       flag_template: p.flag_template || null,
+      flag_targets: p.flag_targets ?? null,
       flag_env:
         p.role === "defense"
           ? null
@@ -218,6 +220,12 @@ export function prepareParts(
           return {
             id: p.id ?? crypto.randomUUID(),
             role: p.role,
+            flag_targets:
+              p.role === "defense"
+                ? null
+                : p.flag_targets === undefined
+                  ? (existing?.flag_targets ?? null)
+                  : p.flag_targets,
             flag_template:
               dynamic && p.role !== "defense"
                 ? p.flag_template === undefined
@@ -273,7 +281,11 @@ export function prepareParts(
             "flag_hash",
             "flag_env",
             "flag_template",
-          ].some((k) => p[k] !== old[i]![k]),
+          ].some((k) => p[k] !== old[i]![k]) ||
+          !isDeepStrictEqual(
+            p.flag_targets ?? null,
+            old[i]?.flag_targets ?? null,
+          ),
       ))
   )
     fail(409, "已有解题或活跃环境，不能改变小题、Flag 或分值");
@@ -287,8 +299,8 @@ export async function saveParts(db: DB, challenge: string, parts: Row[]) {
   );
   for (const p of parts)
     await db.query(
-      `INSERT INTO challenge_parts(id,challenge_id,title,description,position,flag_hash,initial_points,minimum_points,role,flag_env,flag_template)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(id) DO UPDATE SET title=$3,description=$4,position=$5,flag_hash=$6,initial_points=$7,minimum_points=$8,role=$9,flag_env=$10,flag_template=$11`,
+      `INSERT INTO challenge_parts(id,challenge_id,title,description,position,flag_hash,initial_points,minimum_points,role,flag_env,flag_template,flag_targets)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(id) DO UPDATE SET title=$3,description=$4,position=$5,flag_hash=$6,initial_points=$7,minimum_points=$8,role=$9,flag_env=$10,flag_template=$11,flag_targets=$12`,
       [
         p.id,
         challenge,
@@ -301,6 +313,7 @@ export async function saveParts(db: DB, challenge: string, parts: Row[]) {
         p.role ?? "flag",
         p.flag_env ?? null,
         p.flag_template ?? null,
+        p.flag_targets == null ? null : JSON.stringify(p.flag_targets),
       ],
     );
 }

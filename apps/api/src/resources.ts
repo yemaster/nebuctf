@@ -6,6 +6,7 @@ import { contestResourcePolicy } from "./contest-resource-limits.js";
 import { permissionSQL } from "./group-permissions.js";
 import { flagEnvironmentSpec } from "./flag-environment.js";
 import { resourceChallenge } from "./challenge-model.js";
+import { containerProfileSnapshot } from "./container-topology.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import { createReadStream } from "node:fs";
@@ -49,6 +50,14 @@ export function validateImage(image: string) {
       .some((p) => imageKey(image).startsWith(imagePrefixKey(p.trim())))
   )
     fail(400, "镜像不在允许的仓库前缀内");
+}
+export function validateProfileImages(profile: {
+  image: string;
+  topology?: { services: { image: string }[] };
+}) {
+  validateImage(profile.image);
+  for (const service of profile.topology?.services ?? [])
+    validateImage(service.image);
 }
 // Called under the resource transaction lock; failed transactions do not consume a turn.
 export async function resourceCooldown(
@@ -106,7 +115,7 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
         fail(400, "AWD 环境由比赛统一调度");
       const c = resourceChallenge(challenge, resource_type);
       if (!c) return fail(400, "此题没有配置该资源");
-      validateImage(c.image);
+      validateProfileImages({ image: c.image, topology: c.topology });
       if (c.kind === "static_container" && u.role !== "admin")
         fail(403, "公共环境由管理员启动");
       const owner =
@@ -190,6 +199,7 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
             port: c.port,
             cpu: c.cpu,
             memory: c.memory,
+            ...containerProfileSnapshot(c),
             ttl,
             ...(timed
               ? {

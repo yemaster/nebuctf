@@ -1,8 +1,20 @@
 import { queuePriority, queueReady } from "./resource-queue.js";
 import { recordIssuedFlags } from "./contest-monitor.js";
-import { flagEnvironment } from "./flag-environment.js";
+import {
+  flagEnvironment,
+  serviceFlagEnvironments,
+  flagTargets,
+} from "./flag-environment.js";
 import { finishTraffic } from "./traffic-worker.js";
 import { DockerEngine, readArtifact } from "./docker.js";
+import {
+  cleanupContainerGroup,
+  createContainerGroup,
+  startContainerGroup,
+  reconcileContainerGroup,
+  mergeEnvironment,
+  type ContainerGroupOptions,
+} from "./container-runtime.js";
 export { readArtifact } from "./docker.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { mkdir, writeFile, rename, unlink } from "node:fs/promises";
@@ -24,10 +36,11 @@ export function containerConfig(i: Row): Record<string, any> {
     User: "65534:65534",
     Env: terminal
       ? ["HOME=/home/player", "TERM=xterm-256color", "LANG=C.UTF-8"]
-      : flagEnvironment(i),
+      : mergeEnvironment(i.spec.environment, flagEnvironment(i, "main")),
     ...(terminal
       ? { Cmd: ["sleep", "infinity"], WorkingDir: "/home/player" }
       : {}),
+    ...(!terminal && i.spec.command ? { Cmd: i.spec.command } : {}),
     Labels: { [label]: i.id },
     NetworkDisabled: generator,
     ExposedPorts: generator || terminal ? {} : { [port]: {} },
@@ -50,7 +63,7 @@ export function containerConfig(i: Row): Record<string, any> {
                 "rw,nosuid,nodev,size=32m,uid=65534,gid=65534,mode=700",
             }
           : {}),
-        ...(i.spec.awd
+        ...(i.spec.awd && flagTargets(i).includes("main")
           ? { "/run/nebuctf": "rw,noexec,nosuid,nodev,size=1m,mode=1777" }
           : {}),
         ...(generator
@@ -77,6 +90,21 @@ export function containerConfig(i: Row): Record<string, any> {
     },
   };
 }
+function groupOptions(i: Row): ContainerGroupOptions {
+  return {
+    namespace: `nebuctf-${i.id}`,
+    ownerLabel: label,
+    ownerId: i.id,
+    primary: containerConfig(i),
+    topology: i.kind === "dynamic_attachment" ? undefined : i.spec?.topology,
+    flagEnvironments: i.kind === "terminal" ? {} : serviceFlagEnvironments(i),
+    flagFiles: i.spec?.awd ? flagTargets(i) : undefined,
+    gateway: config.GATEWAY_CONTAINER,
+    accessMode: i.spec?.access_mode,
+    legacyIcc: Boolean(i.spec?.awd),
+    waitForPrimary: i.kind !== "dynamic_attachment",
+  };
+}
 const notFound = (e: unknown) =>
   (e as { statusCode?: number }).statusCode === 404;
 export class Worker {
@@ -99,36 +127,13 @@ export class Worker {
       i.resource_type === "container"
     )
       await finishTraffic(this.db, this.docker, i.id);
-    try {
-      const name = `nebuctf-${i.id}`;
-      const info = await this.docker.inspectContainer(name);
-      if (info.Config.Labels?.[label] !== i.id)
-        throw Error("container ownership mismatch");
-      await this.docker.removeContainer(name);
-    } catch (e) {
-      if (!notFound(e)) throw e;
-    }
-    try {
-      const name = `nebuctf-${i.id}`;
-      const info = await this.docker.inspectNetwork(name);
-      if (info.Labels?.[label] !== i.id)
-        throw Error("network ownership mismatch");
-      if (
-        info.Labels["io.nebuctf.access"] === "domain" &&
-        Object.values(info.Containers ?? {}).some(
-          (c) => c.Name === config.GATEWAY_CONTAINER,
-        )
-      ) {
-        try {
-          await this.docker.disconnectNetwork(name, config.GATEWAY_CONTAINER);
-        } catch (e) {
-          if (!notFound(e)) throw e;
-        }
-      }
-      await this.docker.removeNetwork(name);
-    } catch (e) {
-      if (!notFound(e)) throw e;
-    }
+    await cleanupContainerGroup(this.docker, {
+      namespace: `nebuctf-${i.id}`,
+      ownerLabel: label,
+      ownerId: i.id,
+      gateway: config.GATEWAY_CONTAINER,
+      topology: i.spec?.topology,
+    });
     for (const filename of [i.id, `${i.id}.tmp`])
       await unlink(join(storage(), filename)).catch(
         (e: NodeJS.ErrnoException) => {
@@ -183,55 +188,12 @@ export class Worker {
       );
       if (!patch) throw Error("补丁镜像校验记录无效");
     } else validateImage(i.spec.image);
-    await this.docker.inspectImage(i.spec.image);
-    if (i.kind !== "dynamic_attachment") {
-      try {
-        const info = await this.docker.inspectNetwork(`nebuctf-${i.id}`);
-        if (info.Labels?.[label] !== i.id)
-          throw Error("network ownership mismatch");
-      } catch (e) {
-        if (!notFound(e)) throw e;
-        await this.docker.createNetwork({
-          Name: `nebuctf-${i.id}`,
-          Driver: "bridge",
-          Internal: i.spec.access_mode === "domain",
-          Labels: {
-            [label]: i.id,
-            "io.nebuctf.access": i.spec.access_mode ?? "port",
-          },
-          Options: {
-            "com.docker.network.bridge.enable_icc":
-              i.spec.access_mode === "domain" || i.spec.awd ? "true" : "false",
-            "com.docker.network.bridge.name": `${i.spec.access_mode === "domain" ? "nctd" : "nctf"}-${i.id.replaceAll("-", "").slice(0, 10)}`,
-          },
-        });
-      }
-      if (i.spec.access_mode === "domain") {
-        const gateway = await this.docker.inspectContainer(
-          config.GATEWAY_CONTAINER,
-        );
-        if (gateway.Config.Labels["io.nebuctf.gateway"] !== "true")
-          throw Error("untrusted gateway container");
-        if (!gateway.NetworkSettings.Networks[`nebuctf-${i.id}`])
-          await this.docker.connectNetwork(
-            `nebuctf-${i.id}`,
-            config.GATEWAY_CONTAINER,
-          );
-      }
-    }
     const name = `nebuctf-${i.id}`;
-    try {
-      const info = await this.docker.inspectContainer(name);
-      if (info.Config.Labels?.[label] !== i.id)
-        throw Error("container ownership mismatch");
-    } catch (e) {
-      if (!notFound(e)) throw e;
-      await this.docker.createContainer(containerConfig(i));
-    }
+    const options = groupOptions(i);
+    await createContainerGroup(this.docker, options);
+    // Creation can be slow; recheck before starting, without touching running instances.
     await this.requireContestLogic(i);
-    let info = await this.docker.inspectContainer(name);
-    if (!info.State.Running && info.State.Status === "created")
-      await this.docker.startContainer(name);
+    let info = await startContainerGroup(this.docker, options);
     if (i.kind === "dynamic_attachment") {
       const deadline = Date.now() + 60000;
       let archive: Buffer | undefined;
@@ -253,7 +215,7 @@ export class Worker {
       const tmp = join(storage(), `${i.id}.tmp`);
       await writeFile(tmp, artifact, { mode: 0o600 });
       await rename(tmp, join(storage(), i.id));
-      await this.docker.removeContainer(name);
+      await cleanupContainerGroup(this.docker, groupOptions(i));
       const rows = await this.db.query(
         "UPDATE instances SET status='ready',expires_at=CASE WHEN owner_key='shared' THEN max_expires_at ELSE LEAST(now()+(spec->>'ttl')::int * interval '1 second',max_expires_at) END,artifact_size=$1,updated_at=now() WHERE id=$2 AND status='starting' AND expires_at>now() RETURNING id",
         [artifact.length, i.id],
@@ -262,18 +224,6 @@ export class Worker {
       else if (i.kind !== "terminal") await recordIssuedFlags(this.db, i);
     } else {
       info = await this.docker.inspectContainer(name);
-      const healthDeadline = Date.now() + 30000;
-      while (
-        info.State.Running &&
-        info.State.Health?.Status === "starting" &&
-        Date.now() < healthDeadline
-      ) {
-        await delay(500);
-        info = await this.docker.inspectContainer(name);
-      }
-      if (!info.State.Running) throw Error("container exited");
-      if (info.State.Health && info.State.Health.Status !== "healthy")
-        throw Error("container health check failed");
       const domain = i.spec.access_mode === "domain";
       const binding = info.NetworkSettings.Ports[`${i.spec.port}/tcp`]?.[0];
       const internalHost =
@@ -366,27 +316,21 @@ export class Worker {
     );
     for (const i of running) {
       try {
-        const c = await this.docker.inspectContainer(`nebuctf-${i.id}`);
-        if (!c.State.Running) throw Error("exited");
-        if (i.spec.access_mode === "domain") {
-          const gateway = await this.docker.inspectContainer(
-            config.GATEWAY_CONTAINER,
-          );
-          if (gateway.Config.Labels?.["io.nebuctf.gateway"] !== "true")
-            throw Error("untrusted gateway container");
-          if (!gateway.NetworkSettings.Networks[`nebuctf-${i.id}`])
-            await this.docker.connectNetwork(
-              `nebuctf-${i.id}`,
-              config.GATEWAY_CONTAINER,
-            );
-        }
+        await reconcileContainerGroup(this.docker, groupOptions(i));
       } catch (e) {
-        if (notFound(e) || (e as Error).message === "exited")
+        if (
+          notFound(e) ||
+          /container exited:|ownership mismatch|untrusted gateway|unexpected container network/.test(
+            (e as Error).message,
+          )
+        ) {
           await this.db.query(
             "UPDATE instances SET status='stopping',error='环境意外退出',updated_at=now() WHERE id=$1 AND status='running'",
             [i.id],
           );
-        else throw e;
+          // Do not leave a reachable primary behind after a dependency has failed.
+          await this.cleanup(i);
+        } else throw e;
       }
     }
     // Remove resources left by a crash after database state was lost or rolled back.

@@ -15,7 +15,7 @@ import {
   publicContestGroup,
   validateRegistrationWindow,
 } from "./contest-entry.js";
-import { storage, validateImage } from "./resources.js";
+import { storage, validateImage, validateProfileImages } from "./resources.js";
 import { posterMime } from "./contest-posters.js";
 import { fail, flagHash } from "./security.js";
 import { hashFile, contentLimit, type ArchiveFile } from "./content-archive.js";
@@ -218,7 +218,7 @@ export function validateContent(
     )
       fail(400, "小题校验信息不属于当前题目");
     for (const profile of Object.values(resourceProfiles(c.config)))
-      if (profile) validateImage(profile.image);
+      if (profile) validateProfileImages(profile);
     if (c.config.patch_config)
       validateImage(c.config.patch_config.checker_image);
     if (c.config.awd_config) validateImage(c.config.awd_config.checker_image);
@@ -495,7 +495,14 @@ export async function importContent(
                       ? c.flag_hash
                       : "",
             },
-            ["resources", "objective", "patch_config", "awd_config", "hints"],
+            [
+              "resources",
+              "objective",
+              "patch_config",
+              "awd_config",
+              "hints",
+              "flag_targets",
+            ],
           ),
         );
         await saveParts(tx, cid, prepared);

@@ -2,7 +2,12 @@ import { can, anyAccess } from "./access-control.js";
 import { getSetting } from "./settings.js";
 import { flagEnvironmentSpec } from "./flag-environment.js";
 import { resourceUsage } from "./resource-usage.js";
-import { resourceChallenge } from "./challenge-model.js";
+import { containerInput, resourceChallenge } from "./challenge-model.js";
+import {
+  containerFootprint,
+  serviceRuntimeInput,
+  topologyInput,
+} from "./container-topology.js";
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import { requireAdmin } from "./auth.js";
@@ -14,6 +19,7 @@ import {
   activeStatuses,
   resourceCooldown,
   validateImage,
+  validateProfileImages,
 } from "./resources.js";
 import { imageKey, imageReference } from "./image-reference.js";
 
@@ -37,6 +43,8 @@ const testSpec = z.object({
   port: z.number().int().min(1024).max(65535),
   cpu: z.number().int().min(100).max(4000),
   memory: z.number().int().min(32).max(4096),
+  ...serviceRuntimeInput.shape,
+  topology: topologyInput.optional(),
 });
 export function imageRoutes(app: FastifyInstance, db: DB) {
   app.get("/api/admin/images", async (req) => {
@@ -162,9 +170,18 @@ export function imageRoutes(app: FastifyInstance, db: DB) {
       const c = resourceChallenge(challenge!, type);
       if (!c) return fail(400, "请先保存此资源配置");
       const spec = testSpec.parse({ protocol: "http", ...c, ...overrides });
+      if (
+        c.resource_type === "attachment" &&
+        (spec.topology !== undefined ||
+          spec.command !== undefined ||
+          spec.environment !== undefined)
+      )
+        fail(400, "动态附件生成器不支持容器拓扑或自定义启动配置");
       if (spec.protocol === "nc" && spec.access_mode !== "port")
         fail(400, "nc 服务需要使用端口直连");
-      validateImage(spec.image);
+      if (c.resource_type !== "attachment")
+        containerInput.parse({ ...c, ...overrides });
+      validateProfileImages(spec);
       const owner = `u:${user.id}`;
       const [existing] = await tx.query(
         "SELECT id,status FROM instances WHERE challenge_id=$1 AND scope='test' AND owner_key=$2 AND status=ANY($3::text[]) AND resource_type=$4",
@@ -180,10 +197,12 @@ export function imageRoutes(app: FastifyInstance, db: DB) {
       if (!image?.present) fail(409, "镜像尚未就绪，请先拉取镜像");
       const usage = await resourceUsage(tx, owner),
         policy = await getSetting(tx, "containers");
+      const footprint = containerFootprint(spec);
       if (
-        (policy.max_instances !== null && usage!.n >= policy.max_instances) ||
-        usage!.cpu + spec.cpu > config.MAX_CPU ||
-        usage!.memory + spec.memory > config.MAX_MEMORY ||
+        (policy.max_instances !== null &&
+          usage!.n + footprint.containers > policy.max_instances) ||
+        usage!.cpu + footprint.cpu > config.MAX_CPU ||
+        usage!.memory + footprint.memory > config.MAX_MEMORY ||
         (policy.max_owner_instances !== null &&
           usage!.owned >= policy.max_owner_instances)
       )

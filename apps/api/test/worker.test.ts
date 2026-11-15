@@ -95,6 +95,12 @@ class FakeDocker extends DockerEngine {
     delete this.gateway.NetworkSettings.Networks[name];
     this.network!.Containers = {};
   }
+  override async listContainers() {
+    return [];
+  }
+  override async listNetworks() {
+    return [];
+  }
 }
 function database(accept = true) {
   const calls: { sql: string; params?: unknown[] }[] = [];

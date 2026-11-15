@@ -19,11 +19,19 @@ export interface PullEvent {
 }
 export interface ContainerInfo {
   Id: string;
-  Config: { Labels: Record<string, string> };
+  Config: { Labels: Record<string, string>; Env?: string[]; Cmd?: string[] };
   State: { Running: boolean; Status: string; Health?: { Status: string } };
+  HostConfig?: {
+    Memory: number;
+    MemorySwap: number;
+    NanoCpus: number;
+    ReadonlyRootfs: boolean;
+    CapDrop: string[];
+    PortBindings: Record<string, unknown>;
+  };
   NetworkSettings: {
     Ports: Record<string, { HostPort: string }[] | null>;
-    Networks: Record<string, { IPAddress: string }>;
+    Networks: Record<string, { IPAddress: string; Aliases?: string[] }>;
   };
 }
 export interface NetworkInfo {
@@ -459,9 +467,10 @@ export class DockerEngine {
   createNetwork(body: Record<string, unknown>) {
     return this.call("POST", "/networks/create", body);
   }
-  connectNetwork(id: string, container: string) {
+  connectNetwork(id: string, container: string, aliases?: string[]) {
     return this.call("POST", `/networks/${encodeURIComponent(id)}/connect`, {
       Container: container,
+      ...(aliases ? { EndpointConfig: { Aliases: aliases } } : {}),
     });
   }
   disconnectNetwork(id: string, container: string) {

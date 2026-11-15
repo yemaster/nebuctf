@@ -1,3 +1,4 @@
+import { validateFlagTargets } from "./flag-environment.js";
 import {
   normalizeQuestionLogic,
   validateQuestionLogic,
@@ -31,7 +32,11 @@ import { requireAdmin } from "./auth.js";
 import { challengeInput, contestInput, id, page } from "./schemas.js";
 import { dynamicFlag, fail, flagHash, rate } from "./security.js";
 import { flagTemplateInput, inspectFlagTemplate } from "./flag-template.js";
-import { activeStatuses, validateImage } from "./resources.js";
+import {
+  activeStatuses,
+  validateImage,
+  validateProfileImages,
+} from "./resources.js";
 import { config } from "./config.js";
 function validatePublication(input: {
   published: boolean;
@@ -112,7 +117,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
       [...args, p.page_size, (p.page - 1) * p.page_size],
     );
     const parts = await db.query(
-      "SELECT id,challenge_id,title,description,position,role,flag_env,flag_template,initial_points,minimum_points FROM challenge_parts WHERE challenge_id=ANY($1::uuid[]) ORDER BY position",
+      "SELECT id,challenge_id,title,description,position,role,flag_env,flag_template,flag_targets,initial_points,minimum_points FROM challenge_parts WHERE challenge_id=ANY($1::uuid[]) ORDER BY position",
       [rows.map((c) => c.id)],
     );
     return {
@@ -147,7 +152,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
         : null,
       hints: hintDefinitions(challenge as any),
       parts: await db.query(
-        "SELECT id,title,description,position,role,flag_env,flag_template,initial_points,minimum_points FROM challenge_parts WHERE challenge_id=$1 ORDER BY position",
+        "SELECT id,title,description,position,role,flag_env,flag_template,flag_targets,initial_points,minimum_points FROM challenge_parts WHERE challenge_id=$1 ORDER BY position",
         [cid],
       ),
       attachments: await db.query(
@@ -210,7 +215,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
               : crypto.randomUUID();
         validatePublication(data);
         for (const profile of Object.values(resourceProfiles(data)))
-          if (profile) validateImage(profile.image);
+          if (profile) validateProfileImages(profile);
         if (data.patch_config) validateImage(data.patch_config.checker_image);
         if (data.awd_config) validateImage(data.awd_config.checker_image);
         return db.transaction(async (tx) => {
@@ -255,6 +260,12 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
               frozen &&
               (data.challenge_type !== old.challenge_type ||
                 data.flag_mode !== flagMode(old) ||
+                !isDeepStrictEqual(
+                  data.flag_targets === undefined
+                    ? (old.flag_targets ?? null)
+                    : data.flag_targets,
+                  old.flag_targets ?? null,
+                ) ||
                 (data.flag_env ?? old.flag_env ?? "FLAG") !==
                   (old.flag_env ?? "FLAG") ||
                 (data.flag_template ?? old.flag_template ?? "") !==
@@ -315,10 +326,26 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
             data.flag_mode === "dynamic",
             frozen,
           );
+          validateFlagTargets(
+            {
+              ...data,
+              flag_targets:
+                data.flag_targets === undefined
+                  ? old?.flag_targets
+                  : data.flag_targets,
+            },
+            parts,
+          );
           const { flag, parts: _parts, ...fields } = data;
           const values = {
             ...fields,
             flag_env: fields.flag_env ?? old?.flag_env ?? "FLAG",
+            flag_targets:
+              (fields.flag_targets === undefined
+                ? old?.flag_targets
+                : fields.flag_targets) == null
+                ? null
+                : JSON.stringify(fields.flag_targets ?? old?.flag_targets),
             flag_template:
               fields.flag_mode === "dynamic"
                 ? (fields.flag_template ?? old?.flag_template ?? "")

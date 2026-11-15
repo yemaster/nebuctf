@@ -6,7 +6,25 @@ export const questionTypes: Record<QuestionType, string> = {
   awdp: "AWDP 题",
   awd: "AWD 题",
 };
-export type ResourceProfile = {
+export type ResourceRuntime = {
+  command?: string[];
+  environment?: Record<string, string>;
+};
+export type ResourceService = ResourceRuntime & {
+  name: string;
+  image: string;
+  cpu: number;
+  memory: number;
+  networks: string[];
+  depends_on: string[];
+  inject_flag: boolean;
+};
+export type ResourceTopology = {
+  networks: { name: string; internal: boolean }[];
+  primary_networks: string[];
+  services: ResourceService[];
+};
+export type ResourceProfile = ResourceRuntime & {
   image: string;
   cpu: number;
   memory: number;
@@ -16,6 +34,7 @@ export type ResourceProfile = {
   protocol?: "http" | "nc";
   access_mode?: "port" | "domain";
   port?: number;
+  topology?: ResourceTopology;
 };
 export type Resources = {
   container: ResourceProfile | null;

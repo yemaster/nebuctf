@@ -7,7 +7,11 @@ import { openDB } from "../src/db.js";
 import { DockerEngine, DockerError } from "../src/docker.js";
 import { config } from "../src/config.js";
 import { getSetting, saveSetting } from "../src/settings.js";
-import { TrafficWorker, indexCaptureFiles } from "../src/traffic-worker.js";
+import {
+  TrafficWorker,
+  indexCaptureFiles,
+  sampleTraffic,
+} from "../src/traffic-worker.js";
 import { resourceUsage } from "../src/resource-usage.js";
 
 test("capture worker preserves slots, enforces budgets, retains closed files and stops revoked captures", async (t) => {
@@ -170,4 +174,55 @@ test("capture worker preserves slots, enforces budgets, retains closed files and
     0,
     "statistics-only policy stops packet collection",
   );
+});
+
+test("environment traffic totals include helper services without counting previous samples twice", async (t) => {
+  const db = await openDB(true),
+    iid = crypto.randomUUID(),
+    uid = crypto.randomUUID(),
+    cid = crypto.randomUUID();
+  t.after(() => db.close());
+  await db.query(
+    "INSERT INTO users(id,username,email,password_hash) VALUES($1,'topology-traffic','topology-traffic@test.test','test')",
+    [uid],
+  );
+  await db.query(
+    "INSERT INTO challenges(id,title,category,difficulty,kind,flag_hash) VALUES($1,'Topology traffic','Web','入门','dynamic_container','')",
+    [cid],
+  );
+  await db.query(
+    "INSERT INTO instances(id,challenge_id,scope,owner_key,requested_by,kind,resource_type,status,spec,expires_at,max_expires_at) VALUES($1,$2,'practice',$3,$4,'dynamic_container','container','running',$5,now()+interval '1 hour',now()+interval '2 hours')",
+    [iid, cid, `u:${uid}`, uid, JSON.stringify({ cpu: 100, memory: 64 })],
+  );
+  let sample = 0;
+  const counters = [
+    { main: [100, 40], db: [200, 80] },
+    { main: [140, 50], db: [260, 100] },
+  ];
+  const docker = {
+    containerStats: async (name: string) => {
+      const entry = counters[sample]!;
+      const [rx_bytes, tx_bytes] = name.endsWith("-db") ? entry.db : entry.main;
+      return { networks: { eth0: { rx_bytes, tx_bytes } } };
+    },
+  } as unknown as DockerEngine;
+  const spec = { topology: { services: [{ name: "db" }] } };
+  const start = new Date("2026-11-14T00:00:00Z");
+  await sampleTraffic(db, docker, iid, start, spec);
+  sample = 1;
+  await sampleTraffic(
+    db,
+    docker,
+    iid,
+    new Date(start.getTime() + 10_000),
+    spec,
+  );
+  const [row] = await db.query(
+    "SELECT rx_bytes,tx_bytes,rx_rate,tx_rate FROM instance_traffic WHERE instance_id=$1",
+    [iid],
+  );
+  assert.equal(Number(row!.rx_bytes), 400);
+  assert.equal(Number(row!.tx_bytes), 150);
+  assert.equal(Number(row!.rx_rate), 10);
+  assert.equal(Number(row!.tx_rate), 3);
 });

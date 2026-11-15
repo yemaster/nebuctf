@@ -1,3 +1,5 @@
+import { serviceFlagEnvironments, flagTargets } from "./flag-environment.js";
+import { writeGroupFlag } from "./container-runtime.js";
 import { notifyContest } from "./activity-events.js";
 import { readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
@@ -5,6 +7,10 @@ import { DockerEngine } from "./docker.js";
 import type { DB, Row } from "./db.js";
 import { containerConfig } from "./worker.js";
 import { flagForInstance } from "./flag-environment.js";
+import {
+  ensureContainerGroup,
+  cleanupContainerGroup,
+} from "./container-runtime.js";
 import { validateImage } from "./resources.js";
 import { patchStorage } from "./judge.js";
 import { readUpdatePackage, patchContext } from "./patch-archive.js";
@@ -85,14 +91,11 @@ export class JudgeWorker {
         if ((e as any).statusCode !== 404) throw e;
       }
     }
-    try {
-      const info = await this.docker.inspectNetwork(`nebuctf-judge-${job.id}`);
-      if (info.Labels?.[label] !== job.id)
-        throw Error("judge network ownership mismatch");
-      await this.docker.removeNetwork(info.Id);
-    } catch (e) {
-      if ((e as any).statusCode !== 404) throw e;
-    }
+    await cleanupContainerGroup(this.docker, {
+      namespace: `nebuctf-judge-${job.id}`,
+      ownerLabel: label,
+      ownerId: job.id,
+    });
     for (const suffix of keepImage ? ["-source"] : ["", "-source"])
       await this.docker
         .removeImage(`nebuctf-patch:${job.id}${suffix}`)
@@ -281,11 +284,6 @@ export class JudgeWorker {
         [job.id],
       );
       const network = `nebuctf-judge-${job.id}`;
-      await this.docker.createNetwork({
-        Name: network,
-        Internal: true,
-        Labels: { [label]: job.id },
-      });
       const [attack] = await this.db.query(
         "SELECT id FROM challenge_parts WHERE challenge_id=$1 AND role='attack'",
         [job.challenge_id],
@@ -299,7 +297,7 @@ export class JudgeWorker {
         },
         attack?.id,
       );
-      const target = containerConfig({
+      const targetInstance = {
         id: job.id,
         challenge_id: job.challenge_id,
         scope: job.scope,
@@ -313,17 +311,49 @@ export class JudgeWorker {
           flag_mode: "dynamic",
           ...(job.spec.flag_environment ?? {}),
         },
-      });
+      };
+      const target = containerConfig(targetInstance);
       target.name = network + "-target";
       target.Labels = { [label]: job.id };
       target.HostConfig.NetworkMode = network;
       target.HostConfig.PortBindings = {};
-      target.HostConfig.Tmpfs["/run/nebuctf"] =
-        "rw,nosuid,nodev,noexec,size=1m,mode=1777";
-      const created = await this.docker.createContainer(target);
-      await this.docker.startContainer(created.Id);
+      if (
+        job.spec.type !== "awd" ||
+        flagTargets({
+          ...targetInstance,
+          spec: { ...targetInstance.spec, awd: true },
+        }).includes("main")
+      )
+        target.HostConfig.Tmpfs["/run/nebuctf"] =
+          "rw,nosuid,nodev,noexec,size=1m,mode=1777";
+      const created = await ensureContainerGroup(this.docker, {
+        namespace: network,
+        ownerLabel: label,
+        ownerId: job.id,
+        primary: target,
+        topology: base.topology,
+        flagEnvironments: serviceFlagEnvironments(targetInstance),
+        flagFiles:
+          job.spec.type === "awd"
+            ? flagTargets({
+                ...targetInstance,
+                spec: { ...targetInstance.spec, awd: true },
+              })
+            : undefined,
+        forceInternal: true,
+        waitForPrimary: true,
+      });
       if (job.spec.type === "awd")
-        await this.docker.writeFlag(created.Id, flag);
+        await writeGroupFlag(
+          this.docker,
+          network,
+          created.Id,
+          flagTargets({
+            ...targetInstance,
+            spec: { ...targetInstance.spec, awd: true },
+          }),
+          flag,
+        );
       const inspected = await this.docker.inspectContainer(created.Id),
         host = inspected.NetworkSettings.Networks[network]?.IPAddress;
       if (!host) throw Error("校验环境不可用");

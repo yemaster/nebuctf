@@ -16,9 +16,20 @@ export async function sampleTraffic(
   docker: DockerEngine,
   iid: string,
   now = new Date(),
+  spec?: { topology?: { services: { name: string }[] } },
 ) {
-  const stats = await docker.containerStats(`nebuctf-${iid}`);
-  const networks = Object.values(stats.networks ?? {});
+  const names = [
+    `nebuctf-${iid}`,
+    ...(spec?.topology?.services ?? []).map(
+      (service) => `nebuctf-${iid}-${service.name}`,
+    ),
+  ];
+  const stats = await Promise.all(
+    names.map((name) => docker.containerStats(name)),
+  );
+  const networks = stats.flatMap((entry) =>
+    Object.values(entry.networks ?? {}),
+  );
   if (!networks.length) return;
   const rx = networks.reduce((n, v) => n + v.rx_bytes, 0),
     tx = networks.reduce((n, v) => n + v.tx_bytes, 0);
@@ -156,7 +167,7 @@ export class TrafficWorker {
     const policy = await getSetting(this.db, "traffic");
     this.next = Date.now() + policy.sample_seconds * 1000;
     const rows = await this.db.query(
-      `SELECT i.id,i.container_id,c.traffic_mode,t.capture_status,t.capture_config FROM instances i JOIN contests c ON c.id::text=i.scope LEFT JOIN instance_traffic t ON t.instance_id=i.id WHERE i.status='running' AND i.resource_type='container' AND i.owner_key LIKE 't:%' ORDER BY t.sampled_at NULLS FIRST,i.id`,
+      `SELECT i.id,i.container_id,i.spec,c.traffic_mode,t.capture_status,t.capture_config FROM instances i JOIN contests c ON c.id::text=i.scope LEFT JOIN instance_traffic t ON t.instance_id=i.id WHERE i.status='running' AND i.resource_type='container' AND i.owner_key LIKE 't:%' ORDER BY t.sampled_at NULLS FIRST,i.id`,
     );
     const eligible = policy.enabled
       ? rows.filter((i) => i.traffic_mode !== "off")
@@ -198,7 +209,13 @@ export class TrafficWorker {
       Array.from({ length: Math.min(4, samples.length) }, async () => {
         while (cursor < samples.length) {
           const row = samples[cursor++]!;
-          await sampleTraffic(this.db, this.docker, row.id).catch(() => {});
+          await sampleTraffic(
+            this.db,
+            this.docker,
+            row.id,
+            new Date(),
+            row.spec,
+          ).catch(() => {});
         }
       }),
     );
@@ -293,6 +310,12 @@ export class TrafficWorker {
         )
           return "limited";
         const usage = await resourceUsage(tx);
+        const containers = await getSetting(tx, "containers");
+        if (
+          containers.max_instances !== null &&
+          usage.n + 1 > containers.max_instances
+        )
+          return "queued";
         if (
           usage.memory + 64 > config.MAX_MEMORY ||
           usage.cpu + 100 > config.MAX_CPU

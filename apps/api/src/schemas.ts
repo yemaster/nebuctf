@@ -13,6 +13,8 @@ import { contestResourceLimitsInput } from "./contest-resource-limits.js";
 import { writeupInput } from "./writeup-config.js";
 import {
   flagEnvironmentName,
+  flagTargetsInput,
+  validateFlagTargets,
   partEnvironmentName,
 } from "./flag-environment.js";
 import { flagTemplateInput } from "./flag-template.js";
@@ -74,6 +76,7 @@ export const partInput = z
     id: id.optional(),
     role: z.enum(["flag", "attack", "defense"]).default("flag"),
     flag_env: partEnvironmentName.nullable().optional(),
+    flag_targets: flagTargetsInput.optional(),
     flag_template: flagTemplateInput.nullable().optional(),
     title: z.string().trim().min(1).max(80),
     description: z.string().max(1000).default(""),
@@ -94,6 +97,7 @@ export const challengeInput = z
     challenge_type: z.enum(["ctf", "objective", "awdp", "awd"]).default("ctf"),
     flag_mode: z.enum(["static", "dynamic"]).nullable().default(null),
     flag_env: flagEnvironmentName.optional(),
+    flag_targets: flagTargetsInput.optional(),
     flag_template: flagTemplateInput.optional(),
     resources: resourcesInput.nullable().default(null),
     objective: objectiveInput.nullable().default(null),
@@ -166,6 +170,11 @@ export const challengeInput = z
   .superRefine((v, ctx) => {
     const error = (message: string) =>
       ctx.addIssue({ code: "custom", message });
+    try {
+      validateFlagTargets(v);
+    } catch (e) {
+      error((e as Error).message);
+    }
     if (v.challenge_type === "objective") {
       if (!v.objective) error("请配置客观题答案");
       if (v.parts?.length || v.kind !== "static_attachment")

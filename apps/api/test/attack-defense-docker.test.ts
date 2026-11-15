@@ -80,6 +80,21 @@ test(
         mode: "private",
         port: 8080,
         access_mode: "port",
+        topology: {
+          networks: [{ name: "default", internal: false }],
+          primary_networks: ["default"],
+          services: [
+            {
+              name: "backend",
+              image: "nebuctf/example-ad:local",
+              cpu: 250,
+              memory: 96,
+              networks: ["default"],
+              depends_on: [],
+              inject_flag: false,
+            },
+          ],
+        },
       },
       patch = {
         checker_image: "nebuctf/example-checker:local",

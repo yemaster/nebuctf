@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { imageReference } from "./image-reference.js";
 import type { Row } from "./db.js";
+import { serviceRuntimeInput, topologyInput } from "./container-topology.js";
 
 const resourceLimits = {
   image: imageReference,
@@ -11,6 +12,8 @@ const resourceLimits = {
 export const containerInput = z
   .object({
     ...resourceLimits,
+    ...serviceRuntimeInput.shape,
+    topology: topologyInput.optional(),
     use_platform_ttl: z.boolean().optional(),
     mode: z.enum(["private", "public"]).default("private"),
     protocol: z.enum(["http", "nc"]).default("http"),
@@ -20,14 +23,29 @@ export const containerInput = z
   .refine((v) => v.protocol !== "nc" || v.access_mode === "port", {
     message: "nc 服务需要使用端口直连",
     path: ["access_mode"],
-  });
+  })
+  .refine(
+    (v) =>
+      v.access_mode !== "port" ||
+      !v.topology?.networks.find((network) => network.name === "default")
+        ?.internal,
+    {
+      message: "端口直连需要关闭 default 网络的内部隔离",
+      path: ["topology", "networks"],
+    },
+  );
 export function runtimeResourceProfiles(c: Row) {
   const profiles = resourceProfiles(c);
   if (!profiles.container) return profiles;
   const { protocol: _protocol, ...container } = profiles.container;
   return { ...profiles, container };
 }
-export const generatorInput = z.object(resourceLimits);
+export const generatorInput = z.object({
+  ...resourceLimits,
+  command: z.never().optional(),
+  environment: z.never().optional(),
+  topology: z.never().optional(),
+});
 export const resourcesInput = z.object({
   container: containerInput.nullable().default(null),
   attachment: generatorInput.nullable().default(null),

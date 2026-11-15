@@ -4,6 +4,7 @@ import { getSetting } from "./settings.js";
 import { resourceUsage } from "./resource-usage.js";
 import { contestResourcePolicy } from "./contest-resource-limits.js";
 import { fail } from "./security.js";
+import { containerFootprint } from "./container-topology.js";
 
 // Invoked under the common resource lock. Only same-scope, same-owner ordinary containers qualify.
 export async function allocationPlan(
@@ -18,10 +19,16 @@ export async function allocationPlan(
     contestResourcePolicy(db, scope, owner, c.resource_type),
   ]);
   let removed = 0;
+  const requested = containerFootprint({
+    cpu: c.cpu,
+    memory: c.memory,
+    topology: c.topology,
+  });
   const fits = () =>
-    (policy.max_instances === null || usage.n + 1 <= policy.max_instances) &&
-    usage.cpu + c.cpu <= config.MAX_CPU &&
-    usage.memory + c.memory <= config.MAX_MEMORY &&
+    (policy.max_instances === null ||
+      usage.n + requested.containers <= policy.max_instances) &&
+    usage.cpu + requested.cpu <= config.MAX_CPU &&
+    usage.memory + requested.memory <= config.MAX_MEMORY &&
     (owner === "shared" ||
       policy.max_owner_instances === null ||
       usage.owned + 1 <= policy.max_owner_instances) &&
@@ -43,10 +50,11 @@ export async function allocationPlan(
     );
     for (const old of candidates) {
       replacements.push(old);
-      usage.n--;
+      const footprint = containerFootprint(old.spec);
+      usage.n -= footprint.containers;
       usage.owned--;
-      usage.cpu -= old.spec.cpu;
-      usage.memory -= old.spec.memory;
+      usage.cpu -= footprint.cpu;
+      usage.memory -= footprint.memory;
       removed++;
       if (fits()) return { policy, replacements };
     }

@@ -569,8 +569,74 @@ test("saved flag mappings follow part IDs through reorder, resources and real ju
         (
           await db.query("SELECT max(version) version FROM schema_migrations")
         )[0]!.version,
-        33,
+        42,
       );
     },
+  );
+});
+
+test("each flag targets only its selected services, including compatibility aliases and JSON", async () => {
+  const { serviceFlagEnvironments, validateFlagTargets, flagTargets } =
+    await import("../src/flag-environment.js");
+  const instance = {
+    challenge_id: "route",
+    scope: "practice",
+    owner_key: "u:route",
+    kind: "dynamic_container",
+    spec: {
+      parts: ["a", "b"],
+      part_env: { a: "FIRST", b: "SECOND" },
+      part_targets: { a: ["main"], b: ["vault"] },
+      topology: {
+        services: [
+          { name: "vault", inject_flag: false },
+          { name: "database", inject_flag: true },
+        ],
+      },
+    },
+  };
+  const env = serviceFlagEnvironments(instance);
+  const flags = [
+    flagForInstance(instance, "a"),
+    flagForInstance(instance, "b"),
+  ];
+  assert.ok(env.main!.includes(`FIRST=${flags[0]}`));
+  assert.ok(!env.main!.join().includes(flags[1]!));
+  assert.ok(env.vault!.includes(`SECOND=${flags[1]}`));
+  assert.ok(!env.vault!.join().includes(flags[0]!));
+  assert.ok(env.vault!.includes("FLAG_COUNT=1"));
+  assert.ok(env.vault!.includes(`FLAG=${flags[1]}`));
+  assert.deepEqual(env.database, []);
+  assert.deepEqual(
+    JSON.parse(env.vault!.find((x) => x.startsWith("FLAGS_JSON="))!.slice(11)),
+    { b: flags[1] },
+  );
+  assert.equal(
+    flagEnvironment({ ...instance, kind: "dynamic_attachment" }, "main").length,
+    5,
+  );
+  const legacy = {
+    ...instance,
+    spec: { ...instance.spec, part_targets: undefined },
+  };
+  assert.equal(serviceFlagEnvironments(legacy).database!.length, 5);
+  assert.deepEqual(
+    flagTargets({ ...instance, spec: { ...instance.spec, awd: true } }),
+    ["main"],
+  );
+  assert.throws(
+    () =>
+      validateFlagTargets({
+        flag_targets: ["missing"],
+        resources: { container: { topology: { services: [] } } },
+      }),
+    /容器不存在/,
+  );
+  validateFlagTargets(
+    {
+      flag_targets: ["main"],
+      resources: { container: { topology: { services: [{ name: "vault" }] } } },
+    },
+    [{ flag_targets: ["vault"] }],
   );
 });

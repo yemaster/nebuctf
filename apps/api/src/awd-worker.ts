@@ -1,3 +1,5 @@
+import { flagTargets } from "./flag-environment.js";
+import { writeGroupFlag } from "./container-runtime.js";
 import { getSetting } from "./settings.js";
 import { contestResourcePolicy } from "./contest-resource-limits.js";
 import { permissionSQL } from "./group-permissions.js";
@@ -8,8 +10,9 @@ import { DockerEngine } from "./docker.js";
 import { dynamicFlag, flagHash, score } from "./security.js";
 import { ensureRound } from "./rounds.js";
 import { resourceProfiles } from "./challenge-model.js";
+import { containerFootprint } from "./container-topology.js";
 import { phaseWindow } from "./competition-rules.js";
-import { activeStatuses } from "./resources.js";
+import { activeStatuses, validateProfileImages } from "./resources.js";
 import { config } from "./config.js";
 import { runChecker } from "./judge-worker.js";
 import { contestLogicStates } from "./contest-logic.js";
@@ -89,6 +92,8 @@ export class AwdWorker {
   private async provision(link: Row) {
     const profile = resourceProfiles(link.challenge).container!,
       phase = phaseWindow(link.contest, "practical");
+    validateProfileImages(profile);
+    const footprint = containerFootprint(profile);
     await this.db.transaction(async (tx) => {
       await tx.query("SELECT pg_advisory_xact_lock(760002)");
       const teams = await tx.query(
@@ -105,9 +110,9 @@ export class AwdWorker {
       for (const team of teams) {
         if (
           (policy.max_instances !== null &&
-            usage!.n + 2 > policy.max_instances) ||
-          usage!.cpu + profile.cpu + 250 > config.MAX_CPU ||
-          usage!.memory + profile.memory + 128 > config.MAX_MEMORY
+            usage!.n + footprint.containers + 1 > policy.max_instances) ||
+          usage!.cpu + footprint.cpu + 250 > config.MAX_CPU ||
+          usage!.memory + footprint.memory + 128 > config.MAX_MEMORY
         )
           break;
         const owner = "t:" + team.team_id;
@@ -133,6 +138,7 @@ export class AwdWorker {
           image: patch?.image ?? profile.image,
           patch_job_id: patch?.id,
           awd: true,
+          flag_targets: link.challenge.flag_targets ?? null,
           flag_mode: "static",
           ttl: Math.max(
             60,
@@ -151,9 +157,9 @@ export class AwdWorker {
             phase.closes_at,
           ],
         );
-        usage!.n += 2;
-        usage!.cpu += profile.cpu + 250;
-        usage!.memory += profile.memory + 128;
+        usage!.n += footprint.containers + 1;
+        usage!.cpu += footprint.cpu + 250;
+        usage!.memory += footprint.memory + 128;
       }
     });
   }
@@ -223,7 +229,13 @@ export class AwdWorker {
       round.id,
       link.challenge.flag_template,
     );
-    await this.docker.writeFlag(`nebuctf-${instance.id}`, flag);
+    await writeGroupFlag(
+      this.docker,
+      `nebuctf-${instance.id}`,
+      `nebuctf-${instance.id}`,
+      flagTargets(instance),
+      flag,
+    );
     const expires = new Date(
       Math.min(
         Date.parse(phaseWindow(link.contest, "practical").closes_at),

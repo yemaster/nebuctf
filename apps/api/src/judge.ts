@@ -17,7 +17,12 @@ import { id, scope as scopeSchema } from "./schemas.js";
 import { fail, rate } from "./security.js";
 import { makeTar, readUpdatePackage } from "./patch-archive.js";
 import { patchConfigInput, resourceProfiles } from "./challenge-model.js";
-import { resourceCooldown } from "./resources.js";
+import { containerFootprint } from "./container-topology.js";
+import {
+  resourceCooldown,
+  validateImage,
+  validateProfileImages,
+} from "./resources.js";
 export const patchStorage = () => join(config.DATA_DIR, "patches");
 export function judgeRoutes(app: FastifyInstance, db: DB) {
   app.post("/api/challenges/:id/patches", async (req) => {
@@ -78,11 +83,14 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
         const policy = await getSetting(tx, "containers");
         const usage = await resourceUsage(tx, owner),
           pc = patchConfigInput.parse(current.patch_config);
+        validateProfileImages(profile);
+        validateImage(pc.checker_image);
+        const footprint = containerFootprint(profile);
         if (
           (policy.max_instances !== null &&
-            usage.n + 2 > policy.max_instances) ||
-          usage.cpu + Math.max(500, profile.cpu + pc.cpu) > config.MAX_CPU ||
-          usage.memory + Math.max(256, profile.memory + pc.memory) >
+            usage.n + footprint.containers + 1 > policy.max_instances) ||
+          usage.cpu + Math.max(500, footprint.cpu + pc.cpu) > config.MAX_CPU ||
+          usage.memory + Math.max(256, footprint.memory + pc.memory) >
             config.MAX_MEMORY
         )
           fail(409, "校验资源已满，请稍后重试");

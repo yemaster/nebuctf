@@ -412,3 +412,6 @@ INSERT INTO schema_migrations(version) VALUES(39) ON CONFLICT DO NOTHING;
 
 ALTER TABLE contest_groups ADD COLUMN IF NOT EXISTS invite_code_cipher text NOT NULL DEFAULT '';
 INSERT INTO schema_migrations(version) VALUES(40) ON CONFLICT DO NOTHING;
+
+ALTER TABLE challenges ADD COLUMN IF NOT EXISTS flag_targets jsonb;
+ALTER TABLE challenge_parts ADD COLUMN IF NOT EXISTS flag_targets jsonb;

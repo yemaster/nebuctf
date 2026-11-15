@@ -3,6 +3,36 @@ import type { DB, Row } from "./db.js";
 import { dynamicFlag } from "./security.js";
 import { flagMode } from "./challenge-model.js";
 
+export const flagTargetsInput = z
+  .array(z.string().regex(/^[a-z][a-z0-9-]{0,23}$/))
+  .min(1)
+  .max(8)
+  .refine((names) => new Set(names).size === names.length, "注入容器不能重复")
+  .nullable();
+
+export function validateFlagTargets(
+  challenge: Row,
+  parts: Row[] = challenge.parts ?? [],
+) {
+  const services = new Set([
+    "main",
+    ...(challenge.resources?.container?.topology?.services ?? []).map(
+      (s: Row) => s.name,
+    ),
+  ]);
+  for (const targets of [
+    challenge.flag_targets,
+    ...parts.map((part) => part.flag_targets),
+  ]) {
+    if (targets == null) continue;
+    for (const name of flagTargetsInput.parse(targets)!)
+      if (!services.has(name))
+        throw Object.assign(Error(`Flag 注入容器不存在：${name}`), {
+          statusCode: 400,
+        });
+  }
+}
+
 export const flagEnvironmentName = z
   .string()
   .trim()
@@ -40,12 +70,16 @@ export async function flagEnvironmentSpec(
   owner?: string,
 ) {
   const parts = await db.query(
-    "SELECT id,flag_env,flag_template FROM challenge_parts WHERE challenge_id=$1 AND role<>'defense' ORDER BY position,id",
+    "SELECT id,flag_env,flag_template,flag_targets FROM challenge_parts WHERE challenge_id=$1 AND role<>'defense' ORDER BY position,id",
     [challenge.id],
   );
   const spec = {
     flag_mode: flagMode(challenge),
     flag_env: challenge.flag_env ?? "FLAG",
+    flag_targets: challenge.flag_targets ?? null,
+    part_targets: Object.fromEntries(
+      parts.map((p) => [p.id, p.flag_targets ?? null]),
+    ),
     flag_template: challenge.flag_template ?? "",
     part_templates: Object.fromEntries(
       parts.map((p) => [p.id, p.flag_template ?? null]),
@@ -98,7 +132,30 @@ export function flagForInstance(instance: Row, part?: string) {
   );
 }
 
-export function flagEnvironment(instance: Row): string[] {
+export function flagTargets(instance: Row, part?: string): string[] {
+  const targets = part
+    ? instance.spec.part_targets?.[part]
+    : instance.spec.flag_targets;
+  return (
+    targets ?? [
+      "main",
+      ...(instance.spec.awd
+        ? []
+        : (instance.spec.topology?.services ?? [])
+            .filter((service: Row) => service.inject_flag)
+            .map((service: Row) => service.name)),
+    ]
+  );
+}
+export function serviceFlagEnvironments(instance: Row) {
+  return Object.fromEntries(
+    [
+      "main",
+      ...(instance.spec.topology?.services ?? []).map((s: Row) => s.name),
+    ].map((name) => [name, flagEnvironment(instance, name)]),
+  );
+}
+export function flagEnvironment(instance: Row, service?: string): string[] {
   const spec = instance.spec;
   if (
     (spec.flag_mode ??
@@ -106,10 +163,15 @@ export function flagEnvironment(instance: Row): string[] {
     "dynamic"
   )
     return [];
+  const included = (part?: string) =>
+    !service ||
+    instance.kind === "dynamic_attachment" ||
+    flagTargets(instance, part).includes(service);
   const parts: string[] = spec.parts ?? [];
   if (!parts.length) {
-    const name = flagEnvironmentName.parse(spec.flag_env ?? "FLAG");
-    const flag = flagForInstance(instance);
+    if (!included()) return [];
+    const name = flagEnvironmentName.parse(spec.flag_env ?? "FLAG"),
+      flag = flagForInstance(instance);
     return name === "FLAG"
       ? [`FLAG=${flag}`]
       : [`FLAG=${flag}`, `${name}=${flag}`];
@@ -121,11 +183,16 @@ export function flagEnvironment(instance: Row): string[] {
   );
   if (new Set(names).size !== names.length)
     throw Error("小题环境变量名不能重复");
-  const flags = parts.map((id) => flagForInstance(instance, id));
+  const selected = parts.flatMap((id, index) =>
+    included(id)
+      ? [{ id, name: names[index]!, flag: flagForInstance(instance, id) }]
+      : [],
+  );
+  if (!selected.length) return [];
   return [
-    `FLAG=${flags[0]}`,
-    `FLAG_COUNT=${parts.length}`,
-    ...names.map((name, index) => `${name}=${flags[index]}`),
-    `FLAGS_JSON=${JSON.stringify(Object.fromEntries(parts.map((id, index) => [id, flags[index]])))}`,
+    `FLAG=${selected[0]!.flag}`,
+    `FLAG_COUNT=${selected.length}`,
+    ...selected.map(({ name, flag }) => `${name}=${flag}`),
+    `FLAGS_JSON=${JSON.stringify(Object.fromEntries(selected.map(({ id, flag }) => [id, flag])))}`,
   ];
 }

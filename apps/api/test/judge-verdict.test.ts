@@ -134,6 +134,12 @@ test("patch worker reports functional, exploit, success and infrastructure outco
         throw Object.assign(Error("missing"), { statusCode: 404 });
       };
       const docker = {
+        listContainers: async (label: string) =>
+          [...containers.entries()]
+            .filter(([, value]) => value.Config.Labels?.[label])
+            .map(([Id, value]) => ({ Id, Labels: value.Config.Labels })),
+        listNetworks: async (label: string) =>
+          [...networks.values()].filter((value) => value.Labels?.[label]),
         inspectImage: async () => ({
           Id: "sha256:" + "a".repeat(64),
           Config: {},
@@ -160,7 +166,9 @@ test("patch worker reports functional, exploit, success and infrastructure outco
             );
           }
           const v = {
+            Id: c.name,
             Config: c,
+            State: { Running: false, Status: "created" },
             NetworkSettings: {
               Networks: {
                 [c.HostConfig.NetworkMode]: { IPAddress: "172.20.0.3" },
@@ -170,7 +178,9 @@ test("patch worker reports functional, exploit, success and infrastructure outco
           containers.set(c.name, v);
           return { Id: c.name };
         },
-        startContainer: async () => {},
+        startContainer: async (id: string) => {
+          containers.get(id).State = { Running: true, Status: "running" };
+        },
         inspectContainer: async (id: string) => containers.get(id) ?? missing(),
         waitContainer: async (id: string) => {
           if (id.endsWith("-update")) {
