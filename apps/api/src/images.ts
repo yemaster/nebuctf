@@ -1,3 +1,4 @@
+import { imageUploadRoutes } from "./image-uploads.js";
 import { can, anyAccess } from "./access-control.js";
 import { getSetting } from "./settings.js";
 import { flagEnvironmentSpec } from "./flag-environment.js";
@@ -35,7 +36,7 @@ export async function imageStatus(db: DB) {
       Date.now() - new Date(worker.checked_at).getTime() < 60000,
   };
 }
-const imageSelect = `SELECT i.*,j.id job_id,j.status job_status,j.error job_error FROM docker_images i LEFT JOIN LATERAL (SELECT id,status,error FROM docker_image_pulls WHERE image=i.image ORDER BY created_at DESC LIMIT 1) j ON true`;
+const imageSelect = `SELECT i.*,j.id job_id,j.status job_status,j.error job_error,j.kind job_kind FROM docker_images i LEFT JOIN LATERAL (SELECT id,status,error,kind FROM docker_image_pulls WHERE image=i.image OR image_refs @> jsonb_build_array(i.image) ORDER BY created_at DESC LIMIT 1) j ON true`;
 const testSpec = z.object({
   image: imageReference,
   protocol: z.enum(["http", "nc"]),
@@ -47,25 +48,48 @@ const testSpec = z.object({
   topology: topologyInput.optional(),
 });
 export function imageRoutes(app: FastifyInstance, db: DB) {
+  imageUploadRoutes(app, db);
   app.get("/api/admin/images", async (req) => {
     requireAdmin(req);
     const p = page
       .extend({
         state: z.enum(["all", "present", "missing", "pulling"]).default("all"),
+        usage: z.enum(["all", "used", "unused"]).default("all"),
+        group_by: z.enum(["none", "challenge"]).default("none"),
       })
       .parse(req.query);
     const where =
       "WHERE (strpos(lower(i.image),lower($1::text))>0 OR EXISTS(SELECT 1 FROM jsonb_array_elements(i.challenges) c WHERE strpos(lower(c->>'title'),lower($1::text))>0)) AND ($2='all' OR ($2='present' AND i.present) OR ($2='missing' AND NOT i.present) OR ($2='pulling' AND j.status IN ('queued','pulling')))";
-    const [count] = await db.query(
-      `SELECT count(*)::int total FROM (${imageSelect} ${where}) x`,
+    const [counts] = await db.query(
+      `SELECT count(*) FILTER (WHERE jsonb_array_length(challenges)>0)::int used,count(*) FILTER (WHERE jsonb_array_length(challenges)=0)::int unused FROM (${imageSelect} ${where}) x`,
       [p.q.trim(), p.state],
     );
+    if (p.group_by === "challenge" && p.usage === "used") {
+      const grouped = `WITH matched AS (${imageSelect} ${where}), refs AS (SELECT m.*,c->>'id' challenge_id,c->>'title' challenge_title FROM matched m CROSS JOIN LATERAL jsonb_array_elements(m.challenges) c WHERE strpos(lower(m.image),lower($1::text))>0 OR strpos(lower(c->>'title'),lower($1::text))>0)`;
+      const [count] = await db.query(
+        `${grouped} SELECT count(DISTINCT challenge_id)::int total FROM refs`,
+        [p.q.trim(), p.state],
+      );
+      return {
+        groups: await db.query(
+          `${grouped} SELECT challenge_id id,max(challenge_title) title,jsonb_agg(to_jsonb(refs)-'challenge_id'-'challenge_title' ORDER BY image) items FROM refs GROUP BY challenge_id ORDER BY title,challenge_id LIMIT 12 OFFSET $3`,
+          [p.q.trim(), p.state, (p.page - 1) * 12],
+        ),
+        group_total: count!.total,
+        total: counts!.used,
+        counts,
+        page: p.page,
+        worker: await imageStatus(db),
+      };
+    }
     return {
       items: await db.query(
-        `${imageSelect} ${where} ORDER BY i.image LIMIT 24 OFFSET $3`,
-        [p.q.trim(), p.state, (p.page - 1) * 24],
+        `${imageSelect} ${where} AND ($3='all' OR ($3='used' AND jsonb_array_length(i.challenges)>0) OR ($3='unused' AND jsonb_array_length(i.challenges)=0)) ORDER BY i.image LIMIT 24 OFFSET $4`,
+        [p.q.trim(), p.state, p.usage, (p.page - 1) * 24],
       ),
-      total: count!.total,
+      total:
+        p.usage === "all" ? counts!.used + counts!.unused : counts![p.usage],
+      counts,
       page: p.page,
       worker: await imageStatus(db),
     };
@@ -117,7 +141,7 @@ export function imageRoutes(app: FastifyInstance, db: DB) {
   app.get("/api/admin/images/pulls/:id", async (req) => {
     const user = requireAdmin(req);
     const [job] = await db.query(
-      "SELECT id,image,reference,status,layers,logs,error,created_at,updated_at,finished_at FROM docker_image_pulls WHERE id=$1 AND ($2 OR requested_by=$3)",
+      "SELECT id,image,reference,kind,status,layers,logs,error,created_at,updated_at,finished_at FROM docker_image_pulls WHERE id=$1 AND ($2 OR requested_by=$3)",
       [
         id.parse((req.params as any).id),
         can(user, "images.read") || anyAccess(user, "challenges.write"),

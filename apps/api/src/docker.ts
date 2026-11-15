@@ -1,5 +1,5 @@
 import type { TerminalTarget } from "./terminal-target.js";
-import type { Duplex } from "node:stream";
+import type { Readable, Duplex } from "node:stream";
 import { request } from "node:http";
 import { config } from "./config.js";
 import { StringDecoder } from "node:string_decoder";
@@ -13,6 +13,7 @@ export interface ImageInfo {
 export interface PullEvent {
   id?: string;
   status?: string;
+  stream?: string;
   progressDetail?: { current?: number; total?: number };
   error?: string;
   errorDetail?: { message?: string };
@@ -333,6 +334,30 @@ export class DockerEngine {
     signal?: AbortSignal,
   ): Promise<void> {
     imageReference.parse(image);
+    return this.imageTransfer(
+      `/images/create?fromImage=${encodeURIComponent(image)}`,
+      onProgress,
+      signal,
+    );
+  }
+  loadImage(
+    archive: Readable,
+    onProgress: (event: PullEvent) => void,
+    signal?: AbortSignal,
+  ) {
+    return this.imageTransfer(
+      "/images/load?quiet=0",
+      onProgress,
+      signal,
+      archive,
+    );
+  }
+  private imageTransfer(
+    path: string,
+    onProgress: (event: PullEvent) => void,
+    signal?: AbortSignal,
+    archive?: Readable,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const decoder = new StringDecoder("utf8");
       let pending = "",
@@ -341,7 +366,8 @@ export class DockerEngine {
         {
           socketPath: this.socketPath,
           method: "POST",
-          path: `/v1.45/images/create?fromImage=${encodeURIComponent(image)}`,
+          path: `/v1.45${path}`,
+          headers: archive ? { "Content-Type": "application/x-tar" } : {},
           signal,
         },
         (res) => {
@@ -359,9 +385,9 @@ export class DockerEngine {
           res.on("data", (chunk: Buffer) => {
             try {
               bytes += chunk.length;
-              if (bytes > 32 * 1024 * 1024) throw Error("镜像拉取日志超过限制");
+              if (bytes > 32 * 1024 * 1024) throw Error("镜像任务日志超过限制");
               pending += decoder.write(chunk);
-              if (pending.length > 1024 * 1024) throw Error("镜像拉取响应过长");
+              if (pending.length > 1024 * 1024) throw Error("镜像任务响应过长");
               let end: number;
               while ((end = pending.indexOf("\n")) >= 0) {
                 const line = pending.slice(0, end);
@@ -375,7 +401,7 @@ export class DockerEngine {
             }
           });
           res.on("error", reject);
-          res.on("aborted", () => reject(Error("镜像拉取连接中断")));
+          res.on("aborted", () => reject(Error("镜像任务连接中断")));
           res.on("end", () => {
             try {
               pending += decoder.end();
@@ -389,15 +415,21 @@ export class DockerEngine {
           });
         },
       );
-      req.setTimeout(120000, () => req.destroy(Error("镜像拉取连接超时")));
+      req.setTimeout(120000, () => req.destroy(Error("镜像任务连接超时")));
       const deadline = setTimeout(
-        () => req.destroy(Error("镜像拉取超过 15 分钟")),
+        () => req.destroy(Error("镜像任务超过 15 分钟")),
         15 * 60 * 1000,
       );
       deadline.unref();
-      req.on("close", () => clearTimeout(deadline));
+      req.on("close", () => {
+        clearTimeout(deadline);
+        archive?.destroy();
+      });
       req.on("error", reject);
-      req.end();
+      if (archive) {
+        archive.on("error", (error) => req.destroy(error));
+        archive.pipe(req);
+      } else req.end();
     });
   }
   inspectContainer(id: string) {

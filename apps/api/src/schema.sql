@@ -413,5 +413,18 @@ INSERT INTO schema_migrations(version) VALUES(39) ON CONFLICT DO NOTHING;
 ALTER TABLE contest_groups ADD COLUMN IF NOT EXISTS invite_code_cipher text NOT NULL DEFAULT '';
 INSERT INTO schema_migrations(version) VALUES(40) ON CONFLICT DO NOTHING;
 
+ALTER TABLE docker_image_pulls ALTER COLUMN image DROP NOT NULL;
+ALTER TABLE docker_image_pulls ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'pull' CHECK(kind IN ('pull','load'));
+ALTER TABLE docker_image_pulls ADD COLUMN IF NOT EXISTS image_refs jsonb NOT NULL DEFAULT '[]';
+CREATE TABLE IF NOT EXISTS docker_image_uploads(
+ id uuid PRIMARY KEY,
+ requested_by uuid NOT NULL REFERENCES users(id),
+ filename text NOT NULL,
+ size bigint NOT NULL,
+ received bigint NOT NULL DEFAULT 0,
+ job_id uuid REFERENCES docker_image_pulls(id),
+ updated_at timestamptz NOT NULL DEFAULT now());
+INSERT INTO schema_migrations(version) VALUES(41) ON CONFLICT DO NOTHING;
+
 ALTER TABLE challenges ADD COLUMN IF NOT EXISTS flag_targets jsonb;
 ALTER TABLE challenge_parts ADD COLUMN IF NOT EXISTS flag_targets jsonb;

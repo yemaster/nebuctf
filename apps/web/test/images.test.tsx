@@ -30,6 +30,7 @@ test(
       Event: dom.window.Event,
       CustomEvent: dom.window.CustomEvent,
       FormData: dom.window.FormData,
+      File: dom.window.File,
       MutationObserver: dom.window.MutationObserver,
       getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
       requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window),
@@ -53,6 +54,10 @@ test(
         await import("@tanstack/react-query");
     const { ImageTools } = await import("../src/components/admin/image-tools"),
       { ImagesAdmin } = await import("../src/pages/admin/Images");
+    const { ImageImportActions } =
+      await import("../src/components/admin/image-import-actions");
+    let jobKind = "pull";
+    let releaseChunk: (() => void) | undefined;
     const cid = "10000000-0000-4000-8000-000000000001";
     let present = false,
       jobStatus = "queued",
@@ -65,9 +70,28 @@ test(
     globalThis.fetch = async (input, init) => {
       const path = String(input).replace(/^\/api/, "");
       if (init?.method && init.method !== "GET") {
-        const body = JSON.parse(String(init.body));
+        const body =
+          init.body instanceof FormData
+            ? init.body
+            : JSON.parse(String(init.body));
         writes.push({ path, body });
+        if (path === "/admin/images/uploads")
+          return Response.json({ id: "upload-1", chunk_size: 2 });
+        if (path.startsWith("/admin/images/uploads/upload-1?")) {
+          if (path.endsWith("offset=0"))
+            await new Promise<void>((resolve) => {
+              releaseChunk = resolve;
+            });
+          return Response.json({ received: path.endsWith("offset=0") ? 2 : 3 });
+        }
+        if (path === "/admin/images/uploads/upload-1/complete") {
+          jobKind = "load";
+          jobStatus = "pulling";
+          jobId = "load-1";
+          return Response.json({ id: jobId });
+        }
         if (path === "/admin/images/pull") {
+          jobKind = "pull";
           jobId = "pull-1";
           jobStatus = "pulling";
           return Response.json({ id: jobId, status: jobStatus });
@@ -97,7 +121,7 @@ test(
       reads.push(path);
       if (path.startsWith("/admin/images/status?"))
         return Response.json({
-          image: "nebuctf/demo:local",
+          image: "docker.io/nebuctf/demo:local",
           present,
           challenges: [],
           worker: { online: true },
@@ -108,6 +132,7 @@ test(
         return Response.json({
           id: jobId,
           reference: "nebuctf/demo:local",
+          kind: jobKind,
           status: jobStatus,
           layers: [
             { id: "layer1", status: "Downloading", current: 50, total: 100 },
@@ -121,21 +146,29 @@ test(
         return Response.json({ instance, next_operation_at: next });
       if (path.startsWith("/admin/images?")) {
         const q = new URLSearchParams(path.split("?")[1]);
+        const item = {
+          image: "nebuctf/demo:local",
+          present,
+          size: 2048,
+          challenges: [{ id: cid, title: "示例题目" }],
+          job_id: jobId,
+          job_status: jobStatus,
+        };
         return Response.json({
-          items:
-            q.get("page") === "2"
+          items: [],
+          groups:
+            q.get("page") === "2" || q.get("usage") === "unused"
               ? []
               : [
                   {
-                    image: "nebuctf/demo:local",
-                    present,
-                    size: 2048,
-                    challenges: [{ id: cid, title: "示例题目" }],
-                    job_id: jobId,
-                    job_status: jobStatus,
+                    id: cid,
+                    title: "示例题目",
+                    items: [item, { ...item, image: "nebuctf/checker:local" }],
                   },
                 ],
-          total: 25,
+          group_total: 13,
+          total: q.get("usage") === "unused" ? 0 : 25,
+          counts: { used: 25, unused: 0 },
           worker: { online: true, checked_at: new Date().toISOString() },
         });
       }
@@ -162,7 +195,14 @@ test(
             kind={kind}
             savedKind="dynamic_container"
             formRef={ref}
-          />
+          >
+            {(status, actions) => (
+              <div className="flex flex-wrap items-center gap-2">
+                {status}
+                {actions}
+              </div>
+            )}
+          </ImageTools>
         </form>
       );
     }
@@ -218,7 +258,7 @@ test(
     }
     try {
       await t.test(
-        "missing images pull in a shadcn dialog with real layer progress and can reopen logs",
+        "normalized image references retain pull actions, layer progress and logs",
         async () => {
           jobStatus = "";
           await mount(<Editor />);
@@ -266,6 +306,74 @@ test(
             writes.filter((w) => w.path === "/admin/images/pull").length,
             2,
           );
+        },
+      );
+      await t.test(
+        "standalone pull input and upload keep one progress dialog through closure and import",
+        async () => {
+          await mount(<ImageImportActions disabled={false} />);
+          await click(button("拉取镜像"));
+          const input =
+            document.querySelector<HTMLInputElement>("#image-reference")!;
+          assert.ok(input);
+          await click(button("取消"));
+          await click(button("上传镜像"));
+          const picker =
+            document.querySelector<HTMLInputElement>("#image-archive")!;
+          Object.defineProperty(picker, "files", {
+            configurable: true,
+            value: [new File(["tar"], "image.tar")],
+          });
+          await act(async () => {
+            picker.dispatchEvent(
+              new dom.window.Event("change", { bubbles: true }),
+            );
+          });
+          await act(async () => {
+            document
+              .querySelector("form")!
+              .dispatchEvent(
+                new dom.window.Event("submit", {
+                  bubbles: true,
+                  cancelable: true,
+                }),
+              );
+          });
+          await settle(() => !!releaseChunk);
+          assert.equal(document.querySelectorAll('[role="dialog"]').length, 1);
+          assert.ok(document.querySelector('[aria-label="镜像上传进度"]'));
+          assert.match(
+            document.querySelector('[role="dialog"]')!.textContent!,
+            /正在上传/,
+          );
+          await click(button("关闭"));
+          assert.equal(document.querySelector('[role="dialog"]'), null);
+          await click(button("任务进度"));
+          assert.ok(document.querySelector('[aria-label="镜像上传进度"]'));
+          await act(async () => releaseChunk!());
+          await settle(
+            () =>
+              !!document
+                .querySelector('[role="dialog"]')
+                ?.textContent?.includes("正在导入"),
+          );
+          assert.equal(document.querySelectorAll('[role="dialog"]').length, 1);
+          assert.equal(
+            writes.filter((w) =>
+              w.path.startsWith("/admin/images/uploads/upload-1?"),
+            ).length,
+            2,
+          );
+          assert.ok(
+            document
+              .querySelector('[data-slot="scroll-area"]')
+              ?.classList.contains("h-64"),
+          );
+          jobStatus = "succeeded";
+          await refresh();
+          await click(button("完成"));
+          assert.equal(document.querySelector('[role="dialog"]'), null);
+          jobKind = "pull";
         },
       );
       await t.test(
@@ -346,18 +454,29 @@ test(
           await mount(<ImagesAdmin />, "/admin/images");
           await settle(() => !!container.querySelector("tbody tr"));
           assert.match(container.textContent!, /2.0 KiB/);
-          assert.match(
+          assert.doesNotMatch(
             container.querySelector("thead")!.textContent!,
-            /关联题目数/,
+            /关联题目/,
+          );
+          assert.equal(container.querySelectorAll("section h2").length, 1);
+          assert.equal(
+            container.querySelector("section h2")!.textContent,
+            "示例题目",
+          );
+          assert.match(
+            container.querySelector("tbody")!.textContent!,
+            /nebuctf\/demo:local/,
+          );
+          assert.match(
+            container.querySelector("tbody")!.textContent!,
+            /nebuctf\/checker:local/,
           );
           assert.equal(
-            container.querySelectorAll("tbody tr td")[3]!.textContent,
-            "1",
+            container.querySelector('[role="tab"][aria-selected="true"]')!
+              .textContent,
+            "题目使用中25",
           );
-          assert.doesNotMatch(
-            container.querySelector("tbody")!.textContent!,
-            /示例题目/,
-          );
+          assert(reads.some((p) => p.includes("group_by=challenge")));
           await click(button("下一页"));
           await settle(() =>
             reads.some(
@@ -366,6 +485,27 @@ test(
           );
           await settle(
             () => container.querySelectorAll("tbody tr").length === 0,
+          );
+          const unusedTab = [
+            ...container.querySelectorAll('[role="tab"]'),
+          ].find((t) => t.textContent?.startsWith("未应用"))!;
+          await act(async () => {
+            unusedTab.dispatchEvent(
+              new dom.window.MouseEvent("mousedown", {
+                bubbles: true,
+                button: 0,
+              }),
+            );
+          });
+          await settle(() =>
+            reads.some(
+              (p) => p.includes("usage=unused") && p.includes("page=1"),
+            ),
+          );
+          assert.match(container.textContent!, /暂无未应用的镜像/);
+          assert.doesNotMatch(
+            container.querySelector("thead")!.textContent!,
+            /关联题目/,
           );
         },
       );

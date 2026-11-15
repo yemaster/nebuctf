@@ -1,3 +1,6 @@
+import { createReadStream } from "node:fs";
+import { prepareImageArchive, removeImageArchive } from "./image-archive.js";
+import { cleanImageUploads } from "./image-uploads.js";
 import { resourceProfiles } from "./challenge-model.js";
 import { DockerEngine, type PullEvent } from "./docker.js";
 import type { DB, Row } from "./db.js";
@@ -45,6 +48,9 @@ export class ImageWorker {
         for (const image of new Set(
           [
             profiles.container?.image,
+            ...(profiles.container?.topology?.services.map(
+              (service) => service.image,
+            ) ?? []),
             profiles.attachment?.image,
             c.patch_config?.checker_image,
             c.awd_config?.checker_image,
@@ -89,17 +95,20 @@ export class ImageWorker {
   async tick() {
     if (!this.initialized) {
       await this.db.query(
-        "UPDATE docker_image_pulls SET status='failed',error='Worker 已重启，请重新拉取',finished_at=now(),updated_at=now() WHERE status='pulling'",
+        "UPDATE docker_image_pulls SET status='failed',error='Worker 已重启，请重新提交',finished_at=now(),updated_at=now() WHERE status='pulling'",
       );
       this.initialized = true;
     }
-    if (Date.now() - this.lastSync > 10000) await this.sync();
+    if (Date.now() - this.lastSync > 10000) {
+      await this.sync();
+      await cleanImageUploads(this.db);
+    }
     if (this.active) return;
     const job = await this.db.transaction(async (tx) => {
       // A failed progress write can outlive its in-memory task. The elected
       // scheduler has no active pull here, so these rows can safely be retried.
       await tx.query(
-        "UPDATE docker_image_pulls SET status='failed',error='拉取任务中断，请重试',finished_at=now(),updated_at=now() WHERE status='pulling'",
+        "UPDATE docker_image_pulls SET status='failed',error='镜像任务中断，请重试',finished_at=now(),updated_at=now() WHERE status='pulling'",
       );
       const [row] = await tx.query(
         "SELECT * FROM docker_image_pulls WHERE status='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1",
@@ -163,34 +172,69 @@ export class ImageWorker {
       });
     }, 1000);
     timer.unref();
+    let uploadId: string | undefined;
     try {
-      imageReference.parse(job.reference);
-      validateImage(job.reference);
-      log(`开始拉取 ${job.reference}`);
-      dirty = true;
-      await this.docker.pullImage(
-        job.reference,
-        (event: PullEvent) => {
-          const status = cleanDockerMessage(event.status),
-            id = cleanDockerMessage(event.id).slice(0, 100);
-          if (id) {
-            const previous = layers.get(id);
-            if (!previous && layers.size >= 256) return;
-            const number = (n: unknown) =>
-              typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
-            layers.set(id, {
-              id,
-              status,
-              current: number(event.progressDetail?.current),
-              total: number(event.progressDetail?.total),
-            });
-            if (previous?.status !== status) log(`${id}: ${status}`);
-          } else if (status) log(status);
-          dirty = true;
-        },
-        signal,
+      let references = [job.reference];
+      let archivePath: string | undefined;
+      if (job.kind === "load") {
+        const [upload] = await this.db.query(
+          "SELECT id FROM docker_image_uploads WHERE job_id=$1",
+          [job.id],
+        );
+        if (!upload) throw Error("上传文件已失效，请重新上传");
+        uploadId = upload.id;
+        log("正在校验镜像归档");
+        dirty = true;
+        await flush();
+        const archive = await prepareImageArchive(upload.id, signal);
+        archivePath = archive.path;
+        references = archive.references;
+        for (const reference of references)
+          await this.db.query(
+            "INSERT INTO docker_images(image) VALUES($1) ON CONFLICT DO NOTHING",
+            [imageKey(reference)],
+          );
+        await this.db.query(
+          "UPDATE docker_image_pulls SET image_refs=$2 WHERE id=$1",
+          [job.id, JSON.stringify(references.map(imageKey))],
+        );
+      } else {
+        imageReference.parse(job.reference);
+        validateImage(job.reference);
+      }
+      log(
+        job.kind === "load"
+          ? `开始导入 ${references.join(", ")}`
+          : `开始拉取 ${job.reference}`,
       );
-      await this.docker.inspectImage(job.reference);
+      dirty = true;
+      const onProgress = (event: PullEvent) => {
+        const status = cleanDockerMessage(event.status ?? event.stream).trim(),
+          id = cleanDockerMessage(event.id).slice(0, 100);
+        if (id) {
+          const previous = layers.get(id);
+          if (!previous && layers.size >= 256) return;
+          const number = (n: unknown) =>
+            typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
+          layers.set(id, {
+            id,
+            status,
+            current: number(event.progressDetail?.current),
+            total: number(event.progressDetail?.total),
+          });
+          if (previous?.status !== status) log(`${id}: ${status}`);
+        } else if (status) log(status);
+        dirty = true;
+      };
+      if (archivePath)
+        await this.docker.loadImage(
+          createReadStream(archivePath),
+          onProgress,
+          signal,
+        );
+      else await this.docker.pullImage(job.reference, onProgress, signal);
+      for (const reference of references)
+        await this.docker.inspectImage(reference);
       await this.sync();
       log("镜像已就绪");
       dirty = true;
@@ -201,7 +245,7 @@ export class ImageWorker {
       );
     } catch (error) {
       const message = signal.aborted
-        ? "拉取已中断，请重试"
+        ? "镜像任务已中断，请重试"
         : cleanDockerMessage((error as Error).message);
       log(message);
       dirty = true;
@@ -212,6 +256,12 @@ export class ImageWorker {
       );
     } finally {
       clearInterval(timer);
+      if (uploadId) {
+        await removeImageArchive(uploadId);
+        await this.db.query("DELETE FROM docker_image_uploads WHERE id=$1", [
+          uploadId,
+        ]);
+      }
     }
   }
   async stop() {

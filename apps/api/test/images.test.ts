@@ -557,6 +557,119 @@ test(
           .size,
         first.total,
       );
+      const used = (await get("/admin/images?usage=used", admin.cookie)).json();
+      const unused = (
+        await get("/admin/images?usage=unused", admin.cookie)
+      ).json();
+      const unusedNext = (
+        await get("/admin/images?usage=unused&page=2", admin.cookie)
+      ).json();
+      assert(used.total > 0);
+      assert(unused.total >= 30);
+      assert.equal(used.total + unused.total, first.total);
+      assert.deepEqual(used.counts, unused.counts);
+      assert.equal(used.counts.used, used.total);
+      assert(used.items.every((i: any) => i.challenges.length > 0));
+      assert(
+        [...unused.items, ...unusedNext.items].every(
+          (i: any) => i.challenges.length === 0,
+        ),
+      );
+      assert.equal(
+        new Set([...unused.items, ...unusedNext.items].map((i: any) => i.image))
+          .size,
+        unused.total,
+      );
+      const filtered = (
+        await get(
+          "/admin/images?usage=unused&q=extra-&state=present",
+          admin.cookie,
+        )
+      ).json();
+      assert.equal(filtered.total, 30);
+      assert.deepEqual(filtered.counts, { used: 0, unused: 30 });
+      const none = (
+        await get("/admin/images?usage=used&q=extra-", admin.cookie)
+      ).json();
+      assert.equal(none.total, 0);
+      assert.equal(none.items.length, 0);
+      assert.equal(
+        (await get("/admin/images?usage=invalid", admin.cookie)).statusCode,
+        400,
+      );
+      const grouped = (
+        await get("/admin/images?usage=used&group_by=challenge", admin.cookie)
+      ).json();
+      assert(grouped.group_total > 0);
+      for (const group of grouped.groups) {
+        const expected = used.items.filter((i: any) =>
+          i.challenges.some((c: any) => c.id === group.id),
+        );
+        assert.deepEqual(
+          group.items.map((i: any) => i.image).sort(),
+          expected.map((i: any) => i.image).sort(),
+        );
+      }
+      const fixtures = Array.from({ length: 14 }, (_, i) => ({
+        id: crypto.randomUUID(),
+        title: `Group fixture ${String(i).padStart(2, "0")}`,
+      }));
+      for (let i = 0; i < 28; i++) {
+        await db.query(
+          "INSERT INTO docker_images(image,present,challenges) VALUES($1,true,$2)",
+          [
+            `docker.io/nebuctf/group-fixture-${i}:latest`,
+            JSON.stringify([fixtures[Math.floor(i / 2)]]),
+          ],
+        );
+      }
+      const groupPage1 = (
+        await get(
+          "/admin/images?usage=used&group_by=challenge&q=group-fixture",
+          admin.cookie,
+        )
+      ).json();
+      const groupPage2 = (
+        await get(
+          "/admin/images?usage=used&group_by=challenge&q=group-fixture&page=2",
+          admin.cookie,
+        )
+      ).json();
+      assert.equal(groupPage1.group_total, 14);
+      assert.equal(groupPage1.groups.length, 12);
+      assert.equal(groupPage2.groups.length, 2);
+      assert(
+        [...groupPage1.groups, ...groupPage2.groups].every(
+          (g: any) => g.items.length === 2,
+        ),
+      );
+      assert.equal(
+        new Set(
+          [...groupPage1.groups, ...groupPage2.groups].map((g: any) => g.id),
+        ).size,
+        14,
+      );
+      const sharedImage = "docker.io/nebuctf/group-fixture-0:latest";
+      await db.query("UPDATE docker_images SET challenges=$2 WHERE image=$1", [
+        sharedImage,
+        JSON.stringify(fixtures.slice(0, 2)),
+      ]);
+      const sharedGroups = (
+        await get(
+          "/admin/images?usage=used&group_by=challenge&q=group-fixture-0:",
+          admin.cookie,
+        )
+      ).json();
+      assert.equal(sharedGroups.groups.length, 2);
+      assert.equal(sharedGroups.counts.used, 1);
+      const titleGroup = (
+        await get(
+          "/admin/images?usage=used&group_by=challenge&q=Group%20fixture%2000",
+          admin.cookie,
+        )
+      ).json();
+      assert.equal(titleGroup.groups.length, 1);
+      assert.equal(titleGroup.groups[0].id, fixtures[0]!.id);
       for (let n = 0; n < 16; n++)
         await db.query(
           "INSERT INTO docker_image_pulls(id,image,reference,requested_by,status) VALUES($1,$2,$3,$4,'queued')",
