@@ -1,10 +1,13 @@
 # NebuCTF
 
+[项目介绍与使用文档](https://yemaster.github.io/nebuctf/) · [部署指南](https://yemaster.github.io/nebuctf/deploy/quick-start.html)
+
 自托管的 CTF 竞赛与学习平台。React + shadcn/ui、Fastify、PostgreSQL；支持 Docker Compose，或 k3s 平台配合独立 Docker 执行域，部署边界见 [部署文档](docs/DEPLOYMENT.md)。实现范围和真实验收状态分别见 [方案](docs/PLAN.md) 与 [验证记录](docs/VERIFICATION.md)。本次运行入口与账号说明见 [本地测试](docs/LOCAL_TEST.md)。
 
 ## 功能
 
 - 注册、登录、头像上传、改密、会话撤销；超级管理员、普通用户、自定义多角色及单题目/单比赛授权。
+- 个人 API KEY：管理员增删身份并配置全局允许权限，用户按身份或手动选权创建限期密钥，身份权限受全局范围约束；支持最近使用、撤销及过滤后的 [API 文档](docs/API.md#个人-api-key)。
 - 战队创建、Logo 上传、邀请码、成员管理、队长转让、比赛报名与成员锁定。
 - [自定义报名表单](docs/REGISTRATION_FORMS.md)、逐成员资料、分组审核覆盖、行内审核及刷新恢复草稿。
 - 分页题库与题单、多小题独立计分、Flag 提交、提交记录、动态积分、比赛封榜。
@@ -21,7 +24,7 @@
 - 题目、赛事、公告、文档、技能树、资源、用户、审计管理。
 - 基础概览、系统名称与页脚、容器续期与确认替换、SMTP 注册验证与邮箱白名单、OpenAI/Anthropic AI 路由转发，见 [基础管理教程](docs/SYSTEM-SETTINGS.md)。
 
-题型配置、计分公式、检查器协议与实时动态见 [比赛规则](docs/COMPETITION-RULES.md)，攻防出题模板见 [示例](examples/attack-defense/README.md)。
+题型配置、计分公式、检查器协议与实时动态见 [比赛规则](docs/COMPETITION-RULES.md)。[示例题目](examples/README.md) 包含容器、动态附件、多 Flag、多容器、AWDP 和 AWD，可生成后台导入包。
 
 ## Docker 部署
 

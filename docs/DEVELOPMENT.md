@@ -20,6 +20,8 @@ npm run format
 
 根目录 `npm run dev` 在 PostgreSQL 模式启动独立 Scheduler；直接启动 API 工作区时另运行 `npm run scheduler:dev -w apps/api`。生产入口为 `node dist/scheduler-main.js`，API 不再执行定时任务。PGlite 开发模式由 API 复用同一串行 DB handle 执行相同 Scheduler，不能启动第二个嵌入数据库写进程。Scheduler 负责发布、提醒、轮次与非执行数据清理；Runtime（`worker-main.ts`）保留 Docker 资源、终端与执行心跳。
 
+项目工作约定：每次修改完成并通过针对性验证后，继续部署到 `tencent-sh` 并做线上验收，不停在「仅本地完成」。发布前备份业务库与配置，保留现有运营策略及活动资源；未经明确要求，不为验收修改正式业务数据或开放权限。部署步骤和回滚约束见 [部署与运维](DEPLOYMENT.md)，发布结果写入验证记录。
+
 ## 组织方式
 
 - HTTP 接口位于 `apps/api/src`，按身份、战队、题目、赛事、资源、学习与管理划分模块；`schemas.ts` 负责输入，`context.ts` 负责共享权限上下文。
@@ -32,7 +34,7 @@ npm run format
 
 不要绕过领域锁和唯一索引：重复解题只能计一次；报名后保持战队身份稳定；资源预约、配额和实例插入必须在同一事务内。配额在真实清理完成后释放，不能在收到停止请求时提前释放。
 
-镜像必须由运维预安装并满足前缀策略；推荐按 digest 固定正式镜像。所有实例继承非 root、cap-drop、只读根、禁止宿主挂载与限额约束。新增题目配置不能允许用户任意覆盖 Docker HostConfig。
+镜像可由运维预安装，或通过镜像管理页拉取、上传，均须满足前缀策略；推荐按 digest 固定正式镜像。所有实例继承非 root、cap-drop、只读根、禁止宿主挂载与限额约束。新增题目配置不能允许用户任意覆盖 Docker HostConfig。
 
 动态附件输出仅允许单一 artifact.zip；不可把生成器归档直接解压到宿主。网关路由必须来自运行且未过期的数据库实例，不能允许请求方指定目标 IP。
 

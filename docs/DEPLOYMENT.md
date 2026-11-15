@@ -389,6 +389,155 @@ nc 靶机在题目编辑的「连接方式」中设置；前端入口为 `/termi
 
 迁移 34 创建独立的 `help_documents` 表，并只在迁移首次执行时初始化默认中文文档。管理入口为 `/admin/help`，公开入口为 `/help/:slug`。正文、目录分组、排序和发布状态均保存在业务数据库；修改后不需要构建或重启 Web。后续启动不会覆盖管理员编辑，也不会恢复已删除的文档；公开目录无已发布文档时显示空状态，不回退到内置副本。知识库继续使用原有独立内容。
 
-迁移 35 为帮助文档增加可空的 `created_by` / `updated_by` 外键，用户删除时置空。新建记录两者均为操作者，后续保存只更新最后编辑人。升级时仅一次从 `help.save` 审计中恢复与文档 `created_at`、`updated_at` 精确吻合的人员；初始化文档没有创建审计，或历史审计缺失/已清理时保留空署名并显示「未记录」，不把首次编辑者冒充创建人。迁移不修改正文、发布状态或原有时间。
+迁移 35 为帮助文档增加可空的 `created_by` / `updated_by` 外键，用户删除时置空。新建记录两者均为操作者，后续保存只更新最后编辑人。升级时仅一次从 `help.save` 审计中恢复与文档 `created_at`、`updated_at` 精确吻合的人员；初始化文档没有创建审计，或历史审计缺失/已清理时保留空署名，阅读界面省略未知人员，不把首次编辑者冒充创建人。迁移不修改正文、发布状态或原有时间。
 
 升级需部署配套 API/Web；Scheduler 共用 API 镜像，按现有流程更新即可，本次功能不要求切换 Runtime/gateway。备份业务库时包含 `help_documents`。tencent-sh 的应用在 `nebuctf` 命名空间，PostgreSQL StatefulSet 在 `platform-data`，实际业务数据库名为 `nebuctf`；不要只备份 `POSTGRES_DB` 指向的默认 `postgres` 库。使用 `pg_restore --list` 确认归档含用户和业务表。回滚应用镜像时保留新增帮助表及其内容，不删除文档数据。
+
+## 个人 API KEY 发布
+
+迁移 36 新增 `api_keys` 表及本人历史索引，迁移 37 新增可空的 `identity_id`，既有自定义 Key 保持空身份且不改授权。两者不改写原有用户、比赛、文档、Flag 或资源数据。先备份实际 `nebuctf` 业务库和部署配置，构建匹配节点的 amd64 API/Web 镜像，导入 k3s containerd；先切换 API 并等待迁移/就绪，再切换共用后端镜像的 Scheduler 和 Web。此功能不要求更新 Docker Runtime/gateway，也不更改实例或流量配额。同步两份生产清单和根 Kustomization 的镜像标签。
+
+API KEY 功能及默认身份保持默认关闭，允许范围为空。管理员可在「基础 → API KEY」增删、改名和配置身份，设置「允许的权限」作为所有 Key 的全局上限；身份按配置与全局范围交集生效。旧策略读取时补齐已有默认身份的名称，显式保存的空身份列表不补回。此改动不要求新数据库字段；不会自动启用功能、扩大允许范围或创建密钥。当前腾讯云 origin 仍为 HTTP，正式使用个人密钥前建议配置 HTTPS。
+
+回滚应用时保留密钥表、身份字段及数据，不以删除表或恢复旧库回退代码。动态身份及全局权限上限生效后，不能直接退到固定身份/身份权限独立授权的后端：旧版本不识别动态配置，且身份 Key 可能绕过全局上限。确需回退时，先关闭 API KEY 并保持关闭，确认身份 Key 全部撤销及策略恢复兼容后再开放。数据库恢复仅用于确需数据回退的维护窗口，须另行确认备份后的写入处理。
+
+2026-11-12 腾讯云正式发布版本为 `api-keys-20261112-150000`：API、Scheduler、Web 均已切换，Runtime/gateway 保持原镜像。发布前业务库、部署快照、旧清单和校验凭据保存在 `/opt/nebuctf-releases/api-keys-20261112-150000/`，旧 API/Web 标签为 `help-attribution-20261112-010101`。三个 Deployment 均已就绪，迁移版本为 36；线上 API KEY 仍未启用，也未写入开放策略或创建密钥。
+
+2026-11-13 正式发布 `api-identities-20261113-104433`：API、Scheduler、Web 均已就绪，迁移版本升至 37。业务库、旧部署/清单、镜像和前后状态记录保存在 `/opt/nebuctf-releases/api-identities-20261113-104433/`，上一版本为 `api-keys-20261112-150000`；回退后端须遵守上述身份密钥限制。发布原样保留已有 API KEY 策略（已启用、仅开放个人资料读取/修改、最长 365 天），四个新增身份保持关闭。Runtime/gateway 与发布时运行中的题目容器 ID、启动时间未变。
+
+2026-11-13 正式发布 `dynamic-identities-20261113-114834`：API、Scheduler、Web 均为 1/1 就绪，数据库版本保持 37。业务库与旧配置、镜像校验、前后状态及验收记录保存在 `/opt/nebuctf-releases/dynamic-identities-20261113-114834/`，上一版本为 `api-identities-20261113-104433`。动态身份可增删改名，所有 Key 受全局「允许的权限」限制；原有启用状态和个人资料读写范围保持不变，未为发布验收启用身份或生成密钥。Runtime/gateway 未重启。后续每次修改验证通过后都继续部署并做线上验收，见开发约定。
+
+## 多容器靶机发布
+
+编排配置写入既有 JSONB，不增加数据库迁移。API、Scheduler、Runtime 与 gateway 必须使用同一配套后端版本，Web 同步更新；不能只更新 k3s 而保留旧 Worker。发布前备份业务库、清单、Runtime 环境文件和 iptables 规则，暂停 Scheduler 并等待旧 Worker 排空，再切换 API/Runtime/gateway，最后恢复 Scheduler 并切换 Web。保留现有资源预算，不自动扩容。
+
+必须在 Linux Docker 宿主机重新应用 `deploy/firewall.sh`；混合 k3s 节点使用 `deploy/k3s-host-firewall.sh`。新规则覆盖 nctf/nctd 桥，只允许同桥二层通信及已建立连接回包，继续阻止靶机主动路由访问其他实例、平台、宿主和互联网。内部网络不是绕过防火墙的许可。Docker Desktop 或未应用宿主规则的 Docker 不能代替这一隔离边界。
+
+真实编排隔离回归 `apps/api/test/container-topology-docker.test.ts` 需在已应用上述防火墙的 Linux Worker 宿主机上以 `TEST_DOCKER=1` 运行，镜像为 `nebuctf/example-web:local`。它保留跨实例 IP 访问断言，不能为适配无防火墙的开发机删除或放宽。PostgreSQL 配额/快照回归使用 `TEST_POSTGRES=1` 与专用测试连接，测试创建并销毁随机独立 schema。
+
+端口直连要求 default 网络不是 internal；域名与判题环境可使用 internal。默认服务仍按非 root、只读根文件系统、cap-drop、PID/CPU/内存限额运行；辅助服务没有宿主端口和挂载。全局容器数统计现在包含辅助服务、检查器和采集器，原有小容量预算可能更早排队，不能用放宽配额掩盖。
+
+回滚前用新版 Runtime 回收所有带 topology 的实例、判题组及残留网络，再停机切换旧版；旧 Worker 不认识辅助容器和额外网络，不能直接接管仍在运行的编排。业务数据不因应用回滚而恢复或删除。
+
+2026-11-14 已发布 `topology-20261114-154502`：API、Scheduler、Web 均 1/1 就绪，Docker Runtime/gateway 均为相同后端版本并健康。两份正式生产清单、远程根 Kustomization 和 `/opt/nebuctf-backups/runtime.env` 的版本已同步，nctf/nctd 防火墙已应用。业务库与旧清单、Runtime 环境和旧 iptables 备份在 `/opt/nebuctf-backups/topology-20261114-152900/`；既有资源容量及 API KEY 策略保持不变。
+
+2026-11-14 高级配置界面整理仅发布 Web `topology-ui-20261114-163326`，后端及 Runtime/gateway 保持 `topology-20261114-154502`，不重启执行域。两份正式生产清单和远程根 Kustomization 仅切换 Web 镜像；业务库与旧配置备份为 `/opt/nebuctf-backups/topology-ui-20261114-162734/`，原有策略及 Runtime/gateway ID、启动时间保持不变。
+
+2026-11-14 去除数量汇总文案后，Web 更新至 `topology-clean-20261114-173230`；后端与执行域不变。业务库和配置备份为 `/opt/nebuctf-backups/topology-clean-20261114-173225/`。
+
+2026-11-14 靶机资源组件与布局更新仅发布 Web `resource-ui-20261114-183851`。API/Scheduler/Runtime/gateway 继续使用 `topology-20261114-154502`，执行域不重启；CPU/内存边界、固定临时存储及全局容量均未调整。业务库与原清单备份为 `/opt/nebuctf-backups/resource-ui-20261114-183500/`；正式桌面、手机与健康检查通过，未保存验收草稿。
+
+## 示例题目交付
+
+`examples/` 的六类配置、服务源码及预生成导入包已同步到 `/opt/nebuctf/examples/`；包位于 `dist/`，重新生成需在当前完整源码仓库执行 `npm run examples:pack`。六个 `nebuctf/example-*:example-v1` 镜像已准备在 Docker Worker 宿主机，不覆盖既有 `:local` 或历史别名。发布记录和归档位于 `/opt/nebuctf-backups/examples-v1-20261114/`。
+
+此交付不自动导入/发布题目或创建比赛，不启用公网演示服务，不重启 API/Scheduler/Runtime/gateway，也不调整资源预算。双队 AWD 仍需满足示例说明中的实际容器/CPU/内存容量，不能为演示自动放宽正式配额。
+
+## Flag 与计分界面发布
+
+2026-11-14 最终 Web 为 `scoring-ui-20261114-194905`，仅调整布局、模式控件与焦点层级，不修改计分规则或存储结构。两份正式清单与远程根 Kustomization 已同步；API/Scheduler/Runtime/gateway 保持 `topology-20261114-154502`，不重启执行域。初始业务库和清单备份位于 `/opt/nebuctf-backups/scoring-ui-20261114-192942/`，焦点修正前备份位于 `/opt/nebuctf-backups/scoring-focus-20261114-194900/`。正式桌面、手机滚动及健康验收通过，未保存验收草稿。
+
+2026-11-14 计分区域去除嵌套卡片后，Web 更新为 `divider-ui-20261114-200529`；分区改用响应式分割线，表单与计分规则不变。业务库及原配置备份位于 `/opt/nebuctf-backups/divider-ui-20261114-200309/`。后端与执行域不变，正式桌面、手机及健康验收通过，未保存验收草稿。
+
+2026-11-14 补齐靶机页面的无嵌套边框布局，Web 发布 `target-flat-20261114-202344`，覆盖基础配置、辅助服务和网络列表。业务库与原清单备份为 `/opt/nebuctf-backups/target-flat-20261114-201400/`；后端及执行域不变，正式桌面、手机与健康验收通过，未保存验收草稿。
+
+## 防守校验界面发布
+
+2026-11-14 Web 发布 `judging-ui-20261114-211435`，补丁校验与 AWD 巡检改用分割线分区，校验资源复用有界滑动条。数据库及原清单备份为 `/opt/nebuctf-backups/judging-ui-20261114-211027/`。两份正式清单与远程根 Kustomization 已同步；仅发布 Web，未发布后端或重启执行域，业务和策略快照、Runtime/gateway ID 与启动时间保持一致。正式桌面、手机、问号说明与健康验收通过，未保存线上草稿。
+
+## 编辑器镜像状态及页签发布
+
+2026-11-14 Web 发布 `editor-state-20261114-222232`：靶机与防守校验的状态标签移至字段标题，增加语义色；题目编辑主分区保存在 section 查询参数，新建保存跳转保留该参数。备份位于 `/opt/nebuctf-backups/editor-state-20261114-215432/`。两份正式清单与根 Kustomization 同步，仅发布 Web；业务/策略快照及 Runtime/gateway ID、启动时间保持一致。正式桌面、手机、刷新及健康验收通过，未保存线上草稿。
+
+
+## 互斥路线与前置依赖发布
+
+2026-11-15 发布 `contest-logic-20261115-000906`（API、Scheduler、Web），随后补充仅 Web 的标签修正 `contest-logic-ui-20261115-001848`。数据库由迁移 37 升至 38，新增 `contest_challenges.logic` 与 `contest_exclusive_choices`。数据库与清单备份在 `/opt/nebuctf-backups/contest-logic-20261115-000906/`，线上 Kustomization 已同步两个标签。
+
+此次只更新应用与网页，不改变 Runtime、gateway、Traefik 和执行域配置；业务与策略快照、Runtime/gateway ID 与启动时间保持一致。发布后 `/api/health` 返回 200，三个 Deployment 均 1/1 就绪。验收在已开赛的比赛上只读进行：赛题设置显示提交次数、提示规则和解锁规则，已开赛时字段按锁定状态禁用，1440 与 390 宽度均无横向溢出，未保存线上草稿。
+
+
+2026-11-15 比赛编辑布局发布 Web `contest-layout-20261115-005828`，API/Scheduler 保持 `contest-logic-20261115-000906`，Runtime/gateway 未重启。业务库及旧配置备份位于 `/opt/nebuctf-backups/contest-layout-20261115-005828/`，两份远程生产清单和根 Kustomization 已同步 Web 标签。全部 Deployment 1/1，公网健康正常，首页和比赛编辑 chunk 与本地构建 SHA-256 一致。现有 Recreate 策略切换时短暂 503 后恢复；浏览器宿主不可用，视觉验收尚未完成。
+
+2026-11-15 比赛编辑分区布局发布 Web `contest-layout-20261115-0120`。更新报名、时间、资源和 WriteUp 的字段编排与基本信息开关分组；仅发布前端。旧镜像为 `contest-clear-20261115-010804-r2`，清单与 Deployment 备份位于 `/opt/nebuctf-backups/contest-layout-20261115-0120/`，发布镜像和本次组件源码归档位于 `/opt/nebuctf-releases/contest-layout-20261115-0120/`。两份生产清单和根 Kustomization 已同步。Web rollout 完成，公网健康恢复正常，首页与比赛编辑资源散列匹配本地构建。现有 Recreate 策略切换期间短暂 503。类型检查、生产构建及比赛/WriteUp 相关 24 项测试通过；浏览器连接不可用，未完成实际视觉验收。
+
+2026-11-15 比赛编辑布局修正发布 Web `contest-compact-20261115-0135`。移除独立左侧标题栏，按系统配置的 FieldSet/FieldLegend 使用顶部标题与分组字段；报名合并为两组，时间阶段及 WriteUp 权限/文件设置并列，开关与名称相邻。类型检查、构建与相关 28 项测试通过。备份位于 `/opt/nebuctf-backups/contest-compact-20261115-0135/`，镜像和组件源文件归档在对应 releases 目录；两份生产清单与根 Kustomization 同步。Web rollout 完成，健康接口正常，首页及比赛编辑资源散列与构建产物一致。浏览器连接不可用，未完成实际桌面/手机视觉验收。
+
+2026-11-15 发布 Web `contest-refine-20261115-0200`：报名表单统一两列字段，时间作答方式使用现有 ToggleGroup，选题改为 Dialog + ScrollArea，确认才应用并支持取消。旧版本 `contest-compact-20261115-0135`，配置备份在 `/opt/nebuctf-backups/contest-refine-20261115-0200/`，镜像及修改组件归档在对应 releases 目录。两份生产清单与根 Kustomization 同步。类型检查、生产构建、相关 38 项测试通过；Web rollout 成功，公网健康正常，首页及比赛编辑资源散列与本地构建一致。浏览器连接不可用，实际桌面/手机视觉验收未完成。
+
+2026-11-15 发布 Web `contest-flat-20261115-0230`：移除报名内部 Tabs，报名规则/分组/表单在同页展示；预览改为 Dialog，添加字段及赛题/字段行内操作使用 DropdownMenu。保留旧 section 链接与错误定位，编辑字段始终挂载。构建及相关 39 项测试通过，包含无嵌套导航、预览保留编辑、校验跳转和菜单操作。备份位于 `/opt/nebuctf-backups/contest-flat-20261115-0230/`，镜像及修改组件归档位于对应 releases 目录。生产清单与 Kustomization 已同步，Web rollout 成功、健康接口正常，首页/比赛编辑资源与本地构建散列一致。浏览器连接不可用，实际视觉验收未完成。
+
+2026-11-15 发布 Web `contest-detail-20261115-0300`：组别新增/编辑改为独立 Dialog，确认后才更新列表，取消还原焦点；表单预览/添加字段按钮统一尺寸；草稿状态与丢弃入口移到保存按钮旁。修复恢复多个未保存组别时编辑键冲突。构建及相关 40 项测试通过，覆盖取消、重名校验、权限锁定、服务端 ID 回填、草稿组别独立编辑和保存旁草稿提示。配置备份在 `/opt/nebuctf-backups/contest-detail-20261115-0300/`，镜像/组件归档在对应 releases 目录；正式清单已同步。Web rollout 成功，健康接口正常，首页/比赛编辑资源与本地散列一致。实际视觉验收仍受浏览器连接不可用限制。
+
+
+2026-11-15 Web 发布 `contest-polish-20261115-0345`：整合六页比赛编辑的字段分组、按钮层级和窄屏排布。指定战队使用独立多选 Dialog，WriteUp 提交权限统一开关，比赛轮次归入时间组，组别摘要压缩为行，报名预览限制内部滚动；补充规则展开动效。修正开发时 lazy 初始化顺序和页面标题订阅的同步通知。前端构建、42 项相关测试通过，本地隔离账号完成六页、弹窗及保存回读验收。业务库、可读归档目录与配置备份位于 `/opt/nebuctf-backups/contest-polish-20261115-0345/`；镜像与变更源码位于对应 releases 目录。仅更新 Web，API/Scheduler/Runtime/gateway 保持原版本。
+
+发布验收：Web `contest-polish-20261115-0345` rollout 成功，API/Scheduler/Web 均 1/1；公网健康接口为 ok，Nginx 配置检查通过。线上首页及比赛编辑资源与本地构建逐字节一致，比赛编辑资源 SHA-256 为 `1edc57bdec27fe7304cac4fb2478e8412dd7390398197db3d4968f2dd1ac0677`。视觉及写入验收在本地隔离数据完成，线上仅检查部署、健康与静态资源。
+
+## 默认组别与报名后增删（迁移 39）
+
+2026-11-15 发布 `default-groups-20261115-045114`（API、Scheduler、Web）。迁移 39 为组别增加 `is_default` 与每场比赛唯一默认组别索引；为已有比赛建立默认组别，并归入原先未分组的报名。新建、导入和保存比赛都保留默认组别，自定义组别删除与报名迁移在同一领域锁和事务内完成。默认组别沿用比赛设置，不可单独修改或删除；开赛后的自定义组别也允许增删，现有组别计分权限的编辑限制继续适用。
+
+业务库与正式清单备份位于 `/opt/nebuctf-backups/default-groups-20261115-045114/`，镜像、源码及迁移 SQL 位于对应 releases 目录。备份已在独立数据库恢复并演练迁移：8 场比赛、8 个默认组别、21 条报名，其中原先未分组的 17 条归入默认组别。正式库与演练库的报名记录（默认组别 ID 归一化后）及自定义组别摘要一致。两份生产清单与根 Kustomization 同步新标签；此次接口与表结构兼容现有执行域，Runtime/gateway 不重启。
+
+发布验收：API、Scheduler、Web 均 1/1 就绪，公网健康接口为 ok，Nginx 配置检查通过。线上首页和比赛编辑资源逐字节匹配本地构建；比赛编辑资源 SHA-256 为 `bb74ce1753c1fb2f6609de633ea03891e1a877ed120336e7a3c3ff77678f5f54`。公开接口抽查的 6 场比赛均返回且仅返回一个默认组别。独立恢复数据库在验证后删除，保留备份与结果记录。
+
+2026-11-15 组别权限展示发布 Web `permission-ui-20261115-050311`：比赛组别和报名表单标题到首行统一 12px；组别权限直接展示固定配色的九项图标，关闭置灰并叠加斜线，单题差异用虚线边界，悬停/键盘/手机轻触可查看精简状态。比赛审核开关即时更新默认组和继承组的状态。34 项前端测试、构建及本地桌面/手机验收通过。业务库、归档目录和旧清单备份位于 `/opt/nebuctf-backups/permission-ui-20261115-050311/`，镜像及源码位于对应 releases 目录。此次仅更新 Web，API/Scheduler 继续使用 `default-groups-20261115-045114`。
+
+发布验收：Web rollout 完成，API/Scheduler/Web 均 1/1；公网健康为 ok，Nginx 配置通过。线上首页和比赛编辑资源与本地构建逐字节一致，比赛编辑 chunk SHA-256 为 `6f4e79105c4f3f1c742e557870c65a0753ea18c6150499cd000f4a9c8f1e1376`。两份生产清单和根 Kustomization 已同步 Web 标签。
+
+2026-11-15 Web 更新 `permission-controls-20261115-051333`，统一组别编辑中的开关、图标和文字配色，覆盖默认权限和单题权限，并补齐审核图标与紫色选中态。业务库、归档目录和清单备份位于 `/opt/nebuctf-backups/permission-controls-20261115-051333/`，源码与镜像位于对应 releases 目录。此次仅更新 Web；34 项前端测试、构建及桌面亮色/手机暗色实际验收通过。
+
+发布完成：Web rollout 成功，API/Scheduler/Web 均 1/1，公网健康正常、Nginx 配置通过。线上首页与比赛编辑 chunk 和本地构建逐字节一致，比赛编辑资源 SHA-256 为 `9f8988f980b786f6f4feb7b375517d62a3188cc3a37e49229ed056c14e5b46e9`。两份生产清单与根 Kustomization 已同步。
+
+2026-11-15 Web 更新 `neutral-labels-20261115-051917`：组别编辑的权限文字和配套图标恢复默认前景色，仅开关保留权限配色。备份位于 `/opt/nebuctf-backups/neutral-labels-20261115-051917/`，镜像与源码位于对应 releases 目录。前端构建、20 项相关测试和本地浏览器检查通过；仅更新 Web。
+发布验收通过：部署全部 1/1 就绪，公网健康为 ok，Nginx 配置通过；首页与比赛编辑资源和本地构建逐字节匹配，比赛编辑 chunk SHA-256 为 `117108d34c862523aa51355b5de04308f72c550100411b6e56afc34fdfd72737`。生产清单与 Kustomization 已同步。
+
+
+## 组别邀请码（迁移 40）
+
+2026-11-15 发布 `group-invite-20261115-054409`（API、Scheduler、Web），新增 contest_groups.invite_code_cipher，使用现有 APP_SECRET 派生密钥加密。保留原 APP_SECRET；旧组别新字段为空，继续原报名规则。组别邀请码的设置、生成、复制、清除和报名校验已接通，比赛导入导出保留组别码。
+
+数据库、data/traffic/web-assets、Secrets 和原清单备份位于 `/opt/nebuctf-backups/group-invite-20261115-054409/`；镜像、源码、迁移脚本在对应 releases 目录。备份在独立库恢复并演练迁移 40，正式发布后 8 场比赛、21 条报名、11 个组别的原字段散列与演练结果一致；独立恢复库已删除。此追加字段兼容原执行域，Runtime/gateway ID 与启动时间不变。
+
+两份生产清单和根 Kustomization 已同步。API/Scheduler/Web 均 1/1，公网 health 为 ok，Nginx 配置通过。线上首页及两个比赛页面 chunk 与本地构建逐字节一致，SHA-256 分别为 `1940f84abcc26950ddcf5165e7aae5b69779c76ff25b54138914cf4de008d6b1` 和 `acbeced8f6b0daa954fcfea9ff461b759cc6108a57b8c571d193c59eed4332e7`。6 场公开比赛均正确返回组别 invite_code_set，未返回明文或密文。写入与视觉验收均在本地隔离数据完成，未新增线上测试记录。
+
+
+2026-11-15 比赛邀请码布局发布 Web `contest-invite-ui-20261115-055308`。比赛邀请码改为固定展示，与报名方式并排，生成和复制收进输入框；填写或生成后启用邀请码报名。仅更新 Web，API/Scheduler 保持 `group-invite-20261115-054409`。数据库、文件归档、Secrets 和原清单备份位于 `/opt/nebuctf-backups/contest-invite-ui-20261115-055308/`，镜像及源码在对应 releases 目录。36 项前端测试、构建及桌面亮色/手机暗色浏览器验收通过。
+
+发布验收：Web `contest-invite-ui-20261115-055308` rollout 完成，三个 Deployment 均 1/1；公网健康正常、Nginx 配置通过。首页与两个比赛页面资源均逐字节匹配本地构建，比赛管理 chunk SHA-256 为 `6a3a155b7316ef3e73dd88e88b192d3cdb4c21d9a63bf9c08139aa96fef29a5f`。生产清单和根 Kustomization 已同步，仅本地修改测试草稿，未写入正式比赛。
+
+
+2026-11-15 靶机配置镜像入口发布 Web `image-link-20261115-063448`，仅更新题目编辑前端。数据库、文件归档、Secrets 及原清单备份位于 `/opt/nebuctf-backups/image-link-20261115-063448/`，镜像和源码位于对应 releases 目录。API/Scheduler 保持 `group-invite-20261115-054409`，Runtime/gateway 不变。
+
+发布验收：Web `image-link-20261115-063448` rollout 完成，所有 Deployment 1/1，公网健康正常，Nginx 配置通过；线上首页及两个题目页面 chunk 与本地构建逐字节匹配。两份生产清单及根 Kustomization 已同步。
+
+
+2026-11-15 镜像用途分类发布 `image-inventory-20261115-064433`（API、Scheduler、Web），包含防守校验的镜像管理入口。新增 usage 筛选及分类数量响应，无数据库迁移，兼容旧版列表请求。数据库、data/traffic/web-assets、Secrets 和原清单备份位于 `/opt/nebuctf-backups/image-inventory-20261115-064433/`，镜像与源码位于对应 releases 目录。Runtime/gateway 继续原版本，不重启执行域。
+
+发布验收通过：API/Scheduler/Web 均为 `image-inventory-20261115-064433` 且 1/1，就绪健康为 ok，Nginx 配置通过。线上首页、镜像页和题目页资源与本地逐字节匹配；镜像页 SHA-256 为 `fe0dc37d72d7fcb8e437f72471a5093790d63e5856c5eb114132a3ddee8facb9`，线上 API images.js 与本地散列一致。正式清单及 Kustomization 同步。只读查询当前同步清单为题目使用中 4、未应用 28；Runtime/gateway ID 与启动时间未变化，未新增正式测试记录或拉取任务。
+
+
+2026-11-15 镜像题目分组发布 `image-groups-20261115-065946`（API、Scheduler、Web）。保留用途 Tab，增加 group_by=challenge 的完整题目组分页；原查询接口兼容，无数据库迁移。备份位于 `/opt/nebuctf-backups/image-groups-20261115-065946/`，包括数据库、文件归档、Secrets、原清单和执行域容器状态；镜像与变更源码在对应 releases 目录。Runtime/gateway 不重启。
+
+发布完成：API/Scheduler/Web `image-groups-20261115-065946` 全部 1/1，公网健康为 ok，Nginx 配置通过。线上首页、镜像页资源和 API images.js 与本地构建一致；镜像页 SHA-256 为 `eecb62121a8c8c731f468323497f64d785dbd48975135ee59beeee9ad2c7ed41`。生产清单及 Kustomization 已同步，Runtime/gateway ID 与启动时间不变。
+
+
+2026-11-15 镜像页层级修正仅发布 Web `image-hierarchy-20261115-072124`，API/Scheduler 保持 `image-groups-20261115-065946`，执行域不重启。业务库、文件归档、Secrets 和旧清单备份位于 `/opt/nebuctf-backups/image-hierarchy-20261115-072124/`，源码与镜像归档位于对应 releases 目录。题目标题从表格卡片中移出，按题目独立分段，查询与操作逻辑不变。
+
+发布验收：Web `image-hierarchy-20261115-072124` rollout 成功，全部 Deployment 1/1，公网健康为 ok、Nginx 配置通过。线上首页和镜像页资源与本地逐字节匹配，镜像页 SHA-256 为 `1df4cc17fff93a67e19771edb0f87d2553edb9fc8351f3da78fcc3fcabff2961`；两份生产清单与根 Kustomization 已同步，仅更新前端。
+
+### 镜像归档上传（迁移 41）
+
+本功能需同时更新 API、Runtime 和 Web；API 先迁移，Runtime 再接管导入队列。Scheduler 使用同版 API 镜像。API 与 Runtime 共用 DATA_DIR/image-uploads，现有 /srv/nebuctf/data 挂载无需调整；8 MiB 分块沿用现有代理请求上限。新增 tar-stream 运行依赖，构建后端时必须同步生产依赖，不能仅替换 dist。
+
+迁移 41 为镜像任务增加 kind、image_refs，并新增上传暂存记录；旧任务默认 kind=pull。回滚应用保留新增字段和表，先确认没有 queued/pulling 的 load 任务，避免旧 Runtime 误将归档文件名当作镜像地址。
+
+
+## 迁移 42：开启次数与 FLAG 目标
+
+新增比赛单题开启策略、实例 started_at 和题目/小题 flag_targets。默认继承比赛且比赛不限次数；目标为 null 时沿用旧镜像分配。迁移为历史 container_id 非空的实例补记成功时间，只执行一次。实例历史参与累计计数，不能通过删除已结束实例来做日志清理。
+
+部署前备份并在独立恢复库重复执行迁移，核对业务表计数与回填数量。依次更新 API、Scheduler、Runtime 和 Web；Runtime 必须使用新版本才能记录成功开启时间并隔离逐容器 FLAG。已有实例保留快照。代码回滚可保留新增列，但不允许在已经启用次数或逐容器分配后长期运行旧 Runtime，否则会绕过新行为。
+
+2026-11-15 发布 `resource-starts-20261115-082341`：API/Scheduler/Web 与 Runtime 同版，gateway 保持 `topology-20261114-154502`。备份 `/opt/nebuctf-backups/resource-starts-20261115-082341/`，发布包 `/opt/nebuctf-releases/resource-starts-20261115-082341/`。迁移 42 重放与业务计数核对通过；回滚基线为 `image-import-20261115-074329`，启用新功能后须先评估次数统计及 FLAG 目标兼容性。

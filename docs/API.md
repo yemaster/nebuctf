@@ -70,7 +70,7 @@ Flag 提交请求：`{ "flag": "flag{...}", "scope": "practice" }`，返回 `cor
 
 用户最多加入 20 支战队。`GET /teams/mine` 返回已加入战队列表；成员、邀请码、转让和退出操作通过 `team_id` 指定战队。未指定时保持原接口的默认战队行为。
 
-`POST /contests/:id/register` 接受 `{team_id, group_id?, invite_code?, form_revision?, form_answers?}`。仅队长可以报名；配置了组别的比赛必须选择组别。一个用户不能通过不同战队重复参加同一比赛。报名锁定成员直到比赛结束，开赛前队长可以取消。管理员比赛请求包含 `groups: [{id?, name, description, permissions?, challenge_permissions?, review_mode?}]`，首次报名后不允许增删组别。未传 groups 保留原配置。
+`POST /contests/:id/register` 接受 `{team_id, group_id?, invite_code?, form_revision?, form_answers?}`。仅队长可以报名；省略或传入 null 的 group_id 使用默认组别。一个用户不能通过不同战队重复参加同一比赛。报名锁定成员直到比赛结束，开赛前队长可以取消。管理员比赛请求包含 `groups: [{id?, name, description, invite_code?, permissions?, challenge_permissions?, review_mode?}]`，已有报名或开赛后仍可增删自定义组别，删除时将对应战队转入默认组别，保留报名状态和资料。每场比赛始终包含 is_default=true 的默认组别，沿用比赛设置，不可单独修改或删除；groups 可省略它，最多 20 个自定义组别。未传 groups 保留原配置，空数组清空自定义组别。
 
 比赛详情返回数字 `teams`，按报名战队记录计数（含 0），与成员人数无关。还包含 `groups` 和当前用户所属的 `registration`（队名、组名、对应 id），榜单接受 `group=组别UUID` 筛选。榜单 `solves` 为完成整题数，`flags` 为通过计分项数；各组共享同一动态分值，仅将拥有 dynamic 权限的解出计入衰减。
 
@@ -168,7 +168,7 @@ API 进程每 2 秒检查到期题目，在事务内启用、清除计划时间�
 
 | 接口 | 用途 |
 | --- | --- |
-| `GET /admin/images?page=1&q=&state=all` | 每页 24 条，按镜像名或关联题目搜索；state 为 all/present/missing/pulling。返回 items、total、page、worker |
+| `GET /admin/images?page=1&q=&state=all&usage=all` | 每页 24 条，按镜像名或关联题目搜索；state 为 all/present/missing/pulling，usage 为 all/used/unused，默认 all。返回 items、total、page、counts（used/unused）、worker |
 | `GET /admin/images/status?image=仓库:标签` | 查询单个镜像本地状态、最近拉取任务与 Worker 状态 |
 | `POST /admin/images/pull` | 请求体 `{image}`，返回 `{id,status}`；同一镜像正在拉取时返回已有任务 |
 | `GET /admin/images/pulls/:id` | 任务状态、分层进度、最近 200 条日志和错误原因 |
@@ -182,6 +182,17 @@ API 进程每 2 秒检查到期题目，在事务内启用、清除计划时间�
 测试使用独立 `scope=test` 和管理员个人主体，不进入练习/比赛环境列表、不参与计分，动态 Flag 也与正式环境隔离。可测试未发布、未开放练习的题目；静态附件无需测试环境。新建题目须先保存，切换题目类型后也须先保存；其余环境字段使用提交时的表单值快照，不自动修改正式配置。
 
 测试环境遵守相同 CPU/内存/数量配额、非特权隔离和 60 秒启停冷却。就绪后运行 600 秒，创建后最长 15 分钟，不支持续期；使用现有 `/instances/:id/stop` 停止、`/instances/:id/artifact` 下载测试附件，这两个操作对测试作用域仍要求管理员身份。仅活跃测试环境不锁定正式题目配置，既有解题或正式活跃环境的锁定规则保留。
+
+### 容器编排配置
+
+`resources.container` 和容器测试请求支持 `command?:string[]`、`environment?:Record<string,string>`、`topology?:{networks,primary_networks,services}`，原有主服务 image/CPU/memory/port 等字段不变。`networks` 为 1–4 项 `{name,internal}`，必须声明 `default`；`primary_networks` 必须包含 default。`services` 为 0–7 项 `{name,image,cpu,memory,command?,environment?,networks,depends_on,inject_flag}`，名称不能为 main，引用必须唯一且存在，启动依赖不能循环。服务/网络名为小写字母开头的 1–24 个小写字母、数字或连字符。辅助服务不接受宿主端口、宿主网络、挂载、设备或任意 Docker 配置。
+
+每个服务 CPU 为 100–4000 毫核、内存 32–4096 MiB；命令最多 32 项、每项 1024 字符，环境变量最多 32 项，名称为大写字母/下划线开头的 1–64 个大写字母/数字/下划线，值最多 2048 字符，均拒绝 NUL。辅助服务的 `inject_flag` 默认 false，仅用于未设置 flag_targets 的旧配置。平台注入变量优先于同名自定义变量；显式目标按下文逐 Flag 分配。镜像前缀校验覆盖全部服务。
+
+配置完整写入实例/判题任务快照，并在导入导出、管理员测试和 AWD 自动申请中保留。主服务仍是唯一公开入口；面向选手的题目信息不返回镜像、命令、环境变量或拓扑。全局资源池按全部物理容器（含辅助服务/检查器/采集器）和 CPU/内存预留；个人及比赛配额按逻辑环境计，销毁完成前不释放。缺省 topology 保持旧单容器行为。附件生成器拒绝编排字段并继续使用无网络单容器。
+端口直连要求 default 的 internal 为 false，避免 Docker internal-only 网络无法发布入口端口；域名代理可开启 internal。管理员测试在覆盖参数合并后执行同样校验，不能通过临时测试绕过。
+
+
 
 迁移 10 增加 docker_images、docker_worker_status、docker_image_pulls 及任务索引；升级时同步更新 API 和 Worker。
 
@@ -324,7 +335,7 @@ WebSocket 按组复用快照，每次发布重新验证会话、报名与题目�
 | `registration_team_ids` | `[]` | 指定战队 ID，最多 500 项，仅管理员读取 |
 | `practice_mode` | `false` | 结束后开放报名、赛题和练习作答 |
 
-邀请码使用 HMAC-SHA256 摘要保存，任何 API 均不返回摘要或明文。管理员读取返回 `registration_code_set`；公开详情只返回当前用户所属且允许报名的 `eligible_team_ids`。新报名同时受范围、队长、人数、组别、审核和成员重复参赛限制。改变报名范围不撤销已有报名，撤销资格使用报名管理。
+比赛级邀请码使用 HMAC-SHA256 摘要保存，任何 API 均不返回其摘要或明文。管理员读取返回 `registration_code_set`；公开详情只返回当前用户所属且允许报名的 `eligible_team_ids`。新报名同时受范围、队长、人数、组别、审核和成员重复参赛限制。改变报名范围不撤销已有报名，撤销资格使用报名管理。
 
 报名时间由迁移 25 添加，已有记录保留 `null`。后台创建/编辑比赛可设置两个时间；编辑省略字段保留原值，显式传 `null` 恢复默认。开放时间必须早于有效截止时间，截止不能晚于比赛结束，可以与比赛时段重叠。校验使用新旧配置合并结果，避免修改比赛结束时间后留下无效报名窗口。`POST /contests/:id/register` 在事务内按服务器时间执行 `[开放时间, 截止时间)` 校验，越界返回 403 和「查看赛程」操作，管理员报名同样受限。调整窗口不撤销既有报名或审核状态；赛后练习开放后重新允许报名，仍遵守范围、组别和审核限制，并标记为练习报名。
 
@@ -358,8 +369,9 @@ WebSocket 按组复用快照，每次发布重新验证会话、报名与题目�
 | `attachments_per_team` | 本场每队同时保有的动态附件数 |
 | `containers_total` | 本场靶机总数，含公共靶机 |
 | `attachments_total` | 本场动态附件总数 |
+| `container_starts_per_team` | 每队每题累计靶机开启次数，默认 null 不限 |
 
-各值为 0–10000 的整数或 null。null 不附加比赛限制，0 禁止新建；省略整个对象保留旧配置，发送空对象清空四项附加限制。平台数量、每所有者合计数量、CPU/内存配额和操作冷却始终生效。
+各值为 0–10000 的整数或 null。null 不附加比赛限制，0 禁止新建；省略整个对象保留旧配置，发送空对象清空所有附加限制。平台数量、每所有者合计数量、CPU/内存配额和操作冷却始终生效。
 
 queued/starting/running/ready/stopping 均占名额，failed/stopped 不占；已经生成的附件在删除或到期清理前占名额，普通静态附件下载不计数。公共靶机不占每队名额，AWD 自动分配的每队环境按一台靶机计数，判题/巡检临时容器只计入平台资源池。限制仅阻止新建，已有环境的幂等创建、续期、释放和附件下载保持原有规则。AWD 重启先按替换一台的数量核对配额，限额不足时拒绝并保留原环境，不会先销毁后失败。
 
@@ -551,3 +563,71 @@ items 中的 `result` 含 `verdict` 和 `stage`：
 保存字段为 `{slug,title,category,position,body,published}`。`slug` 最多 80 字符，只允许小写字母、数字和单连字符分段；标题最多 160 字，分组最多 40 字；`position` 为 0–100000 整数；Markdown 正文最多 200000 字符。重复标识返回 409。写操作保留同源 Origin/CSRF 校验，并记录 `help.save` / `help.delete` 审计。
 
 公开目录元数据为 `{id,slug,title,category,position,updated_at}`，不含正文或署名；完整文档另含 `body,published,created_at,author,editor`。`author` 和 `editor` 为 `{id,username,avatar_id}` 或 `null`，分别对应创建人与最后编辑人，用户名和头像随用户资料更新。管理列表包含发布状态、创建时间及两类署名。创建时由服务端将两类署名设为当前操作者，更新只变更最后编辑人，不接受客户端指定人员；用户删除后相应署名变为 `null`，文档保留。初始化默认内容后记录迁移版本，重启不重置正文、发布状态、排序或已删除文档。
+
+## 个人 API KEY
+
+数据库迁移 36 创建密钥表，迁移 37 增加可空的 `identity_id`；既有自定义密钥不变。功能和预设身份默认关闭。管理和个人密钥生命周期接口仅接受网页登录会话，写入仍要求同源 Origin 和 `x-csrf-protection: 1`。以下路径以 `/api` 为前缀。
+
+| 方法与路径 | 权限 | 返回或行为 |
+| --- | --- | --- |
+| `GET /admin/api-keys/policy` | `settings.read` | `{policy,scopes}`，含可编辑身份及全部权限元数据 |
+| `PUT /admin/api-keys/policy` | `settings.write` | 保存 `{enabled,allowed_scopes,max_lifetime_days,identities}`；最长 1–365 天，返回 `{ok:true}` |
+| `GET /account/api-keys?page=1` | 本人会话 | `{items,total,page,policy,scopes,identities,limit}`，每页 24 条，创建时间和 ID 降序；停用后仍可查看历史 |
+| `POST /account/api-keys` | 本人会话 | `{name,expires_at,identity_id}` 或 `{name,expires_at,scopes}`，二选一；返回 `{item,key}`，完整密钥只返回这一次 |
+| `PUT /account/api-keys/:id` | 本人会话 | 同创建字段，返回 `{item}`；不更换密钥，不返回完整密钥 |
+| `DELETE /account/api-keys/:id` | 本人会话 | 软撤销，保留历史，返回 `{ok:true}`；停用时也可撤销 |
+| `GET /api-keys/catalog` | 公开 | `{enabled,scopes,identities}`，仅显示全局「允许的权限」；身份权限为配置范围与允许范围的交集，交集为空或停用的身份不返回 |
+
+名称为 1–80 字且不能包含控制字符；权限必须非空、唯一且为管理员明确开放的范围；`expires_at` 为未来 ISO 时间，不超过当前最长有效期。最多同时持有 20 个未撤销且未过期的密钥，每用户每分钟最多 10 次创建尝试。已撤销/已过期的密钥不能编辑或恢复（409），其他人的 ID 与未知 ID 均返回 404。最长有效期策略不追溯修改已有到期时间，但编辑时必须符合当前上限。
+
+策略中的 `identities` 为 0–50 项 `{id,name,enabled,scopes}`，管理员可新增、改名、删除及配置范围。新增身份使用 UUID，名称去空白后为 1–48 字且不能包含控制字符；ID 唯一。已有四种旧身份保留 ID，读取旧策略时补齐名称；保存后删除的身份不会重建。账户响应只返回当前启用且交集非空的身份及有效范围，不泄露未允许的身份权限。
+
+`allowed_scopes` 是所有密钥的全局上限。按身份创建时，服务端保存「身份配置 ∩ 允许的权限」为密钥快照。实际调用同时检查当前允许范围、当前身份配置与密钥快照；任何一层缩权立即生效，扩权不自动扩大已创建密钥。删除身份会在保存策略的同一事务内撤销关联 Key，即使重新使用相同 ID 也不会恢复旧密钥。手动选权只能选择允许范围内的权限；编辑可切换两种授权模式，不更换密钥。
+
+`item` 只包含 `{id,name,prefix,scopes,identity_id,identity_name,created_at,updated_at,expires_at,last_used_at,revoked_at}`，自定义密钥的身份字段为 `null`。密钥使用 `nebu_` 加 32 字节安全随机数，数据库只保存 SHA-256 摘要和前缀；清单、修改响应和审计不含完整密钥或摘要。最近使用时间最多每分钟写入一次。
+
+业务 API 使用 `Authorization: Bearer $NEBUCTF_API_KEY`，生产调用应使用 HTTPS。鉴权取「当前授权范围 ∩ 密钥快照范围 ∩ 账户原有访问权」；身份不创建独立用户、不授予持有者原本没有的后台权限，仍执行比赛、报名、战队、资源归属和限流检查。按注册路由模板与 HTTP 方法精确匹配，HEAD 等同 GET；写权限不隐含读权限。未列入白名单的新路由默认拒绝。覆盖个人资料、题目、提交、环境、比赛、排行榜、队伍、学习内容、通知、攻防及部分后台内容管理；准确方法和路径以目录为准。
+
+非 AI 转发请求携带 Authorization 时，优先验证该凭据，不回退到 Cookie 或匿名身份：无效、过期、撤销或账户停用返回 401；功能关闭、范围未开放或接口不在白名单返回 403。有效且获准的 Bearer 业务请求不依赖浏览器 Origin/CSRF；密钥不能调用密钥管理、策略、密码、安全权限配置或 WebSocket。AI 转发继续使用其独立密钥，不使用个人 API KEY 或浏览器会话扩大权限。
+
+
+## 赛题解锁与互斥路线（迁移 38）
+
+比赛写入的 `challenge_settings[]` 新增 `logic:{exclusive_group:string|null,dependency:{scope:"team"|"global",mode:"all"|"any",challenge_ids:uuid[]}|null}`。组名去除首尾空白后 1–60 字；依赖最多 199 道题，必须是同场其他题目，不重复、不自引用、不成环。省略 `logic` 保留原配置。依赖与互斥路线组合后若某题必然不可达（例如队伍依赖要求同组另一条路线），保存返回 400 并指出题目，不写入任何改动。开赛后选题集合内的 `logic` 锁定，既有选择与解锁进度保留。
+
+公开题目列表只返回已解锁题目，并附 `contest_logic:{exclusive_group,dependency,exclusive_selected}`；同组其他题目、未满足依赖的题目不出现，直接访问详情、附件、提示、终端或提交接口返回 403。客观题整卷提交、Flag 提交、AWD 成功攻击与防御补丁受理都会在选择路由上先取互斥组锁再取题目锁；同卷提交同组多题返回 409「答卷不能同时提交同一互斥组的多道题目」，已选其他题目返回 403「已选择此互斥组的其他题目」。
+
+首次受理成功即绑定路线，包括错误 Flag、客观题整卷提交和 AWD 成功攻击；参数无效、权限失败、额度耗尽、格式错误及未受理的排队失败不绑定。依赖按整题完成计算，多小题须全部完成；`global` 取全场任一通过审核战队的正式完成，AWD 成功攻击同样计入。练习场与赛后练习不参与解锁判定，也不写入互斥选择。
+
+正式受理的 Flag 或小题会把同题已有的练习记录就地升级为正式记录（`contest_practice=false`），保留原完成时间以外的新记录时间；反向不会把正式记录降级为练习。迁移 38 新增 `contest_challenges.logic` 与 `contest_exclusive_choices`，旧比赛默认无互斥组、无依赖。
+
+## 组别邀请码
+
+`groups[].invite_code` 可省略以保留已有值，传空字符串清除；非空值去掉首尾空白后为 6–128 字符。默认组别不可单独设置，继续沿用比赛设置。自定义组别设置邀请码时，只校验该组别的邀请码；未设置则按比赛的 registration_mode 执行原规则。指定战队、报名时间、组别开放状态、队长身份、表单与审核要求不变。`POST /contests/:id/register` 继续使用同一个 invite_code 字段，不需要同时提交两套邀请码。
+
+组别邀请码使用现有 AES-256-GCM 密封存储。管理员比赛接口返回可查看和复制的 invite_code 及 invite_code_set，不返回密文；公开详情仅返回 invite_code_set。新建、修改或清除邀请码不会改变已有报名。管理员导出的比赛配置含组别邀请码，导入时使用目标站点密钥重新加密，保留组别报名要求。
+
+镜像 usage 按同步清单中的关联题目数组分类，涵盖靶机、辅助服务、动态附件、补丁校验和 AWD 巡检镜像。分类筛选在分页前执行；counts 为当前搜索及状态条件下两类各自的总量，不受当前页或 usage 限制。沿用现有 Worker 同步周期和权限。
+
+`GET /admin/images?usage=used&group_by=challenge` 按题目分组返回 `groups: [{id,title,items}]`、`group_total`、`total`（匹配的去重镜像数）、counts、page、worker；每页 12 个完整题目组，以题目名称及 ID 排序。同一镜像被多题引用时在对应各组中展示，counts 不重复计数。按题目名称搜索时只保留匹配的题目组；按镜像名搜索时保留其全部关联组。group_by 缺省为 none，原镜像分页接口不变。
+
+### 镜像上传与导入
+
+`POST /admin/images/uploads` 接收 `{filename,size}`，返回 `{id,chunk_size}`。仅 `images.write` 可用，支持 Docker save 的 `.tar` / `.tar.gz` / `.tgz`，上传上限 2 GiB，展开上限 4 GiB。
+
+`PUT /admin/images/uploads/:id?offset=N` 以 multipart `file` 顺序发送分块（最大 8 MiB），返回 `{received}`；校验任务所有者、偏移和总大小。`POST /admin/images/uploads/:id/complete` 完成上传并返回镜像任务 `{id}`，重复完成返回同一任务。`DELETE /admin/images/uploads/:id` 取消尚未入队的上传。
+
+导入沿用 `/admin/images/pulls/:id`，增加 `kind: pull | load`。Worker 校验全部镜像标签和现有仓库前缀，只向 Docker load 传递已校验的 manifest、配置和镜像层，不直接解包到宿主。导入完成后同步库存，列表 `job_kind` 区分拉取与导入；同一归档的多个标签都能查看对应日志。成功、失败及过期 24 小时的未完成上传均清理暂存文件；全局最多 4 个上传、16 个待执行镜像任务。
+
+
+## 靶机开启次数与 FLAG 目标（迁移 42）
+
+比赛 `resource_limits.container_starts_per_team` 设置每队每题的默认累计上限；`challenge_settings[].container_start_limit` 为 `{mode:"inherit"|"unlimited"|"custom",count:number|null}`，默认 inherit，custom 必须提供 0–10000 的整数。省略单题字段保留旧值。0 禁止开启，unlimited 取消该题的比赛次数限制；数量、CPU/内存与冷却规则继续生效。
+
+实例成功进入 running 才计入 used；queued/starting/stopping 中尚未成功启动的实例预占 pending。失败清理后返还预占，已成功开启后停止、到期或故障仍计次。整组多容器计一次，续期不计次；练习、赛后练习、管理测试、公共靶机和判题临时容器不受此限制。AWD 自动分配与手动重启遵守同一计数。
+
+`GET /challenges/:id/instance-policy` 和 AWD arena 返回 `starts:null|{limit,used,pending,remaining,blocked}`。次数耗尽返回 409；0 次提示「本题未开放靶机开启」，用完提示「本题靶机开启次数已用完」。检查和实例预约在同一事务锁内完成。
+
+管理题目与各小题新增 `flag_targets:null|string[]`。非空数组为 1–8 个不重复的服务名（main 或已配置的辅助服务），可以给每个 FLAG 指定一个或多个容器。省略字段更新时保留；null 保留旧分配（main 与 inject_flag=true 的辅助服务，AWD 默认 main）。删除或重命名服务时必须同步有效目标。已冻结判题参数的题目不能修改分配。
+
+动态环境按容器筛选专属变量、FLAG 别名、FLAG_COUNT、FLAGS_JSON，未分配的容器不注入这些变量；变量名仍绑定小题 ID，不因筛选或重排重编号。动态附件生成器收到完整映射。AWD 将轮换文件写入指定容器的专用 tmpfs，不向其他容器创建 Flag 文件挂载。存量实例保留创建时快照，新配置作用于新实例。
