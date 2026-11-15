@@ -1,0 +1,44 @@
+{
+  "title": "多容器：隔离网段里的答案",
+  "description": "启动专属靶机，通过平台分配的 HTTP 入口访问 frontend 首页，再访问 /flag。frontend 会通过 Docker DNS 中的 backend 别名请求后端 /flag，并将真实响应转发给你；提交响应中的完整 Flag。主服务同时连接 default 与 data 网络，只有 default 提供对外入口；辅助服务 backend 仅连接 internal 的 data 网络，不发布宿主机端口。backend 使用平台注入的 FLAG 环境变量，frontend 不读取本地 Flag，而是实际请求后端。本题用于观察辅助服务和网段隔离：无法直接从外部访问后端，但前端明确提供了受控转发路径。/health 会检查后端是否就绪，后端不可用时前端返回 503，而不是伪造答案。",
+  "category": "Web",
+  "difficulty": "入门",
+  "challenge_type": "ctf",
+  "flag_mode": "dynamic",
+  "flag_targets": ["backend"],
+  "initial_points": 100,
+  "minimum_points": 100,
+  "dynamic_score": false,
+  "resources": {
+    "container": {
+      "image": "nebuctf/example-multi-container:example-v1",
+      "mode": "private",
+      "protocol": "http",
+      "access_mode": "port",
+      "port": 8080,
+      "cpu": 250,
+      "memory": 64,
+      "ttl": 1800,
+      "environment": { "ROLE": "frontend" },
+      "topology": {
+        "networks": [
+          { "name": "default", "internal": false },
+          { "name": "data", "internal": true }
+        ],
+        "primary_networks": ["default", "data"],
+        "services": [
+          {
+            "name": "backend",
+            "image": "nebuctf/example-multi-container:example-v1",
+            "cpu": 250,
+            "memory": 64,
+            "environment": { "ROLE": "backend" },
+            "networks": ["data"],
+            "depends_on": [],
+            "inject_flag": false
+          }
+        ]
+      }
+    }
+  }
+}

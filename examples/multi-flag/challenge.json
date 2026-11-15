@@ -1,0 +1,41 @@
+{
+  "title": "多 Flag：两道关卡",
+  "description": "启动专属靶机，使用平台提供的 HTTP 入口。访问 /entry 获取入口小题的 Flag，访问 /root 获取深入小题的 Flag，分别提交到对应小题。两个答案由平台独立动态生成并注入同一个容器；入口答案不能代替深入答案。本示例直接暴露两个端点，仅用于演示多小题计分与环境变量映射，并非真实提权漏洞。",
+  "category": "Web",
+  "difficulty": "入门",
+  "challenge_type": "ctf",
+  "flag_mode": "dynamic",
+  "initial_points": 200,
+  "minimum_points": 200,
+  "dynamic_score": false,
+  "parts": [
+    {
+      "title": "入口",
+      "description": "访问 /entry，将响应中的完整 Flag 提交到本小题。",
+      "role": "flag",
+      "flag_env": "ENTRY_FLAG",
+      "initial_points": 100,
+      "minimum_points": 100
+    },
+    {
+      "title": "深入",
+      "description": "访问 /root，将响应中的完整 Flag 提交到本小题。",
+      "role": "flag",
+      "flag_env": "ROOT_FLAG",
+      "initial_points": 100,
+      "minimum_points": 100
+    }
+  ],
+  "resources": {
+    "container": {
+      "image": "nebuctf/example-multi-flag:example-v1",
+      "mode": "private",
+      "protocol": "http",
+      "access_mode": "port",
+      "port": 8080,
+      "cpu": 250,
+      "memory": 64,
+      "ttl": 1800
+    }
+  }
+}

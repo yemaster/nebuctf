@@ -1,3 +1,4 @@
+import { ensureDefaultContestGroup } from "./contest-groups.js";
 import { openDB } from "./db.js";
 import { hashPassword, flagHash } from "./security.js";
 import { register } from "./schemas.js";
@@ -71,16 +72,18 @@ try {
       await seedLearning(tx);
       const start = new Date(Date.now() + 24 * 3600 * 1000),
         end = new Date(start.getTime() + 48 * 3600 * 1000);
+      const contestId = crypto.randomUUID();
       await tx.query(
         "INSERT INTO contests(id,title,description,starts_at,ends_at,published) VALUES($1,$2,$3,$4,$5,true)",
         [
-          crypto.randomUUID(),
+          contestId,
           "NebuCTF 新人体验赛",
           "本赛事为本地开发示例。请由管理员配置独立赛题后使用。",
           start,
           end,
         ],
       );
+      await ensureDefaultContestGroup(tx, contestId);
       await tx.query(
         "INSERT INTO announcements(id,title,body) VALUES($1,$2,$3)",
         [

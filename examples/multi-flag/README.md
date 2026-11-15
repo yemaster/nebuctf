@@ -1,5 +1,7 @@
 # 单容器多个 Flag
 
+配置模板为 `challenge.json`。执行 `npm run examples:pack` 后，可在后台导入 `examples/dist/multi-flag.zip`，使用的镜像是 `nebuctf/example-multi-flag:example-v1`；以下 `:local` 命令保留供现有回归测试使用。
+
 构建示例镜像：
 
 ```sh

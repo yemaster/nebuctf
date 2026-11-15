@@ -1,0 +1,38 @@
+{
+  "title": "AWD：轮换 Flag 服务对抗",
+  "description": "比赛开始后平台部署各队独立服务。访问对手服务 /leak，提交其当前有效的动态 Flag；自己的 Flag 不计分。上传修复包，使 /leak 返回 403，同时保留 /health 与 /checksum 的正确行为。修复通过后平台替换本队实例，继续轮换 Flag 和巡检。此镜像故意存在漏洞，仅用于隔离环境。",
+  "category": "Web",
+  "difficulty": "入门",
+  "challenge_type": "awd",
+  "flag_mode": "dynamic",
+  "flag_env": "FLAG",
+  "resources": {
+    "container": {
+      "image": "nebuctf/example-ad:example-v1",
+      "mode": "private",
+      "protocol": "http",
+      "access_mode": "port",
+      "port": 8080,
+      "cpu": 250,
+      "memory": 96,
+      "ttl": 1800
+    }
+  },
+  "patch_config": {
+    "checker_image": "nebuctf/example-checker:example-v1",
+    "patch_root": "/app",
+    "update_timeout": 30,
+    "timeout": 15,
+    "cpu": 250,
+    "memory": 128
+  },
+  "awd_config": {
+    "checker_image": "nebuctf/example-checker:example-v1",
+    "timeout": 15
+  },
+  "initial_points": 100,
+  "minimum_points": 100,
+  "dynamic_score": false,
+  "published": true,
+  "practice": false
+}

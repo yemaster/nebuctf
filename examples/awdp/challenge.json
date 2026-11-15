@@ -1,0 +1,51 @@
+{
+  "title": "AWDP：泄露接口攻防",
+  "description": "启动独立靶机，访问 /leak 获取动态 Flag 并提交攻击小题。防守小题需上传 tar.gz 修复包：禁用 /leak 的泄露，同时保留 /health 与 /checksum 的正确行为。补丁校验成功只完成防守小题，不替换攻击实例。此镜像故意存在漏洞，仅用于隔离环境。",
+  "category": "Web",
+  "difficulty": "入门",
+  "challenge_type": "awdp",
+  "flag_mode": "dynamic",
+  "flag_env": "FLAG",
+  "resources": {
+    "container": {
+      "image": "nebuctf/example-ad:example-v1",
+      "mode": "private",
+      "protocol": "http",
+      "access_mode": "port",
+      "port": 8080,
+      "cpu": 250,
+      "memory": 96,
+      "ttl": 1800
+    }
+  },
+  "patch_config": {
+    "checker_image": "nebuctf/example-checker:example-v1",
+    "patch_root": "/app",
+    "update_timeout": 30,
+    "timeout": 15,
+    "cpu": 250,
+    "memory": 128
+  },
+  "parts": [
+    {
+      "role": "attack",
+      "title": "攻击：取得泄露的 Flag",
+      "description": "访问靶机 /leak，将返回的动态 Flag 提交到本小题。",
+      "flag_env": "ATTACK_FLAG",
+      "initial_points": 100,
+      "minimum_points": 100
+    },
+    {
+      "role": "defense",
+      "title": "防守：修复泄露接口",
+      "description": "上传离线修复包，使 /leak 返回 403，保持健康检查和 Flag 校验摘要正确。",
+      "initial_points": 100,
+      "minimum_points": 100
+    }
+  ],
+  "initial_points": 200,
+  "minimum_points": 200,
+  "dynamic_score": false,
+  "published": true,
+  "practice": true
+}

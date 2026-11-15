@@ -1,0 +1,23 @@
+{
+  "title": "动态容器：专属入口",
+  "description": "启动你的专属靶机，通过平台提供的 HTTP 入口访问首页，再按首页提示访问 /flag。提交响应中的完整 Flag。每个实例的答案由平台动态注入，不同队伍不能共用答案。本题刻意直接展示 Flag，仅用于学习容器启动与动态答案隔离，不代表生产环境的安全设计。",
+  "category": "Web",
+  "difficulty": "入门",
+  "challenge_type": "ctf",
+  "flag_mode": "dynamic",
+  "initial_points": 100,
+  "minimum_points": 100,
+  "dynamic_score": false,
+  "resources": {
+    "container": {
+      "image": "nebuctf/example-web:example-v1",
+      "mode": "private",
+      "protocol": "http",
+      "access_mode": "port",
+      "port": 8080,
+      "cpu": 250,
+      "memory": 64,
+      "ttl": 1800
+    }
+  }
+}

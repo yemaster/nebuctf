@@ -14,7 +14,8 @@
     "admin": "node scripts/admin.mjs",
     "format": "prettier --write \"apps/**/*.{ts,tsx,css,json}\" \"scripts/*.mjs\"",
     "benchmark": "node scripts/benchmark.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "examples:pack": "tsx examples/pack.ts"
   },
   "engines": {
     "node": ">=24.14"

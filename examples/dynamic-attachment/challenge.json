@@ -1,0 +1,19 @@
+{
+  "title": "动态附件：编码信笺",
+  "description": "生成并下载你自己的动态附件 artifact.zip，解压得到 challenge.txt。文件内是一行 Base64 编码文本：将它解码为 UTF-8，提交得到的完整 Flag。可以使用 Python 标准库 base64.b64decode 或本地 Base64 解码工具。附件中的答案由平台为当前队伍动态生成，请勿提交其他队伍的附件答案。",
+  "category": "Misc",
+  "difficulty": "入门",
+  "challenge_type": "ctf",
+  "flag_mode": "dynamic",
+  "initial_points": 100,
+  "minimum_points": 100,
+  "dynamic_score": false,
+  "resources": {
+    "attachment": {
+      "image": "nebuctf/example-attachment:example-v1",
+      "cpu": 250,
+      "memory": 64,
+      "ttl": 1800
+    }
+  }
+}
