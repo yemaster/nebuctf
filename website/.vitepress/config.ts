@@ -69,10 +69,11 @@ export default defineConfig({
   markdown: { codeCopyButtonTitle: '复制代码' },
   sitemap: { hostname: `${origin}${base}` },
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}favicon.svg` }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '64x64', href: `${base}favicon.png` }],
   ],
   themeConfig: {
     siteTitle: 'NebuCTF',
+    logo: { src: '/mark.png', alt: '' },
     nav: [
       { text: '首页', link: '/', activeMatch: '^/$' },
       { text: '文档', link: '/guide/introduction', activeMatch: '^/(guide|organize)/' },
