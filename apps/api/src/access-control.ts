@@ -139,6 +139,7 @@ export function authorizeManagement(req: FastifyRequest, user: User) {
         messages: "messages",
         "ai-routes": "ai",
         ai: "ai",
+        "api-keys": "settings",
       } as Record<string, string>
     )[section ?? ""];
   }

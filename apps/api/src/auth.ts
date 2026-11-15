@@ -17,9 +17,11 @@ import type { User } from "./context.js";
 import { consumeCaptcha } from "./captcha.js";
 import { getSetting } from "./settings.js";
 import { emailAllowed, verifyRegistrationEmail } from "./mail.js";
+import { authenticateApiKey } from "./api-keys.js";
 declare module "fastify" {
   interface FastifyRequest {
     user: User | null;
+    apiKeyId: string | null;
   }
 }
 export const sessionCookie =
@@ -35,8 +37,23 @@ export function requireAdmin(req: FastifyRequest) {
 }
 export async function authRoutes(app: FastifyInstance, db: DB) {
   app.decorateRequest("user", null);
+  app.decorateRequest("apiKeyId", null);
   app.addHook("onRequest", async (req, reply) => {
     reply.header("Cache-Control", "no-store");
+    if (
+      !req.routeOptions.config.aiProxy &&
+      req.headers.authorization !== undefined
+    ) {
+      const principal = await authenticateApiKey(
+        db,
+        req.headers.authorization,
+        req.method,
+        req.routeOptions.url ?? "",
+      );
+      req.user = principal.user;
+      req.apiKeyId = principal.id;
+      return;
+    }
     if (
       !req.routeOptions.config.aiProxy &&
       !["GET", "HEAD", "OPTIONS"].includes(req.method)

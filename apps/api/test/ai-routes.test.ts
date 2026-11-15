@@ -253,16 +253,22 @@ test(
           headers: { authorization: `Bearer ${routes[0].access_key}` },
         });
         assert.equal(models.json().data[0].id, "test-model");
-        assert.equal(
+        const management = await app.inject({
+          method: "PUT",
+          url: `/api/admin/ai-routes/${routes[0].id}`,
+          headers: { authorization: `Bearer ${routes[0].access_key}` },
+          payload: routes[0].data,
+        });
+        // The proxy credential must never authorize administrative mutations.
+        assert(management.statusCode >= 400 && management.statusCode < 500);
+        assert.deepEqual(
           (
-            await app.inject({
-              method: "PUT",
-              url: `/api/admin/ai-routes/${routes[0].id}`,
-              headers: { authorization: `Bearer ${routes[0].access_key}` },
-              payload: routes[0].data,
-            })
-          ).statusCode,
-          403,
+            await db.query(
+              "SELECT key_cipher,access_hash FROM ai_routes WHERE id=$1",
+              [routes[0].id],
+            )
+          )[0],
+          saved,
         );
       },
     );

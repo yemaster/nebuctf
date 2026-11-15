@@ -42,6 +42,7 @@ export const adminSection = (section: string) =>
       articles: "content",
       learning: "content",
       help: "content",
+      "api-keys": "settings",
       submissions: "logs",
       audit: "logs",
     }) as Record<string, string>

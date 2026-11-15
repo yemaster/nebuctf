@@ -56,6 +56,7 @@ export function pageSkeleton(path: string, search = ""): SkeletonKind {
   if (path === "/") return "home";
   if (path === "/messages") return "messages";
   if (path === "/help" || path.startsWith("/help/")) return "help";
+  if (path === "/developers/api") return "table";
   if (path === "/challenges")
     return params.has("challenge") || params.has("problemset")
       ? params.get("challenge") === "objective"
@@ -81,7 +82,9 @@ export function pageSkeleton(path: string, search = ""): SkeletonKind {
       ? "submissions"
       : params.get("section") === "security"
         ? "account-security"
-        : "account";
+        : params.get("section") === "api-keys"
+          ? "table"
+          : "account";
   if (path === "/terminal") return "terminal";
   if (path.startsWith("/admin") || /\/manage(?:\/|$)/.test(path)) {
     if (/\/writeups(?:\/|$)/.test(path)) return "writeups";
@@ -90,7 +93,7 @@ export function pageSkeleton(path: string, search = ""): SkeletonKind {
       /^\/contests\/[^/]+\/manage\/settings$/.test(path)
     )
       return "form-tabs";
-    if (/\/(edit|new|settings|containers|mail|import)$/.test(path))
+    if (/\/(edit|new|settings|api-keys|containers|mail|import)$/.test(path))
       return "form";
     if (path === "/admin" || /\/overview$/.test(path)) return "overview";
     return "table";

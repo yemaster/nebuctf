@@ -24,6 +24,7 @@ import {
   Layers,
   LayoutDashboard,
   Settings,
+  KeyRound,
   Timer,
   Mail,
   Bell,
@@ -138,6 +139,9 @@ const AdminOverview = lazy(() =>
 const SystemSettings = lazy(() =>
   import("./admin/SystemSettings").then((m) => ({ default: m.SystemSettings })),
 );
+const ApiKeysAdmin = lazy(() =>
+  import("./admin/ApiKeys").then((m) => ({ default: m.ApiKeysAdmin })),
+);
 const AIRoutesAdmin = lazy(() =>
   import("./admin/AIRoutes").then((m) => ({ default: m.AIRoutesAdmin })),
 );
@@ -156,6 +160,7 @@ const groups = [
     items: [
       { path: "overview", title: "概览", icon: LayoutDashboard },
       { path: "settings", title: "系统配置", icon: Settings },
+      { path: "api-keys", title: "API KEY", icon: KeyRound },
       { path: "containers", title: "容器策略", icon: Timer },
       { path: "mail", title: "邮件策略", icon: Mail },
       { path: "messages", title: "系统消息", icon: Bell },
@@ -361,6 +366,7 @@ function AdminLayout() {
                   <Route path="messages/new" element={<MessageComposer />} />
                   <Route path="messages/welcome" element={<WelcomeMessage />} />
                   <Route path="ai" element={<AIRoutesAdmin />} />
+                  <Route path="api-keys" element={<ApiKeysAdmin />} />
                   <Route path="ai/new" element={<AIRouteEditor />} />
                   <Route path="ai/:id/edit" element={<AIRouteEditor />} />
                   <Route path="challenges" element={<ChallengeAdmin />} />

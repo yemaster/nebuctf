@@ -1,11 +1,12 @@
 import { AccountAvatar } from "@/components/account-avatar";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { History, KeyRound, UserRound, Loader2 } from "lucide-react";
+import { CodeXml, History, KeyRound, UserRound, Loader2 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { api, useAPI } from "@/lib/api";
 import type { User } from "@/lib/types";
 import { AccountProfile, type Profile } from "@/components/account-profile";
 import { AccountSecurity } from "@/components/account-security";
+import { AccountApiKeys } from "@/components/account-api-keys";
 import {
   AccountSubmissions,
   type AccountSubmissionsData,
@@ -20,6 +21,7 @@ import { useLoadingState } from "@/components/loading-transition";
 const sections = [
   { value: "profile", label: "账户资料", icon: UserRound },
   { value: "security", label: "账户安全", icon: KeyRound },
+  { value: "api-keys", label: "API KEY", icon: CodeXml },
   { value: "submissions", label: "提交记录", icon: History },
 ] as const;
 
@@ -148,6 +150,9 @@ export function Account() {
               >
                 <h2 className="text-lg font-semibold">账户安全</h2>
                 <AccountSecurity />
+              </TabsContent>
+              <TabsContent value="api-keys" className="min-w-0 space-y-6">
+                {section === "api-keys" && <AccountApiKeys />}
               </TabsContent>
               <TabsContent
                 value="submissions"

@@ -54,6 +54,9 @@ const Home = lazy(() =>
 const Help = lazy(() =>
   import("./pages/Help").then((m) => ({ default: m.Help })),
 );
+const ApiReference = lazy(() =>
+  import("./pages/ApiReference").then((m) => ({ default: m.ApiReference })),
+);
 const Contests = lazy(() =>
   import("./pages/Contests").then((m) => ({ default: m.Contests })),
 );
@@ -265,6 +268,10 @@ function AppShell() {
                           />
                           <Route path="/" element={<Home />} />
                           <Route path="/help/:slug?" element={<Help />} />
+                          <Route
+                            path="/developers/api"
+                            element={<ApiReference />}
+                          />
                           <Route path="/challenges" element={<Challenges />} />
                           <Route
                             path="/problemsets"

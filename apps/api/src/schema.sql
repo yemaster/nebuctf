@@ -370,3 +370,21 @@ UPDATE help_documents d SET updated_by=(
  ORDER BY l.created_at DESC,l.id DESC LIMIT 1
 ) WHERE d.updated_by IS NULL AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=35);
 INSERT INTO schema_migrations(version) VALUES(35) ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS api_keys(
+ id uuid PRIMARY KEY,
+ user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ name varchar(80) NOT NULL CHECK(length(trim(name))>0),
+ token_hash text NOT NULL UNIQUE CHECK(length(token_hash)=64),
+ prefix varchar(16) NOT NULL,
+ scopes jsonb NOT NULL CHECK(jsonb_typeof(scopes)='array'),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ updated_at timestamptz NOT NULL DEFAULT now(),
+ expires_at timestamptz NOT NULL,
+ last_used_at timestamptz,
+ revoked_at timestamptz);
+CREATE INDEX IF NOT EXISTS api_keys_owner ON api_keys(user_id,created_at DESC,id DESC);
+INSERT INTO schema_migrations(version) VALUES(36) ON CONFLICT DO NOTHING;
+
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS identity_id text;
+INSERT INTO schema_migrations(version) VALUES(37) ON CONFLICT DO NOTHING;

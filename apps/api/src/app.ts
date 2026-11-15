@@ -24,6 +24,7 @@ import { ZodError } from "zod";
 import { learningRoutes } from "./learning.js";
 import { helpRoutes } from "./help.js";
 import { authRoutes } from "./auth.js";
+import { apiKeyRoutes } from "./api-key-routes.js";
 import { profileRoutes } from "./profiles.js";
 import { teamRoutes } from "./teams.js";
 import { challengeRoutes } from "./challenges.js";
@@ -101,6 +102,7 @@ export async function buildApp(db: DB, logging = false) {
     });
   });
   await authRoutes(app, db);
+  apiKeyRoutes(app, db);
   roleRoutes(app, db);
   trafficRoutes(app, db);
   notificationRoutes(app, db);

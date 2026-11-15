@@ -83,7 +83,82 @@ export const mailInput = z
     from_name: plain(80),
   })
   .strict();
+const apiKeyIdentityDefaults = [
+  {
+    id: "readonly",
+    name: "只读访问",
+    scopes: [
+      "profile:read",
+      "challenges:read",
+      "submissions:read",
+      "resources:read",
+      "contests:read",
+      "scoreboard:read",
+      "teams:read",
+      "content:read",
+      "notifications:read",
+      "defense:read",
+    ],
+  },
+  {
+    id: "participant",
+    name: "参赛助手",
+    scopes: [
+      "profile:read",
+      "challenges:read",
+      "submissions:read",
+      "submissions:write",
+      "resources:read",
+      "resources:write",
+      "contests:read",
+      "contests:register",
+      "scoreboard:read",
+      "teams:read",
+      "content:read",
+      "content:write",
+      "notifications:read",
+      "defense:read",
+      "defense:write",
+    ],
+  },
+  {
+    id: "content-manager",
+    name: "内容维护",
+    scopes: [
+      "admin:challenges:read",
+      "admin:challenges:write",
+      "admin:content:read",
+      "admin:content:write",
+      "admin:announcements:read",
+      "admin:announcements:write",
+    ],
+  },
+  {
+    id: "contest-manager",
+    name: "赛事管理",
+    scopes: [
+      "admin:contests:read",
+      "admin:contests:write",
+      "admin:announcements:read",
+      "admin:announcements:write",
+      "admin:resources:read",
+      "admin:logs:read",
+    ],
+  },
+];
+
 export const defaults = {
+  api_keys: {
+    enabled: false,
+    allowed_scopes: [] as string[],
+    max_lifetime_days: 365,
+    identities: apiKeyIdentityDefaults.map(({ id, name, scopes }) => ({
+      id,
+      name,
+      enabled: false,
+      scopes: [...scopes],
+    })),
+  },
   traffic: {
     enabled: true,
     capture_enabled: false,

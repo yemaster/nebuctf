@@ -24,6 +24,7 @@ const pages: Record<string, string> = {
   "/account": "我的账户",
   "/messages": "消息中心",
   "/help": "使用帮助",
+  "/developers/api": "API 文档",
 };
 const admin: Record<string, string> = {
   overview: "概览",
@@ -32,6 +33,7 @@ const admin: Record<string, string> = {
   mail: "邮件策略",
   messages: "系统消息",
   ai: "AI 转发",
+  "api-keys": "API KEY",
   challenges: "题目",
   contests: "比赛",
   problemsets: "题单",
@@ -122,6 +124,7 @@ export function pageTitle(
         {
           profile: "账户资料",
           security: "账户安全",
+          "api-keys": "API KEY",
           submissions: "提交记录",
         } as Record<string, string>
       )[params.get("section") ?? ""] ?? "我的账户"
