@@ -9,6 +9,8 @@ npm ci --prefix website
 npm run dev --prefix website
 ```
 
+首页使用 VitePress 的产品首页布局，项目介绍位于 `guide/introduction.md`。所有文档共用完整的左侧章节目录，按开始、使用平台、组织比赛、制作题目、部署与维护、参考和参与开发分组。
+
 页面位于 `website/src`。修改 Markdown 即可预览，导航与章节在 `website/.vitepress/config.ts` 配置。
 
 文案以操作和实际结果为主：说明入口、需要填写的内容、保存后的影响和必要限制。不要复制开发日志、生产地址、账号或历史验收记录到公开页面。

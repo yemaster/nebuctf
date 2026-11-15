@@ -6,7 +6,7 @@ const origin = process.env.DOCS_ORIGIN || 'https://yemaster.github.io'
 
 const reading: DefaultTheme.SidebarItem[] = [
   { text: '开始', items: [
-    { text: '项目介绍', link: '/' },
+    { text: '项目介绍', link: '/guide/introduction' },
     { text: '阅读路线', link: '/guide/' },
     { text: '快速部署', link: '/deploy/quick-start' },
   ] },
@@ -42,8 +42,6 @@ const deployment: DefaultTheme.SidebarItem[] = [
     { text: '域名、端口与 HTTPS', link: '/deploy/network' },
     { text: '服务架构与 k3s', link: '/deploy/architecture' },
     { text: '备份、升级与恢复', link: '/deploy/maintenance' },
-    { text: '环境变量', link: '/reference/configuration' },
-    { text: '故障排查', link: '/reference/troubleshooting' },
   ] },
 ]
 const reference: DefaultTheme.SidebarItem[] = [
@@ -76,19 +74,18 @@ export default defineConfig({
   themeConfig: {
     siteTitle: 'NebuCTF',
     nav: [
-      { text: '指南', link: '/guide/', activeMatch: '^/(guide|organize)/' },
+      { text: '首页', link: '/', activeMatch: '^/$' },
+      { text: '文档', link: '/guide/introduction', activeMatch: '^/(guide|organize)/' },
       { text: '出题', link: '/authoring/', activeMatch: '^/authoring/' },
       { text: '部署', link: '/deploy/quick-start', activeMatch: '^/deploy/' },
       { text: '参考', link: '/reference/faq', activeMatch: '^/(reference|contributing)/' },
     ],
-    sidebar: {
-      '/guide/': reading,
-      '/organize/': reading,
-      '/authoring/': authoring,
-      '/deploy/': deployment,
-      '/reference/': reference,
-      '/contributing/': reference,
-    },
+    sidebar: [
+      ...reading,
+      ...authoring,
+      ...deployment,
+      ...reference,
+    ].map((section) => ({ ...section, collapsed: false })),
     socialLinks: [{ icon: 'github', link: repository, ariaLabel: 'GitHub 仓库' }],
     outline: { level: [2, 3], label: '本页内容' },
     docFooter: { prev: '上一页', next: '下一页' },
