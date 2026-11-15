@@ -9,7 +9,7 @@ npm ci --prefix website
 npm run dev --prefix website
 ```
 
-首页使用 VitePress 的产品首页布局，项目介绍位于 `guide/introduction.md`。所有文档共用完整的左侧章节目录，按开始、使用平台、组织比赛、制作题目、部署与维护、参考和参与开发分组。
+首页使用 VitePress 的产品首页布局，通过 `.vitepress/theme` 的布局插槽加入界面预览和办赛路线。截图取自本地示例题库，明暗主题各一张；更新截图时保留示例说明，不使用正式账号或比赛数据。项目介绍位于 `guide/introduction.md`。所有文档共用完整的左侧章节目录，按开始、使用平台、组织比赛、制作题目、部署与维护、参考和参与开发分组。
 
 页面位于 `website/src`。修改 Markdown 即可预览，导航与章节在 `website/.vitepress/config.ts` 配置。
 
@@ -35,5 +35,7 @@ npm run preview --prefix website
 ## 设计与参考
 
 文档组织参考 [GZCTF 指南](https://gzctf.gzti.me/zh/guide/start/introduction)的上手与部署入口，以及 [Ret2Shell 用户手册](https://www.woooo.tech/zh-cn/ret2shell/manual/)和[运维指南](https://www.woooo.tech/zh-cn/ret2shell/devops/)的读者分工。内容按 NebuCTF 的实际行为编写，不沿用其他平台的配置或接口。
+
+首页的产品展示与阅读层次参考 [Pinia](https://pinia.vuejs.org/)、[Vite](https://vite.dev/) 和 [GZCTF](https://gzctf.gzti.me/zh/)，保留默认主题的导航与操作组件。
 
 主题、搜索、代码高亮、移动目录和明暗切换复用 [VitePress](https://vitepress.dev/)；发布流程使用 [GitHub Pages 官方 Actions](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。

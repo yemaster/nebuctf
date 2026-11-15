@@ -1,0 +1,41 @@
+/* Keep the default theme's typography, controls, surfaces and responsive widths. */
+.VPHome .VPHero .container { gap: 40px; align-items: center; }
+.VPHome .VPHero .main { order: 1; }
+.VPHome .VPHero .image { order: 2; margin: 0; width: 100%; }
+.VPHome .VPHero .image-container { width: 100%; height: auto; transform: none; }
+.VPHome .VPHero .image-bg { display: none; }
+.product-preview { width: 100%; margin: 0; }
+.product-preview a { display: block; overflow: hidden; border: 1px solid var(--vp-c-divider); border-radius: 12px; background: var(--vp-c-bg-soft); }
+.product-preview img { width: 100%; height: auto; }
+.product-preview figcaption { margin-top: 12px; color: var(--vp-c-text-2); text-align: center; font-size: 12px; }
+.preview-dark, .dark .preview-light { display: none; }
+.dark .preview-dark { display: block; }
+.home-workflow, .home-reference { max-width: 1152px; margin: 64px 24px 0; }
+.home-workflow { display: grid; gap: 32px; padding-top: 40px; border-top: 1px solid var(--vp-c-divider); }
+.workflow-intro h2 { font-size: 24px; line-height: 1.5; font-weight: 600; }
+.workflow-intro p { max-width: 320px; margin: 16px 0 20px; color: var(--vp-c-text-2); line-height: 1.8; }
+.workflow-intro > a { color: var(--vp-c-brand-1); font-weight: 500; }
+.workflow-steps { display: grid; gap: 24px; padding: 0; margin: 0; list-style: none; }
+.workflow-steps li { display: flex; gap: 24px; }
+.step-number { padding-top: 2px; color: var(--vp-c-text-3); font-size: 14px; font-variant-numeric: tabular-nums; }
+.workflow-steps h3 { font-size: 16px; line-height: 1.5; font-weight: 600; }
+.workflow-steps p { margin-top: 6px; color: var(--vp-c-text-2); line-height: 1.8; font-size: 14px; }
+.home-reference { display: flex; flex-wrap: wrap; gap: 16px 40px; padding-top: 24px; border-top: 1px solid var(--vp-c-divider); font-size: 14px; font-weight: 500; }
+.home-workflow a:hover, .home-reference a:hover { color: var(--vp-c-brand-1); }
+.home-workflow a, .home-reference a { transition: color .15s; }
+@media (min-width: 640px) {
+  .home-workflow, .home-reference { margin-left: 48px; margin-right: 48px; }
+}
+@media (min-width: 960px) {
+  .VPHome .VPHero .main { width: 43%; flex-shrink: 1; }
+  .VPHome .VPHero .image { width: 57%; }
+  .VPHome .VPHero .name, .VPHome .VPHero .text { font-size: 48px; line-height: 1.25; }
+  .home-workflow, .home-reference { margin-left: 64px; margin-right: 64px; }
+  .home-workflow { grid-template-columns: 1fr 1.5fr; gap: 64px; }
+}
+@media (min-width: 1280px) {
+  .home-workflow, .home-reference { margin-left: auto; margin-right: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-workflow a, .home-reference a { transition: none; }
+}
