@@ -251,12 +251,18 @@ export const contestInput = z
           id: id.optional(),
           name: z.string().trim().min(1).max(60),
           description: z.string().max(500).default(""),
+          invite_code: z
+            .string()
+            .trim()
+            .max(128)
+            .refine((v) => !v || v.length >= 6, "组别邀请码至少 6 位")
+            .optional(),
           review_mode: z.enum(["inherit", "auto", "required"]).optional(),
           permissions: groupPermissionInput.optional(),
           challenge_permissions: groupOverridesInput.optional(),
         }),
       )
-      .max(20)
+      .max(21)
       .optional(),
   })
   .superRefine((v, ctx) => {

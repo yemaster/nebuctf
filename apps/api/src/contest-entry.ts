@@ -1,3 +1,4 @@
+import { unseal } from "./settings.js";
 import { can } from "./access-control.js";
 import { createHmac } from "node:crypto";
 import type { DB, Row } from "./db.js";
@@ -38,10 +39,22 @@ export const registrationCodeHash = (value: string) =>
     .update(`contest-invite:${value}`)
     .digest("hex");
 
+export function publicContestGroup(group: Row, admin = false) {
+  const { invite_code_cipher, invite_code: _code, ...safe } = group;
+  return {
+    ...safe,
+    invite_code_set: !!invite_code_cipher,
+    ...(admin ? { invite_code: unseal(invite_code_cipher ?? "") } : {}),
+  };
+}
+
 export function publicContest(contest: Row, admin = false) {
   const { registration_code_hash, registration_team_ids, ...safe } = contest;
   return {
     ...safe,
+    ...(Array.isArray(safe.groups)
+      ? { groups: safe.groups.map((g: Row) => publicContestGroup(g, admin)) }
+      : {}),
     ...(admin
       ? {
           registration_code_set: !!registration_code_hash,
@@ -51,7 +64,12 @@ export function publicContest(contest: Row, admin = false) {
   };
 }
 
-export function checkRegistrationScope(contest: Row, team: string, code = "") {
+export function checkRegistrationScope(
+  contest: Row,
+  team: string,
+  code = "",
+  group?: Row,
+) {
   if (
     contest.registration_mode === "teams" &&
     !contest.registration_team_ids.includes(team)
@@ -60,12 +78,17 @@ export function checkRegistrationScope(contest: Row, team: string, code = "") {
       label: "查看比赛说明",
       href: `/contests/${contest.id}`,
     });
+  const groupCode = group?.invite_code_cipher;
+  const requiredHash = groupCode
+    ? registrationCodeHash(unseal(groupCode))
+    : contest.registration_mode === "invite"
+      ? contest.registration_code_hash
+      : "";
   if (
-    contest.registration_mode === "invite" &&
-    (!contest.registration_code_hash ||
-      !equal(registrationCodeHash(code.trim()), contest.registration_code_hash))
+    (groupCode || contest.registration_mode === "invite") &&
+    (!requiredHash || !equal(registrationCodeHash(code.trim()), requiredHash))
   )
-    fail(403, "报名邀请码不正确");
+    fail(403, groupCode ? "组别邀请码不正确" : "报名邀请码不正确");
 }
 
 export async function requireScoreboardAccess(

@@ -1,11 +1,8 @@
+import { ContestInviteCodeField } from "@/components/contest-invite-code-field";
 import { ContestTiming } from "@/components/contest-timing";
-const Scoreboard = lazy(() =>
-  import("./Scoreboard").then((m) => ({ default: m.Scoreboard })),
-);
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { lazy, useState, type ReactNode } from "react";
 import { ArrowRight, MonitorPlay } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { useUser } from "@/App";
 import { api, useAction, useAPI } from "@/lib/api";
 import type { Contest, TeamSummary } from "@/lib/types";
@@ -28,6 +25,9 @@ import {
   Pagination,
   QueryState,
 } from "@/components/shared";
+const Scoreboard = lazy(() =>
+  import("./Scoreboard").then((m) => ({ default: m.Scoreboard })),
+);
 const Challenges = lazy(() =>
   import("./Challenges").then((m) => ({ default: m.Challenges })),
 );
@@ -279,6 +279,7 @@ export function ContestDetail() {
                         navigate(`/contests/${id}/register`);
                         return;
                       }
+                      setInvite("");
                       setTeam(captained[0]?.id ?? "");
                       setGroup(
                         c.groups.find((g) => g.joinable !== false)?.id ?? "",
@@ -367,25 +368,14 @@ export function ContestDetail() {
                         ))}
                       </NativeSelect>
                     </Field>
-                    {c.registration_mode === "invite" && (
-                      <Field label="报名邀请码">
-                        <Input
-                          name="invite_code"
-                          type="password"
-                          autoComplete="off"
-                          required
-                          minLength={6}
-                          maxLength={128}
-                          value={invite}
-                          onChange={(e) => setInvite(e.target.value)}
-                        />
-                      </Field>
-                    )}
                     {c.groups.length > 0 && (
                       <Field label="参赛组别">
                         <NativeSelect
                           value={group}
-                          onChange={(e) => setGroup(e.target.value)}
+                          onChange={(e) => {
+                            setGroup(e.target.value);
+                            setInvite("");
+                          }}
                           required
                         >
                           {c.groups.map((g) => (
@@ -401,6 +391,12 @@ export function ContestDetail() {
                         </NativeSelect>
                       </Field>
                     )}
+                    <ContestInviteCodeField
+                      contest={c}
+                      groupId={group}
+                      value={invite}
+                      onChange={setInvite}
+                    />
                     {c.groups.find((g) => g.id === group)?.description && (
                       <p className="text-sm text-muted-foreground">
                         {c.groups.find((g) => g.id === group)!.description}

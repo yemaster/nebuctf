@@ -125,9 +125,11 @@ export function registrationRoutes(app: FastifyInstance, db: DB) {
       if (rows.length !== input.team_ids.length)
         fail(404, "部分战队未报名本场比赛");
       const groups = await tx.query(
-        "SELECT id FROM contest_groups WHERE contest_id=$1",
+        "SELECT id,is_default FROM contest_groups WHERE contest_id=$1",
         [cid],
       );
+      if (input.group_id === null)
+        input.group_id = groups.find((g) => g.is_default)?.id ?? null;
       if (
         input.group_id !== undefined &&
         (groups.length

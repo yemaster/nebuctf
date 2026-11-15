@@ -11,7 +11,10 @@ import { resourceProfiles } from "./challenge-model.js";
 import { saveContestGroups } from "./contest-groups.js";
 import { validateTiming } from "./competition-rules.js";
 import { validateWriteup, writeupInput } from "./writeup-config.js";
-import { validateRegistrationWindow } from "./contest-entry.js";
+import {
+  publicContestGroup,
+  validateRegistrationWindow,
+} from "./contest-entry.js";
 import { storage, validateImage } from "./resources.js";
 import { posterMime } from "./contest-posters.js";
 import { fail, flagHash } from "./security.js";
@@ -115,7 +118,7 @@ export async function exportContent(
         [source],
       );
       const groups = await tx.query(
-        "SELECT * FROM contest_groups WHERE contest_id=$1 ORDER BY position,id",
+        "SELECT * FROM contest_groups WHERE contest_id=$1 AND NOT is_default ORDER BY position,id",
         [source],
       );
       ids = links.map((c) => c.challenge_id);
@@ -125,7 +128,7 @@ export async function exportContent(
             ...row,
             challenge_ids: ids,
             challenge_settings: links,
-            groups,
+            groups: groups.map((g) => publicContestGroup(g, true)),
           }),
         ),
         registration_code_hash: row!.registration_code_hash ?? "",

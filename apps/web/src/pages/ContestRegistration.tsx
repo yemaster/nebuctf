@@ -1,3 +1,4 @@
+import { ContestInviteCodeField } from "@/components/contest-invite-code-field";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, Send } from "lucide-react";
@@ -12,10 +13,9 @@ import type {
 import { RegistrationFields } from "@/components/registration-fields";
 import { UserAvatar } from "@/components/user-avatar";
 import { TeamAvatar } from "@/components/team-avatar";
-import { Field, PageTitle, QueryState, LoginPrompt } from "@/components/shared";
+import { PageTitle, QueryState, LoginPrompt } from "@/components/shared";
 import { ActionError } from "@/components/action-error";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
@@ -85,7 +85,7 @@ function RegistrationPage({
   teams: TeamSummary[];
   user: string;
 }) {
-  const [selection, setSelection, clear] = useDraft(
+  const [draftSelection, setSelection, clear] = useDraft(
     `registration-choice:${user}:${c.id}`,
     {
       team: c.registration?.team_id ?? teams[0]?.id ?? "",
@@ -96,6 +96,18 @@ function RegistrationPage({
       invite: "",
     },
   );
+  const groupId =
+    c.registration && c.registration.status !== "rejected"
+      ? c.registration.group_id
+      : draftSelection.group;
+  const selection = {
+    ...draftSelection,
+    group:
+      (
+        c.groups.find((g) => g.id === groupId) ??
+        c.groups.find((g) => g.is_default)
+      )?.id ?? "",
+  };
   const selected = teams.find((t) => t.id === selection.team);
   return (
     <>
@@ -155,7 +167,7 @@ function RegistrationPage({
                     <RadioGroup
                       value={selection.group}
                       onValueChange={(group) =>
-                        setSelection({ ...selection, group })
+                        setSelection({ ...selection, group, invite: "" })
                       }
                       className="grid gap-3"
                     >
@@ -191,19 +203,13 @@ function RegistrationPage({
                     </RadioGroup>
                   </fieldset>
                 )}
-                {c.registration_mode === "invite" && (
-                  <Field label="报名邀请码">
-                    <Input
-                      type="password"
-                      autoComplete="off"
-                      maxLength={128}
-                      value={selection.invite}
-                      onChange={(e) =>
-                        setSelection({ ...selection, invite: e.target.value })
-                      }
-                    />
-                  </Field>
-                )}
+                <ContestInviteCodeField
+                  contest={c}
+                  formId={`contest-registration-${c.id}`}
+                  groupId={selection.group}
+                  value={selection.invite}
+                  onChange={(invite) => setSelection({ ...selection, invite })}
+                />
               </div>
             )}
           </CardContent>
@@ -336,6 +342,7 @@ function AnswersForm({
     memberFields = fields.filter((f) => f.scope === "member");
   return (
     <form
+      id={`contest-registration-${contest.id}`}
       className="space-y-6"
       onSubmit={(e) => {
         e.preventDefault();

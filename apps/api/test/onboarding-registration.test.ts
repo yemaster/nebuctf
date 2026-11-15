@@ -139,7 +139,7 @@ test(
         assert.equal(created.statusCode, 200, created.body);
         cid = created.json().id;
         const c = (await req("/contests/" + cid)).json();
-        groups = c.groups;
+        groups = c.groups.filter((g: any) => !g.is_default);
         assert.equal(c.registration_form.length, 3);
         assert.equal(c.form_answers, undefined);
         assert.equal(
@@ -286,7 +286,7 @@ test(
         const c = (await req("/contests/" + c2)).json();
         const sent = await req(`/contests/${c2}/register`, outsider, {
           team_id: outsider.team,
-          group_id: c.groups[1].id,
+          group_id: c.groups.filter((g: any) => !g.is_default)[1].id,
         });
         assert.equal(sent.statusCode, 200, sent.body);
         assert.equal(
@@ -315,7 +315,7 @@ test(
         assert.equal(changed.statusCode, 200, changed.body);
         const inherited = await req(`/contests/${c2}/register`, a, {
           team_id: a.team,
-          group_id: c.groups[1].id,
+          group_id: c.groups.filter((g: any) => !g.is_default)[1].id,
         });
         assert.equal(inherited.statusCode, 200, inherited.body);
         assert.equal(
@@ -329,7 +329,9 @@ test(
             require_review: true,
           })
         ).json().id;
-        const g = (await req("/contests/" + c3)).json().groups[2].id;
+        const g = (await req("/contests/" + c3))
+          .json()
+          .groups.filter((g: any) => !g.is_default)[2].id;
         assert.equal(
           (
             await req(`/contests/${c3}/register`, a, {
@@ -354,7 +356,7 @@ test(
           (
             await req(`/contests/${c2}/register`, a, {
               team_id: a.team,
-              group_id: current.groups[1].id,
+              group_id: current.groups.filter((g: any) => !g.is_default)[1].id,
               form_revision: revision,
               form_answers: answers,
             })

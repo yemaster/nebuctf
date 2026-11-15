@@ -565,7 +565,6 @@ export function ContestForm({
               initial={c?.groups}
               challengeIds={selected}
               started={started}
-              registered={(c?.teams ?? 0) > 0}
             />
           </fieldset>
         </ConfigPanel>

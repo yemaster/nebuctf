@@ -156,7 +156,7 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
         ).length,
       registration: registration ?? null,
       groups: await db.query(
-        "SELECT id,name,description,review_mode,coalesce((permissions->>'join')::boolean,true) joinable,coalesce((permissions->>'rank_overall')::boolean,true) rank_overall,coalesce((permissions->>'require_review')::boolean,false) require_review FROM contest_groups WHERE contest_id=$1 ORDER BY position",
+        "SELECT id,name,description,is_default,review_mode,(invite_code_cipher<>'') invite_code_set,coalesce((permissions->>'join')::boolean,true) joinable,coalesce((permissions->>'rank_overall')::boolean,true) rank_overall,coalesce((permissions->>'require_review')::boolean,false) require_review FROM contest_groups WHERE contest_id=$1 ORDER BY position",
         [cid],
       ),
     };
@@ -203,13 +203,19 @@ export function contestRoutes(app: FastifyInstance, db: DB) {
             href: "/team",
           });
         const groups = await tx.query(
-          "SELECT id,permissions,review_mode FROM contest_groups WHERE contest_id=$1",
+          "SELECT id,permissions,review_mode,is_default,invite_code_cipher FROM contest_groups WHERE contest_id=$1",
           [cid],
         );
-        checkRegistrationScope(c!, t!.id, selection.invite_code);
+        selection.group_id ??= groups.find((g) => g.is_default)?.id;
         if (groups.length && !groups.some((g) => g.id === selection.group_id))
           fail(400, "请选择有效组别");
         if (!groups.length && selection.group_id) fail(400, "此比赛没有该组别");
+        checkRegistrationScope(
+          c!,
+          t!.id,
+          selection.invite_code,
+          groups.find((g) => g.id === selection.group_id),
+        );
         if (
           !effectivePermissions(groups.find((g) => g.id === selection.group_id))
             .join

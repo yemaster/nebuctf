@@ -96,6 +96,9 @@ export interface Challenge {
   ttl: number;
 }
 export interface ContestGroup {
+  invite_code?: string;
+  invite_code_set?: boolean;
+  is_default?: boolean;
   review_mode?: "inherit" | "auto" | "required";
   id: string;
   name: string;

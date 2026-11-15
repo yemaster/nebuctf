@@ -211,6 +211,7 @@ test(
       ],
     });
     let editable = await ok(`/admin/contests/${contest.id}`, admin);
+    editable.groups = editable.groups.filter((g: any) => !g.is_default);
     const group = (name: string) =>
       editable.groups.find((g: any) => g.name === name);
     await t.test(
@@ -275,6 +276,7 @@ test(
           "PUT",
         );
         editable = await ok(`/admin/contests/${contest.id}`, admin);
+        editable.groups = editable.groups.filter((g: any) => !g.is_default);
         assert.equal(group("Guest").permissions.score, false);
         for (const [actor, name] of [
           [official, "Official"],
@@ -290,6 +292,7 @@ test(
           [contest.id],
         );
         editable = await ok(`/admin/contests/${contest.id}`, admin);
+        editable.groups = editable.groups.filter((g: any) => !g.is_default);
       },
     );
     await t.test(

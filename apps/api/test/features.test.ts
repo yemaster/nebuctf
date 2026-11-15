@@ -325,7 +325,9 @@ test("multi-part challenges, collections and contest workflow", async (t) => {
       });
       assert.equal(r.statusCode, 200, r.body);
       contest = r.json().id;
-      groups = (await get(`/contests/${contest}`, alice.cookie)).json().groups;
+      groups = (await get(`/contests/${contest}`, alice.cookie))
+        .json()
+        .groups.filter((g: any) => !g.is_default);
       const missing = await request(
         "POST",
         `/contests/${contest}/register`,
@@ -409,7 +411,7 @@ test("multi-part challenges, collections and contest workflow", async (t) => {
             groups: [],
           })
         ).statusCode,
-        409,
+        200,
       );
     },
   );

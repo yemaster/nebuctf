@@ -398,3 +398,17 @@ CREATE TABLE IF NOT EXISTS contest_exclusive_choices(
  created_at timestamptz NOT NULL DEFAULT now(),
  PRIMARY KEY(contest_id,owner_key,group_name));
 INSERT INTO schema_migrations(version) VALUES(38) ON CONFLICT DO NOTHING;
+
+ALTER TABLE contest_groups ADD COLUMN IF NOT EXISTS is_default boolean NOT NULL DEFAULT false;
+CREATE UNIQUE INDEX IF NOT EXISTS contest_groups_one_default ON contest_groups(contest_id) WHERE is_default;
+INSERT INTO contest_groups(id,contest_id,name,description,position,is_default)
+ SELECT gen_random_uuid(),c.id,'默认组别','',-1,true FROM contests c
+ WHERE NOT EXISTS(SELECT 1 FROM contest_groups g WHERE g.contest_id=c.id AND g.is_default)
+ AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=39);
+UPDATE registrations r SET group_id=g.id FROM contest_groups g
+ WHERE r.contest_id=g.contest_id AND r.group_id IS NULL AND g.is_default
+ AND NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=39);
+INSERT INTO schema_migrations(version) VALUES(39) ON CONFLICT DO NOTHING;
+
+ALTER TABLE contest_groups ADD COLUMN IF NOT EXISTS invite_code_cipher text NOT NULL DEFAULT '';
+INSERT INTO schema_migrations(version) VALUES(40) ON CONFLICT DO NOTHING;

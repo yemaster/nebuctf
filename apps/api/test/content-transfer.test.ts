@@ -193,6 +193,7 @@ test(
       groups: [
         {
           name: "公开组",
+          invite_code: "export-group-secret",
           permissions: { rank_overall: false },
           challenge_permissions: { [multi.id]: { resources: false } },
         },
@@ -336,7 +337,14 @@ test(
           Date.parse(end) - Date.parse(start),
         );
         assert.equal(copy.round_duration, 600);
-        assert.equal(copy.groups[0].permissions.rank_overall, false);
+        assert.equal(
+          copy.groups.find((g: any) => !g.is_default).invite_code,
+          "export-group-secret",
+        );
+        assert.equal(
+          copy.groups.find((g: any) => !g.is_default).permissions.rank_overall,
+          false,
+        );
         const [newMulti, newObjective, newAwdp, newAwd] = copy.challenge_ids;
         assert(
           copy.challenge_ids.every(
@@ -344,7 +352,9 @@ test(
           ),
         );
         assert.equal(
-          copy.groups[0].challenge_permissions[newMulti].resources,
+          copy.groups.find((g: any) => !g.is_default).challenge_permissions[
+            newMulti
+          ].resources,
           false,
         );
         const imported = await ok(`/admin/challenges/${newMulti}`);
