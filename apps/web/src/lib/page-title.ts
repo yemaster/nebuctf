@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { notifyManager, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 
 type Lookup = (
@@ -152,7 +152,8 @@ export function useDocumentTitle(siteName: string) {
   const { pathname, search } = useLocation();
   const cache = useQueryClient();
   const subscribe = useCallback(
-    (callback: () => void) => cache.getQueryCache().subscribe(callback),
+    (callback: () => void) =>
+      cache.getQueryCache().subscribe(notifyManager.batchCalls(callback)),
     [cache],
   );
   const snapshot = useCallback(

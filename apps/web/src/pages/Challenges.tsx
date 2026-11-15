@@ -1,3 +1,5 @@
+import { lazy, Suspense, useEffect, useState } from "react";
+
 const ObjectivePaper = lazy(() =>
   import("@/components/objective-paper").then((m) => ({
     default: m.ObjectivePaper,
@@ -26,7 +28,6 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
-import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,

@@ -190,6 +190,10 @@ test("contest navigation handles shared snapshots, fallbacks and unregistered de
   async function cleanup() {
     await act(async () => root.unmount());
     cache.clear();
+    // Query observers batch notifications on the next task, even after unmount.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
   }
   try {
     await t.test(
