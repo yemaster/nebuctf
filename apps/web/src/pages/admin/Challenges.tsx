@@ -5,7 +5,12 @@ import { ArchiveExport } from "@/components/admin/archive-export";
 import { useState } from "react";
 import { ChallengeForm } from "@/components/admin/challenge-form";
 import { ActionError } from "@/components/action-error";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { Pencil, Upload, Play, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 import { api, useAPI, useAction } from "@/lib/api";
@@ -298,6 +303,7 @@ export function ChallengeEditor() {
   const { id } = useParams(),
     navigate = useNavigate(),
     back = useEditorReturn("/admin/challenges");
+  const [searchParams] = useSearchParams();
   const data = useAPI<Challenge>(`/admin/challenges/${id}`, !!id);
   const save = useAction(
     async (body: Record<string, unknown>) => {
@@ -306,11 +312,13 @@ export function ChallengeEditor() {
         id ? "PUT" : "POST",
         body,
       );
-      if (!id)
-        navigate(
-          `/admin/challenges/${saved.id}/edit?return=${encodeURIComponent(back)}`,
-          { replace: true },
-        );
+      if (!id) {
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.set("return", back);
+        navigate(`/admin/challenges/${saved.id}/edit?${nextParams}`, {
+          replace: true,
+        });
+      }
       return saved;
     },
     () => {

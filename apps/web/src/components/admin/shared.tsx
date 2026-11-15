@@ -136,7 +136,7 @@ export function EditorHeading({
       data-slot="page-title"
       className="sticky top-0 z-10 mb-6 flex flex-wrap items-center justify-between gap-4 bg-background py-4"
     >
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div className="flex min-w-0 flex-1 basis-40 items-center gap-3">
         <Button asChild size="icon" variant="ghost">
           <Link to={back} aria-label={backLabel}>
             <ArrowLeft />
@@ -144,7 +144,7 @@ export function EditorHeading({
         </Button>
         <h1 className="min-w-0 break-words text-2xl font-semibold">{title}</h1>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-2">
         {actions}
         {write && (
           <Button type="submit" form={form} disabled={pending}>

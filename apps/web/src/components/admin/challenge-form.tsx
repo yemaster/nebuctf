@@ -1,4 +1,6 @@
 import { randomUUID as hintUUID } from "@/lib/random-uuid";
+import { useUser } from "@/App";
+import { can } from "@/lib/access-control";
 import { FlagInjection } from "./flag-injection";
 import { FlagTemplate } from "./flag-template";
 import { CheckerImageTools } from "./image-tools";
@@ -25,6 +27,12 @@ import { Field } from "../shared";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Switch } from "../ui/switch";
+import { Separator } from "../ui/separator";
+import { Box, CircleHelp, ExternalLink, FolderOpen } from "lucide-react";
+import { Badge } from "../ui/badge";
+import { Label } from "../ui/label";
+import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
+import { Popover, PopoverTrigger, PopoverContent } from "../ui/popover";
 import {
   FieldSet,
   FieldLegend,
@@ -37,8 +45,22 @@ import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 import { ChallengeAttachments } from "./challenge-attachments";
 import { categories } from "@/pages/Challenges";
 import { HintsEditor } from "./hints-editor";
-import { ConfigPanel, focusInvalidField } from "./config-tabs";
+import {
+  ConfigPanel,
+  focusInvalidField,
+  useConfigSection,
+} from "./config-tabs";
+import { ResourceLimits } from "./resource-limits";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "../ui/input-group";
 const ScoreCurve = lazy(() => import("./score-curve"));
+
+const baseSections = ["content", "scoring", "attachments", "publication"];
+const practicalSections = [...baseSections, "environment"];
+const defenseSections = [...practicalSections, "judging"];
 
 export function ChallengeForm({
   challenge: c,
@@ -51,8 +73,21 @@ export function ChallengeForm({
   readOnly?: boolean;
   onSave: (body: Record<string, unknown>) => void;
 }) {
+  const user = useUser();
+  const imageManagementLink = can(user, "images.read") && (
+    <Button asChild variant="ghost" size="sm">
+      <a
+        href="/admin/images"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="在新标签页打开 Docker 镜像"
+      >
+        Docker 镜像
+        <ExternalLink />
+      </a>
+    </Button>
+  );
   const formRef = useRef<HTMLFormElement>(null);
-  const [section, setSection] = useState("content");
   const [publication, setPublication] = useState(
     c?.published ? "enabled" : "disabled",
   );
@@ -87,6 +122,9 @@ export function ChallengeForm({
     minimum: String(c?.minimum_points ?? 100),
     decay: String(c?.decay ?? 20),
   });
+  const [flagTargets, setFlagTargets] = useState<string[] | null>(
+    c?.flag_targets ?? null,
+  );
   const [flagEnv, setFlagEnv] = useState(c?.flag_env ?? "FLAG");
   const [flagTemplate, setFlagTemplate] = useState(
     c?.flag_template ?? (c ? "" : "flag{[GUID]}"),
@@ -106,6 +144,14 @@ export function ChallengeForm({
   const dynamic = flagMode === "dynamic",
     practical = type !== "objective",
     attackDefense = type === "awdp" || type === "awd";
+  const [section, setSection] = useConfigSection(
+    attackDefense
+      ? defenseSections
+      : practical
+        ? practicalSections
+        : baseSections,
+    "content",
+  );
   const retainsFlag =
     !!c &&
     (c.flag_mode ?? (c.kind.startsWith("static") ? "static" : "dynamic")) ===
@@ -161,6 +207,7 @@ export function ChallengeForm({
           challenge_type: type,
           flag_mode: practical ? flagMode : "static",
           flag_env: flagEnv,
+          flag_targets: practical && resources.container ? flagTargets : null,
           flag_template: practical && dynamic ? flagTemplate : "",
           resources: practical
             ? resources
@@ -173,6 +220,7 @@ export function ChallengeForm({
               ? readParts(f, parts).map((p) => ({
                   ...p,
                   flag_template: dynamic ? p.flag_template : null,
+                  flag_targets: resources.container ? p.flag_targets : null,
                 }))
               : [],
           hints: hints.filter((hint) => hint.content.trim().length > 0),
@@ -295,196 +343,304 @@ export function ChallengeForm({
           </div>
         </ConfigPanel>
         <ConfigPanel value="scoring" active={section}>
-          <fieldset disabled={pending || readOnly} className="space-y-5">
+          <fieldset disabled={pending || readOnly} className="space-y-6">
             {type === "objective" && (
               <ObjectiveEditor value={objective} onChange={setObjective} />
             )}
-            {type === "awd" && (
-              <FlagTemplate
-                value={flagTemplate}
-                onChange={setFlagTemplate}
-                disabled={pending || readOnly}
-              />
-            )}
-            {type === "awd" ? (
-              <p className="text-sm text-muted-foreground">
-                攻击分、守住 Flag 得分和服务可用分在比赛选题中设置。
-              </p>
-            ) : (
-              <>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {practical && (
-                    <>
-                      <Field label="Flag 方式">
-                        <NativeSelect
-                          aria-label="Flag 方式"
-                          value={flagMode}
-                          disabled={attackDefense}
-                          onChange={(e) =>
-                            setFlagMode(e.target.value as "static" | "dynamic")
-                          }
-                        >
-                          <NativeSelectOption value="static">
-                            静态 Flag
-                          </NativeSelectOption>
-                          <NativeSelectOption value="dynamic">
-                            动态 Flag
-                          </NativeSelectOption>
-                        </NativeSelect>
-                      </Field>
-                      <Field label="判题方式">
-                        <NativeSelect
-                          aria-label="判题方式"
-                          disabled={attackDefense}
-                          value={multi ? "multiple" : "single"}
-                          onChange={(e) =>
-                            setMulti(e.target.value === "multiple")
-                          }
-                        >
-                          <NativeSelectOption value="single">
-                            单 Flag
-                          </NativeSelectOption>
-                          <NativeSelectOption value="multiple">
-                            多个小题
-                          </NativeSelectOption>
-                        </NativeSelect>
-                      </Field>
-                    </>
-                  )}
-                  <Field label="计分方式">
-                    <NativeSelect
-                      aria-label="计分方式"
-                      disabled={!practical}
-                      value={dynamicScore ? "dynamic" : "fixed"}
-                      onChange={(e) =>
-                        setDynamicScore(e.target.value === "dynamic")
-                      }
-                    >
-                      <NativeSelectOption value="dynamic">
-                        动态积分
-                      </NativeSelectOption>
-                      <NativeSelectOption value="fixed">
-                        固定积分
-                      </NativeSelectOption>
-                    </NativeSelect>
-                  </Field>
-                  {dynamicScore && (
-                    <Field label="衰减人数">
-                      <Input
-                        name="decay"
-                        type="number"
-                        value={scoreValues.decay}
-                        onChange={(e) =>
-                          setScoreValues({
-                            ...scoreValues,
-                            decay: e.target.value,
-                          })
-                        }
-                        min={1}
-                        max={10000}
-                        required
-                      />
-                    </Field>
-                  )}
-                </div>
-                {practical && dynamic && (
-                  <FlagTemplate
-                    value={flagTemplate}
-                    onChange={setFlagTemplate}
-                    disabled={pending || readOnly}
-                  />
-                )}
-                {practical && !multi && !dynamic && (
-                  <Field label={retainsFlag ? "Flag（留空保留原值）" : "Flag"}>
-                    <Input
-                      name="flag"
-                      type="password"
-                      autoComplete="off"
-                      maxLength={256}
-                      required={!retainsFlag}
-                    />
-                  </Field>
-                )}
-                {!multi && (
-                  <div
-                    className={
-                      dynamicScore
-                        ? "grid items-start gap-5 lg:grid-cols-2"
-                        : "max-w-sm"
-                    }
+            <div
+              className={`grid items-start gap-6 ${practical ? "xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" : ""}`}
+            >
+              {practical && (
+                <section
+                  className="min-w-0 space-y-4"
+                  aria-labelledby="challenge-flag-heading"
+                >
+                  <h3
+                    id="challenge-flag-heading"
+                    className="text-sm font-medium"
                   >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label={dynamicScore ? "初始分值" : "分值"}>
+                    Flag 设置
+                  </h3>
+                  <div className="space-y-4">
+                    {type === "awdp" ? (
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="secondary">动态 Flag</Badge>
+                        <Badge variant="outline">攻击 / 防守</Badge>
+                      </div>
+                    ) : (
+                      type !== "awd" && (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label id="challenge-flag-mode-label">
+                              Flag 方式
+                            </Label>
+                            <ToggleGroup
+                              type="single"
+                              variant="outline"
+                              size="sm"
+                              className="isolate w-full"
+                              aria-labelledby="challenge-flag-mode-label"
+                              value={flagMode}
+                              disabled={attackDefense}
+                              onValueChange={(value) => {
+                                if (value)
+                                  setFlagMode(value as "static" | "dynamic");
+                              }}
+                            >
+                              <ToggleGroupItem
+                                value="static"
+                                className="flex-1"
+                              >
+                                静态 Flag
+                              </ToggleGroupItem>
+                              <ToggleGroupItem
+                                value="dynamic"
+                                className="flex-1"
+                              >
+                                动态 Flag
+                              </ToggleGroupItem>
+                            </ToggleGroup>
+                          </div>
+                          <div className="space-y-2">
+                            <Label id="challenge-judging-mode-label">
+                              判题方式
+                            </Label>
+                            <ToggleGroup
+                              type="single"
+                              variant="outline"
+                              size="sm"
+                              className="isolate w-full"
+                              aria-labelledby="challenge-judging-mode-label"
+                              value={multi ? "multiple" : "single"}
+                              disabled={attackDefense}
+                              onValueChange={(value) => {
+                                if (value) setMulti(value === "multiple");
+                              }}
+                            >
+                              <ToggleGroupItem
+                                value="single"
+                                className="flex-1"
+                              >
+                                单 Flag
+                              </ToggleGroupItem>
+                              <ToggleGroupItem
+                                value="multiple"
+                                className="flex-1"
+                              >
+                                多个小题
+                              </ToggleGroupItem>
+                            </ToggleGroup>
+                          </div>
+                        </div>
+                      )
+                    )}
+                    {(type === "awd" || dynamic) && (
+                      <FlagTemplate
+                        value={flagTemplate}
+                        onChange={setFlagTemplate}
+                        disabled={pending || readOnly}
+                      />
+                    )}
+                    {type !== "awd" && !multi && !dynamic && (
+                      <Field
+                        label={retainsFlag ? "Flag（留空保留原值）" : "Flag"}
+                      >
                         <Input
-                          name="initial_points"
-                          type="number"
-                          value={scoreValues.initial}
-                          onChange={(e) =>
-                            setScoreValues({
-                              ...scoreValues,
-                              initial: e.target.value,
-                            })
-                          }
-                          min={1}
-                          max={10000}
-                          required
+                          name="flag"
+                          type="password"
+                          autoComplete="off"
+                          maxLength={256}
+                          required={!retainsFlag}
                         />
                       </Field>
-                      {dynamicScore && (
-                        <Field label="最低分值">
-                          <Input
-                            name="minimum_points"
-                            type="number"
-                            value={scoreValues.minimum}
-                            onChange={(e) =>
-                              setScoreValues({
-                                ...scoreValues,
-                                minimum: e.target.value,
-                              })
-                            }
-                            min={1}
-                            max={10000}
-                            required
-                          />
-                        </Field>
-                      )}
-                    </div>
-                    {dynamicScore && section === "scoring" && (
-                      <Suspense
-                        fallback={
-                          <div
-                            className="h-52 rounded-md bg-muted/40"
-                            aria-label="加载计分曲线"
-                            aria-busy="true"
-                          />
-                        }
-                      >
-                        <ScoreCurve
-                          initial={Number(scoreValues.initial)}
-                          minimum={Number(scoreValues.minimum)}
-                          decay={Number(scoreValues.decay)}
-                        />
-                      </Suspense>
                     )}
                   </div>
-                )}
-                <fieldset
-                  hidden={!multi || !practical}
-                  disabled={!multi || pending || !practical}
-                  className="min-w-0"
-                >
-                  <PartsEditor
-                    parts={parts}
-                    setParts={setParts}
-                    dynamic={dynamic}
-                    flagTemplate={flagTemplate}
-                    dynamicScore={dynamicScore}
-                    locked={attackDefense}
-                    decay={Number(scoreValues.decay)}
-                    showCurves={multi && practical && section === "scoring"}
+                </section>
+              )}
+              {practical && (
+                <>
+                  <Separator className="xl:hidden" />
+                  <Separator
+                    orientation="vertical"
+                    className="hidden h-auto self-stretch xl:block"
                   />
-                </fieldset>
-              </>
+                </>
+              )}
+              <section
+                className="min-w-0 space-y-4"
+                aria-labelledby="challenge-scoring-heading"
+              >
+                <h3
+                  id="challenge-scoring-heading"
+                  className="text-sm font-medium"
+                >
+                  计分规则
+                </h3>
+                <div className="space-y-4">
+                  {type === "awd" ? (
+                    <div className="flex items-center justify-between gap-4 text-sm">
+                      <span className="text-muted-foreground">计分来源</span>
+                      <span>比赛规则</span>
+                    </div>
+                  ) : (
+                    <>
+                      {practical && (
+                        <div className="space-y-2">
+                          <Label id="challenge-scoring-mode-label">
+                            计分方式
+                          </Label>
+                          <ToggleGroup
+                            type="single"
+                            variant="outline"
+                            size="sm"
+                            className="isolate w-full"
+                            aria-labelledby="challenge-scoring-mode-label"
+                            disabled={!practical}
+                            value={dynamicScore ? "dynamic" : "fixed"}
+                            onValueChange={(value) => {
+                              if (value) setDynamicScore(value === "dynamic");
+                            }}
+                          >
+                            <ToggleGroupItem value="dynamic" className="flex-1">
+                              动态积分
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="fixed" className="flex-1">
+                              固定积分
+                            </ToggleGroupItem>
+                          </ToggleGroup>
+                        </div>
+                      )}
+                      <div
+                        className={
+                          multi
+                            ? "grid gap-4"
+                            : "grid grid-cols-2 gap-4 sm:grid-cols-3"
+                        }
+                      >
+                        {!multi && (
+                          <>
+                            <Field label={dynamicScore ? "初始分值" : "分值"}>
+                              <Input
+                                name="initial_points"
+                                type="number"
+                                value={scoreValues.initial}
+                                onChange={(e) =>
+                                  setScoreValues({
+                                    ...scoreValues,
+                                    initial: e.target.value,
+                                  })
+                                }
+                                min={1}
+                                max={10000}
+                                required
+                              />
+                            </Field>
+                            {dynamicScore && (
+                              <Field label="最低分值">
+                                <Input
+                                  name="minimum_points"
+                                  type="number"
+                                  value={scoreValues.minimum}
+                                  onChange={(e) =>
+                                    setScoreValues({
+                                      ...scoreValues,
+                                      minimum: e.target.value,
+                                    })
+                                  }
+                                  min={1}
+                                  max={10000}
+                                  required
+                                />
+                              </Field>
+                            )}
+                          </>
+                        )}
+                        {dynamicScore && (
+                          <div
+                            className={`space-y-2 ${multi ? "" : "col-span-2 sm:col-span-1"}`}
+                          >
+                            <div className="flex items-center gap-1">
+                              <Label htmlFor="challenge-score-decay">
+                                衰减人数
+                              </Label>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-6 rounded-full text-muted-foreground"
+                                    aria-label="衰减人数说明"
+                                  >
+                                    <CircleHelp className="size-4" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  className="w-64 p-3 text-sm"
+                                  align="start"
+                                >
+                                  人数越大，分值下降越慢。
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                            <Input
+                              id="challenge-score-decay"
+                              name="decay"
+                              type="number"
+                              value={scoreValues.decay}
+                              onChange={(e) =>
+                                setScoreValues({
+                                  ...scoreValues,
+                                  decay: e.target.value,
+                                })
+                              }
+                              min={1}
+                              max={10000}
+                              required
+                            />
+                          </div>
+                        )}
+                      </div>
+                      {!multi && dynamicScore && section === "scoring" && (
+                        <Suspense
+                          fallback={
+                            <div
+                              className="h-52 rounded-md bg-muted/40"
+                              aria-label="加载计分曲线"
+                              aria-busy="true"
+                            />
+                          }
+                        >
+                          <ScoreCurve
+                            initial={Number(scoreValues.initial)}
+                            minimum={Number(scoreValues.minimum)}
+                            decay={Number(scoreValues.decay)}
+                          />
+                        </Suspense>
+                      )}
+                    </>
+                  )}
+                </div>
+              </section>
+            </div>
+            {type !== "awd" && (
+              <fieldset
+                hidden={!multi || !practical}
+                disabled={!multi || pending || !practical}
+                className="min-w-0"
+              >
+                <Separator className="mb-6" />
+                <PartsEditor
+                  parts={parts}
+                  setParts={setParts}
+                  dynamic={dynamic}
+                  flagTemplate={flagTemplate}
+                  dynamicScore={dynamicScore}
+                  locked={attackDefense}
+                  decay={Number(scoreValues.decay)}
+                  showCurves={multi && practical && section === "scoring"}
+                />
+              </fieldset>
             )}
           </fieldset>
         </ConfigPanel>
@@ -493,24 +649,61 @@ export function ChallengeForm({
             disabled={pending || readOnly || !practical}
             className="space-y-6"
           >
-            <label className="flex items-center gap-2 text-sm">
-              <Switch
-                checked={!!resources.container}
-                disabled={attackDefense}
-                onCheckedChange={(yes) =>
-                  setResources({
-                    ...resources,
-                    container: yes ? defaultResource() : null,
-                  })
-                }
-              />
-              启用靶机
-            </label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <Switch
+                  checked={!!resources.container}
+                  disabled={attackDefense}
+                  onCheckedChange={(yes) =>
+                    setResources({
+                      ...resources,
+                      container: yes ? defaultResource() : null,
+                    })
+                  }
+                />
+                启用靶机
+              </label>
+              {imageManagementLink}
+            </div>
             {resources.container && (
               <ResourceProfileEditor
                 type="container"
                 value={resources.container}
                 onChange={(container) => {
+                  const before =
+                    resources.container?.topology?.services.map(
+                      (service) => service.name,
+                    ) ?? [];
+                  const after =
+                    container.topology?.services.map(
+                      (service) => service.name,
+                    ) ?? [];
+                  const removed = before.filter(
+                    (name) => !after.includes(name),
+                  );
+                  const added = after.filter((name) => !before.includes(name));
+                  const remap = (targets: string[] | null | undefined) => {
+                    if (targets == null) return null;
+                    const next = targets
+                      .map((name) =>
+                        removed.length === 1 &&
+                        added.length === 1 &&
+                        name === removed[0]
+                          ? added[0]!
+                          : name,
+                      )
+                      .filter(
+                        (name) => name === "main" || after.includes(name),
+                      );
+                    return next.length ? next : ["main"];
+                  };
+                  setFlagTargets(remap(flagTargets));
+                  setParts(
+                    parts.map((part) => ({
+                      ...part,
+                      flag_targets: remap(part.flag_targets),
+                    })),
+                  );
                   setResources({ ...resources, container });
                   if (container.mode === "public") setFlagMode("static");
                 }}
@@ -527,6 +720,9 @@ export function ChallengeForm({
                 onSingleName={setFlagEnv}
                 dynamic={dynamic}
                 awd={type === "awd"}
+                services={resources.container.topology?.services ?? []}
+                singleTargets={flagTargets}
+                onSingleTargets={setFlagTargets}
               />
             )}
           </fieldset>
@@ -534,94 +730,260 @@ export function ChallengeForm({
         <ConfigPanel value="judging" active={section}>
           <fieldset
             disabled={pending || readOnly || !attackDefense}
-            className="grid gap-5 md:grid-cols-2"
+            className="min-w-0 space-y-6"
           >
-            <Field label="补丁校验镜像">
-              <Input
-                required={attackDefense}
-                maxLength={200}
-                value={patch.checker_image}
-                onChange={(e) =>
-                  setPatch({ ...patch, checker_image: e.target.value })
-                }
+            <section
+              className="min-w-0 space-y-4"
+              aria-labelledby="patch-checker-heading"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 id="patch-checker-heading" className="text-sm font-medium">
+                  补丁校验
+                </h3>
+                {imageManagementLink}
+              </div>
+              <CheckerImageTools
+                image={attackDefense ? patch.checker_image : ""}
+              >
+                {(status, actions) => (
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex min-h-8 flex-wrap items-center gap-2">
+                      <Label htmlFor="patch-checker-image">校验镜像</Label>
+                      {status}
+                      <div className="ml-auto flex flex-wrap items-center gap-2">
+                        {actions}
+                      </div>
+                    </div>
+                    <InputGroup>
+                      <InputGroupAddon>
+                        <Box aria-hidden="true" />
+                      </InputGroupAddon>
+                      <InputGroupInput
+                        id="patch-checker-image"
+                        name="patch-checker-image"
+                        aria-label="补丁校验镜像"
+                        required={attackDefense}
+                        maxLength={200}
+                        value={patch.checker_image}
+                        className="font-mono text-sm"
+                        placeholder="nebuctf/checker:1.0"
+                        onChange={(event) =>
+                          setPatch({
+                            ...patch,
+                            checker_image: event.target.value,
+                          })
+                        }
+                      />
+                    </InputGroup>
+                  </div>
+                )}
+              </CheckerImageTools>
+            </section>
+            <Separator />
+            <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+              <section
+                className="min-w-0 space-y-4"
+                aria-labelledby="patch-execution-heading"
+              >
+                <div className="flex items-center gap-1">
+                  <h3
+                    id="patch-execution-heading"
+                    className="text-sm font-medium"
+                  >
+                    执行设置
+                  </h3>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="更新脚本说明"
+                        className="size-6 text-muted-foreground"
+                      >
+                        <CircleHelp className="size-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      className="w-[min(22rem,calc(100vw-2rem))] space-y-3 text-sm"
+                    >
+                      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2">
+                        <dt className="text-muted-foreground">入口</dt>
+                        <dd>
+                          执行目录中的 <code>update.sh</code>
+                        </dd>
+                        <dt className="text-muted-foreground">补丁文件</dt>
+                        <dd className="break-all">
+                          <code>$PATCH_DIR=/.nebuctf-update</code>
+                        </dd>
+                        <dt className="text-muted-foreground">依赖</dt>
+                        <dd>镜像须自带 /bin/sh 和离线工具</dd>
+                        <dt className="text-muted-foreground">更新阶段</dt>
+                        <dd>隔离 root、禁用网络，使用下方资源限额</dd>
+                        <dt className="text-muted-foreground">脚本职责</dt>
+                        <dd>只修改文件，不启动服务或后台任务</dd>
+                        <dt className="text-muted-foreground">更新完成</dt>
+                        <dd>平台按原入口启动，非 root、只读根</dd>
+                      </dl>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <Field label="执行目录">
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <FolderOpen aria-hidden="true" />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      name="patch-root"
+                      aria-label="更新脚本执行目录"
+                      required
+                      value={patch.patch_root}
+                      pattern="/(app|srv|opt)(/[a-zA-Z0-9_-]+)*"
+                      className="font-mono text-sm"
+                      onChange={(event) =>
+                        setPatch({ ...patch, patch_root: event.target.value })
+                      }
+                    />
+                  </InputGroup>
+                </Field>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {(
+                    [
+                      {
+                        key: "update_timeout",
+                        label: "更新超时",
+                        min: 1,
+                        max: 120,
+                      },
+                      {
+                        key: "timeout",
+                        label: "单项校验超时",
+                        min: 10,
+                        max: 120,
+                      },
+                    ] as const
+                  ).map((field) => (
+                    <Field key={field.key} label={field.label}>
+                      <InputGroup>
+                        <InputGroupInput
+                          name={`patch-${field.key}`}
+                          aria-label={`${field.label}（秒）`}
+                          type="number"
+                          required
+                          min={field.min}
+                          max={field.max}
+                          value={patch[field.key]}
+                          className="tabular-nums"
+                          onChange={(event) =>
+                            setPatch({
+                              ...patch,
+                              [field.key]: Number(event.target.value),
+                            })
+                          }
+                        />
+                        <InputGroupAddon align="inline-end">秒</InputGroupAddon>
+                      </InputGroup>
+                    </Field>
+                  ))}
+                </div>
+              </section>
+              <Separator className="xl:hidden" />
+              <Separator
+                orientation="vertical"
+                className="hidden h-auto self-stretch xl:block"
               />
-              {attackDefense && (
-                <CheckerImageTools image={patch.checker_image} />
-              )}
-            </Field>
-            <Field label="更新脚本执行目录">
-              <Input
-                required
-                value={patch.patch_root}
-                pattern="/(app|srv|opt)(/[a-zA-Z0-9_-]+)*"
-                onChange={(e) =>
-                  setPatch({ ...patch, patch_root: e.target.value })
-                }
-              />
-            </Field>
-            {(
-              [
-                {
-                  key: "update_timeout",
-                  label: "更新超时（秒）",
-                  min: 1,
-                  max: 120,
-                },
-                {
-                  key: "timeout",
-                  label: "单项校验超时（秒）",
-                  min: 10,
-                  max: 120,
-                },
-                { key: "cpu", label: "校验 CPU（毫核）", min: 100, max: 2000 },
-                { key: "memory", label: "校验内存（MiB）", min: 64, max: 1024 },
-              ] as const
-            ).map((field) => (
-              <Field key={field.key} label={field.label}>
-                <Input
-                  required
-                  type="number"
-                  min={field.min}
-                  max={field.max}
-                  value={patch[field.key]}
-                  onChange={(e) =>
-                    setPatch({ ...patch, [field.key]: Number(e.target.value) })
-                  }
+              <section
+                className="min-w-0 space-y-4"
+                aria-labelledby="patch-resources-heading"
+              >
+                <h3
+                  id="patch-resources-heading"
+                  className="text-sm font-medium"
+                >
+                  资源限制
+                </h3>
+                <ResourceLimits
+                  value={patch}
+                  preset="checker"
+                  namePrefix="patch"
+                  disabled={pending || readOnly || !attackDefense}
+                  onChange={(limits) => setPatch({ ...patch, ...limits })}
                 />
-              </Field>
-            ))}
-            <p className="text-xs text-muted-foreground md:col-span-2">
-              基础镜像须包含 /bin/sh 和更新所需离线工具。平台在执行目录运行
-              update.sh，包内文件通过 PATCH_DIR=/.nebuctf-update 读取；更新阶段
-              以隔离的 root 身份运行，禁用网络，不可后台运行或在线安装依赖。
-              成功后平台按镜像原有入口启动服务（非 root、只读根文件系统），
-              脚本无需也不得启动或重启服务。CPU、内存限制同时用于更新。
-            </p>
+              </section>
+            </div>
             {type === "awd" && (
               <>
-                <Field label="服务巡检镜像">
-                  <Input
-                    required
-                    maxLength={200}
-                    value={awd.checker_image}
-                    onChange={(e) =>
-                      setAwd({ ...awd, checker_image: e.target.value })
-                    }
-                  />
-                  <CheckerImageTools image={awd.checker_image} />
-                </Field>
-                <Field label="巡检超时（秒）">
-                  <Input
-                    required
-                    type="number"
-                    min={5}
-                    max={60}
-                    value={awd.timeout}
-                    onChange={(e) =>
-                      setAwd({ ...awd, timeout: Number(e.target.value) })
-                    }
-                  />
-                </Field>
+                <Separator />
+                <section
+                  className="min-w-0 space-y-4"
+                  aria-labelledby="awd-checker-heading"
+                >
+                  <h3 id="awd-checker-heading" className="text-sm font-medium">
+                    服务巡检
+                  </h3>
+                  <div className="grid min-w-0 items-start gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
+                    <CheckerImageTools image={awd.checker_image}>
+                      {(status, actions) => (
+                        <div className="min-w-0 space-y-2">
+                          <div className="flex min-h-8 flex-wrap items-center gap-2">
+                            <Label htmlFor="awd-checker-image">巡检镜像</Label>
+                            {status}
+                            <div className="ml-auto flex flex-wrap items-center gap-2">
+                              {actions}
+                            </div>
+                          </div>
+                          <InputGroup>
+                            <InputGroupAddon>
+                              <Box aria-hidden="true" />
+                            </InputGroupAddon>
+                            <InputGroupInput
+                              id="awd-checker-image"
+                              name="awd-checker-image"
+                              aria-label="服务巡检镜像"
+                              required
+                              maxLength={200}
+                              value={awd.checker_image}
+                              className="font-mono text-sm"
+                              placeholder="nebuctf/checker:1.0"
+                              onChange={(event) =>
+                                setAwd({
+                                  ...awd,
+                                  checker_image: event.target.value,
+                                })
+                              }
+                            />
+                          </InputGroup>
+                        </div>
+                      )}
+                    </CheckerImageTools>
+                    <div className="space-y-2">
+                      <div className="flex min-h-8 items-center">
+                        <Label htmlFor="awd-timeout">巡检超时</Label>
+                      </div>
+                      <InputGroup>
+                        <InputGroupInput
+                          id="awd-timeout"
+                          name="awd-timeout"
+                          aria-label="巡检超时（秒）"
+                          required
+                          type="number"
+                          min={5}
+                          max={60}
+                          value={awd.timeout}
+                          className="tabular-nums"
+                          onChange={(event) =>
+                            setAwd({
+                              ...awd,
+                              timeout: Number(event.target.value),
+                            })
+                          }
+                        />
+                        <InputGroupAddon align="inline-end">秒</InputGroupAddon>
+                      </InputGroup>
+                    </div>
+                  </div>
+                </section>
               </>
             )}
           </fieldset>

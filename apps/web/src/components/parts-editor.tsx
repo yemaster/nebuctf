@@ -4,6 +4,7 @@ import type { ChallengePart } from "@/lib/types";
 import { randomUUID } from "@/lib/random-uuid";
 import { Button } from "./ui/button";
 import { Input, Textarea } from "./ui/input";
+import { Separator } from "./ui/separator";
 import { Field } from "./shared";
 import { FlagTemplate } from "./admin/flag-template";
 const ScoreCurve = lazy(() => import("./admin/score-curve"));
@@ -41,16 +42,20 @@ export function PartsEditor({
     setParts(next);
   };
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {parts.map((p, i) => (
-        <fieldset
-          key={p.key}
-          className="min-w-0 space-y-4 rounded-lg bg-muted/40 p-4"
-        >
+        <fieldset key={p.key} className="min-w-0 space-y-4">
           <legend className="sr-only">小题 {i + 1}</legend>
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">小题 {i + 1}</span>
-            <div className="flex gap-1">
+          {i > 0 && <Separator className="mb-6" />}
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="min-w-0 text-sm font-medium">
+              {p.role === "attack"
+                ? "攻击"
+                : p.role === "defense"
+                  ? "防守"
+                  : `小题 ${i + 1}`}
+            </h3>
+            <div className="flex shrink-0 gap-1">
               <Button
                 type="button"
                 size="icon-sm"
@@ -83,28 +88,70 @@ export function PartsEditor({
               </Button>
             </div>
           </div>
-          <div
-            className={`grid items-start gap-6 ${dynamicScore && showCurves ? "xl:grid-cols-[minmax(0,1fr)_20rem]" : ""}`}
-          >
+          <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
             <div className="min-w-0 space-y-4">
-              <div className="grid gap-4 sm:grid-cols-4">
-                <Field label="小题名称" className="sm:col-span-2">
+              <Field label="小题名称">
+                <Input
+                  name={`part-${p.key}-title`}
+                  defaultValue={p.title}
+                  onChange={(e) =>
+                    setParts(
+                      parts.map((part) =>
+                        part.key === p.key
+                          ? { ...part, title: e.target.value }
+                          : part,
+                      ),
+                    )
+                  }
+                  required
+                  maxLength={80}
+                />
+              </Field>
+              <div hidden={dynamic}>
+                <Field label={p.id ? "Flag（留空保留）" : "Flag"}>
                   <Input
-                    name={`part-${p.key}-title`}
-                    defaultValue={p.title}
-                    onChange={(e) =>
-                      setParts(
-                        parts.map((part) =>
-                          part.key === p.key
-                            ? { ...part, title: e.target.value }
-                            : part,
-                        ),
-                      )
-                    }
-                    required
-                    maxLength={80}
+                    type="password"
+                    autoComplete="off"
+                    name={`part-${p.key}-flag`}
+                    disabled={dynamic}
+                    required={!dynamic && !p.id}
+                    maxLength={256}
                   />
                 </Field>
+              </div>
+              {dynamic && p.role !== "defense" && (
+                <FlagTemplate
+                  value={p.flag_template ?? ""}
+                  inherited={flagTemplate}
+                  onChange={(value) =>
+                    setParts(
+                      parts.map((part) =>
+                        part.key === p.key
+                          ? { ...part, flag_template: value || null }
+                          : part,
+                      ),
+                    )
+                  }
+                />
+              )}
+              <Field label="小题说明（可选）">
+                <Textarea
+                  name={`part-${p.key}-description`}
+                  defaultValue={p.description}
+                  maxLength={1000}
+                  rows={2}
+                />
+              </Field>
+            </div>
+            <Separator className="lg:hidden" />
+            <Separator
+              orientation="vertical"
+              className="hidden h-auto self-stretch lg:block"
+            />
+            <div className="min-w-0 space-y-4">
+              <div
+                className={`grid gap-4 ${dynamicScore ? "sm:grid-cols-2" : ""}`}
+              >
                 <Field label={dynamicScore ? "初始分" : "分值"}>
                   <Input
                     type="number"
@@ -127,84 +174,50 @@ export function PartsEditor({
                     max={10000}
                   />
                 </Field>
-                <Field label="最低分">
-                  <Input
-                    type="number"
-                    name={`part-${p.key}-minimum_points`}
-                    defaultValue={p.minimum_points}
-                    onChange={(e) =>
-                      setParts(
-                        parts.map((part) =>
-                          part.key === p.key
-                            ? {
-                                ...part,
-                                minimum_points: Number(e.target.value),
-                              }
-                            : part,
-                        ),
-                      )
-                    }
-                    disabled={!dynamicScore}
-                    required={dynamicScore}
-                    min={1}
-                    max={10000}
-                  />
-                </Field>
-              </div>
-              <div className={`grid gap-4 ${dynamic ? "" : "sm:grid-cols-2"}`}>
-                <Field label="小题说明（可选）">
-                  <Textarea
-                    name={`part-${p.key}-description`}
-                    defaultValue={p.description}
-                    maxLength={1000}
-                    rows={2}
-                  />
-                </Field>
-                <fieldset hidden={dynamic} disabled={dynamic}>
-                  <Field label={p.id ? "Flag（留空保留）" : "Flag"}>
+                <div hidden={!dynamicScore}>
+                  <Field label="最低分">
                     <Input
-                      type="password"
-                      autoComplete="off"
-                      name={`part-${p.key}-flag`}
-                      required={!p.id}
-                      maxLength={256}
+                      type="number"
+                      name={`part-${p.key}-minimum_points`}
+                      defaultValue={p.minimum_points}
+                      onChange={(e) =>
+                        setParts(
+                          parts.map((part) =>
+                            part.key === p.key
+                              ? {
+                                  ...part,
+                                  minimum_points: Number(e.target.value),
+                                }
+                              : part,
+                          ),
+                        )
+                      }
+                      disabled={!dynamicScore}
+                      required={dynamicScore}
+                      min={1}
+                      max={10000}
                     />
                   </Field>
-                </fieldset>
-                {dynamic && p.role !== "defense" && (
-                  <FlagTemplate
-                    value={p.flag_template ?? ""}
-                    inherited={flagTemplate}
-                    onChange={(value) =>
-                      setParts(
-                        parts.map((part) =>
-                          part.key === p.key
-                            ? { ...part, flag_template: value || null }
-                            : part,
-                        ),
-                      )
-                    }
-                  />
-                )}
+                </div>
               </div>
-            </div>
-            {dynamicScore && showCurves && (
-              <Suspense
-                fallback={
-                  <div
-                    className="h-52 rounded-md bg-muted/40"
-                    aria-label="加载计分曲线"
-                    aria-busy="true"
+              {dynamicScore && showCurves && (
+                <Suspense
+                  fallback={
+                    <div
+                      className="h-52 rounded-md bg-muted/40"
+                      aria-label="加载计分曲线"
+                      aria-busy="true"
+                    />
+                  }
+                >
+                  <ScoreCurve
+                    initial={Number(p.initial_points)}
+                    minimum={Number(p.minimum_points)}
+                    decay={decay}
                   />
-                }
-              >
-                <ScoreCurve
-                  initial={Number(p.initial_points)}
-                  minimum={Number(p.minimum_points)}
-                  decay={decay}
-                />
-              </Suspense>
-            )}
+                </Suspense>
+              )}
+            </div>
           </div>
         </fieldset>
       ))}
@@ -232,6 +245,7 @@ export function readParts(f: FormData, parts: PartDraft[]) {
     id: p.id,
     role: p.role ?? "flag",
     flag_env: p.role === "defense" ? null : p.flag_env,
+    flag_targets: p.role === "defense" ? null : (p.flag_targets ?? null),
     flag_template: p.role === "defense" ? null : (p.flag_template ?? null),
     title: f.get(`part-${p.key}-title`),
     description: f.get(`part-${p.key}-description`),

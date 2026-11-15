@@ -3,7 +3,12 @@ import { useMutation } from "@tanstack/react-query";
 import { CircleHelp, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "../ui/input-group";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 
 export function FlagTemplate({
@@ -48,7 +53,10 @@ export function FlagTemplate({
                 <CircleHelp className="text-muted-foreground" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-80 space-y-3 text-sm">
+            <PopoverContent
+              align="start"
+              className="w-[min(20rem,calc(100vw-2rem))] space-y-3 text-sm"
+            >
               <p className="font-medium">模板语法</p>
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
                 <dt className="font-mono">[GUID]</dt>
@@ -59,20 +67,20 @@ export function FlagTemplate({
                 <dd>置于开头，替换括号内字符</dd>
                 <dt className="font-mono">[CLEET]</dt>
                 <dd>字符替换允许特殊符号</dd>
+                <dt>纯文本</dt>
+                <dd>自动 Leet</dd>
+                <dt>留空</dt>
+                <dd>平台默认</dd>
               </dl>
               <code className="block break-all rounded bg-muted px-2 py-1.5 text-xs">
                 NebuCTF&#123;[GUID]&#125;
               </code>
-              <p className="text-xs text-muted-foreground">
-                不含占位符时自动使用
-                Leet；留空保留平台默认格式。特殊符号须按普通文本处理。
-              </p>
             </PopoverContent>
           </Popover>
         )}
       </div>
-      <div className="flex items-center gap-2">
-        <Input
+      <InputGroup>
+        <InputGroupInput
           id={id}
           className="font-mono"
           maxLength={256}
@@ -87,20 +95,21 @@ export function FlagTemplate({
           aria-describedby={error ? `${id}-error` : undefined}
           onChange={(e) => onChange(e.target.value)}
         />
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={disabled || preview.isPending}
-          onClick={() => preview.mutate(effective)}
-        >
-          <RefreshCw
-            className={
-              preview.isPending ? "motion-safe:animate-spin" : undefined
-            }
-          />
-          预览
-        </Button>
-      </div>
+        <InputGroupAddon align="inline-end">
+          <InputGroupButton
+            variant="ghost"
+            disabled={disabled || preview.isPending}
+            onClick={() => preview.mutate(effective)}
+          >
+            <RefreshCw
+              className={
+                preview.isPending ? "motion-safe:animate-spin" : undefined
+              }
+            />
+            预览
+          </InputGroupButton>
+        </InputGroupAddon>
+      </InputGroup>
       {error && (
         <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
           {error.message}
@@ -111,10 +120,6 @@ export function FlagTemplate({
           className="space-y-2 rounded-md bg-muted/50 p-3"
           aria-label="Flag 生成预览"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <span>示例 Flag</span>
-            <span>{result.length} 字符</span>
-          </div>
           <ul className="space-y-1 font-mono text-xs leading-5">
             {result.samples.map((sample, index) => (
               <li key={index} className="break-all select-all">
