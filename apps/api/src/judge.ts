@@ -1,3 +1,4 @@
+import { lockContestChoices, bindContestChoice } from "./contest-logic.js";
 import { gzipSync } from "node:zlib";
 import { getSetting } from "./settings.js";
 import { submissionUsage, requireSubmissionSlot } from "./submission-policy.js";
@@ -47,6 +48,7 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
     try {
       return await db.transaction(async (tx) => {
         await lock(tx);
+        await lockContestChoices(tx, scope, owner, [cid]);
         const current = await challengeAccess(
           tx,
           cid,
@@ -84,6 +86,7 @@ export function judgeRoutes(app: FastifyInstance, db: DB) {
             config.MAX_MEMORY
         )
           fail(409, "校验资源已满，请稍后重试");
+        await bindContestChoice(tx, current, scope, owner);
         const end = current.phase?.deadline_at
           ? Date.parse(current.phase.deadline_at)
           : Date.now() + 300000;

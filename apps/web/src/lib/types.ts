@@ -7,6 +7,7 @@ import type {
   ContestQuestion,
   PhaseRule,
   Phase,
+  QuestionLogic,
 } from "./competition";
 export interface User {
   access?: import("./access-control").AccessProfile;
@@ -37,6 +38,7 @@ export interface ChallengePart {
   solved: boolean;
 }
 export interface Challenge {
+  contest_logic?: QuestionLogic & { exclusive_selected: boolean };
   defense_enabled?: boolean;
   submission_usage?: {
     flag: import("./submission-limits").SubmissionUsage;

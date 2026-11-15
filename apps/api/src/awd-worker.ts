@@ -12,6 +12,7 @@ import { phaseWindow } from "./competition-rules.js";
 import { activeStatuses } from "./resources.js";
 import { config } from "./config.js";
 import { runChecker } from "./judge-worker.js";
+import { contestLogicStates } from "./contest-logic.js";
 
 export class AwdWorker {
   private checks = new Map<string, Promise<void>>();
@@ -94,6 +95,11 @@ export class AwdWorker {
         `SELECT r.team_id,t.captain_id FROM ranked_registrations r JOIN teams t ON t.id=r.team_id LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id=$1 AND ${permissionSQL("g", "$2::uuid", "view")} AND ${permissionSQL("g", "$2::uuid", "resources")} AND NOT EXISTS(SELECT 1 FROM instances i WHERE i.challenge_id=$2 AND i.scope=$1::text AND i.owner_key='t:'||r.team_id AND (i.status=ANY($3::text[]) OR (i.status='failed' AND i.updated_at>now()-interval '60 seconds'))) ORDER BY r.created_at`,
         [link.contest_id, link.challenge_id, activeStatuses],
       );
+      const states = await contestLogicStates(
+        tx,
+        link.contest_id,
+        teams.map((team) => "t:" + team.team_id),
+      );
       const usage = await resourceUsage(tx),
         policy = await getSetting(tx, "containers");
       for (const team of teams) {
@@ -105,6 +111,12 @@ export class AwdWorker {
         )
           break;
         const owner = "t:" + team.team_id;
+        const state = states.get(owner)!;
+        if (
+          !state.has(link.challenge_id) ||
+          state.get(link.challenge_id) === null
+        )
+          continue;
         const quota = await contestResourcePolicy(
           tx,
           link.contest_id,
@@ -147,11 +159,28 @@ export class AwdWorker {
   }
   private async scheduleChecks(link: Row, round: Row) {
     const instances = await this.db.query(
-      "SELECT * FROM instances WHERE challenge_id=$1 AND scope=$2 AND status='running'",
+      "SELECT i.* FROM instances i JOIN ranked_registrations r ON r.contest_id::text=i.scope AND 't:'||r.team_id=i.owner_key WHERE i.challenge_id=$1 AND i.scope=$2 AND i.status='running'",
       [link.challenge_id, link.contest_id],
     );
+    const states = await contestLogicStates(
+      this.db,
+      link.contest_id,
+      instances.map((instance) => instance.owner_key),
+    );
     for (const instance of instances) {
-      if (this.checks.size >= 4) break;
+      const state = states.get(instance.owner_key)!;
+      const logic = state.get(link.challenge_id);
+      if (!state.has(link.challenge_id) || logic === null) continue;
+      if (logic?.exclusive_group && !logic.exclusive_selected) {
+        // Unchosen services need attackable flags, but cannot earn automatic credit.
+        const [flag] = await this.db.query(
+          "SELECT 1 FROM awd_flags WHERE round_id=$1 AND instance_id=$2",
+          [round.id, instance.id],
+        );
+        if (!flag) await this.rotate(link, round, instance);
+        continue;
+      }
+      if (this.checks.size >= 4) continue;
       const [exists] = await this.db.query(
         "SELECT * FROM awd_checks WHERE round_id=$1 AND owner_key=$2",
         [round.id, instance.owner_key],
@@ -258,7 +287,7 @@ export class AwdWorker {
         [round.id],
       );
       if (pending) return;
-      const attacks = await tx.query(
+      const recordedAttacks = await tx.query(
         "SELECT a.*,f.owner_key defender FROM awd_attacks a JOIN awd_flags f ON f.flag_hash=a.flag_hash JOIN ranked_registrations attacker ON attacker.contest_id=$2 AND 't:'||attacker.team_id=a.attacker_key JOIN ranked_registrations defender ON defender.contest_id=$2 AND 't:'||defender.team_id=f.owner_key WHERE f.round_id=$1",
         [round.id, link.contest_id],
       );
@@ -266,9 +295,34 @@ export class AwdWorker {
         "SELECT * FROM awd_checks WHERE round_id=$1",
         [round.id],
       );
-      const teams = await tx.query(
+      const registeredTeams = await tx.query(
         `SELECT r.team_id,${permissionSQL("g", "$3::uuid", "score")} get_score,${permissionSQL("g", "$3::uuid", "dynamic")} affect_dynamic FROM ranked_registrations r LEFT JOIN contest_groups g ON g.id=r.group_id WHERE r.contest_id=$1 AND r.created_at<$2`,
         [link.contest_id, round.ends_at, link.challenge_id],
+      );
+      const logicEligibility = new Map<string, boolean>();
+      const targetEligibility = new Map<string, boolean>();
+      const owners = new Set<string>([
+        ...registeredTeams.map((team) => "t:" + team.team_id),
+        ...recordedAttacks.map((attack) => attack.attacker_key),
+        ...recordedAttacks.map((attack) => attack.defender),
+      ]);
+      const states = await contestLogicStates(tx, link.contest_id, [...owners]);
+      for (const [owner, state] of states) {
+        const logic = state.get(link.challenge_id);
+        const unlocked = state.has(link.challenge_id) && logic !== null;
+        targetEligibility.set(owner, unlocked);
+        logicEligibility.set(
+          owner,
+          unlocked && (!logic?.exclusive_group || logic.exclusive_selected),
+        );
+      }
+      const teams = registeredTeams.filter((team) =>
+        logicEligibility.get("t:" + team.team_id),
+      );
+      const attacks = recordedAttacks.filter(
+        (attack) =>
+          logicEligibility.get(attack.attacker_key) &&
+          targetEligibility.get(attack.defender),
       );
       const rules = round.settings.round,
         points = round.settings.points;
@@ -290,12 +344,10 @@ export class AwdWorker {
       for (const team of teams) {
         const owner = "t:" + team.team_id,
           earned = attacks.filter((a) => a.attacker_key === owner),
-          up = checks.find((c) => c.owner_key === owner)?.status === "up";
+          up = checks.find((c) => c.owner_key === owner)?.status === "up",
+          defended = up && !attacks.some((a) => a.defender === owner);
         const attack = team.get_score ? earned.length * perAttack : 0,
-          defense =
-            team.get_score && up && !attacks.some((a) => a.defender === owner)
-              ? rules.defense_points
-              : 0,
+          defense = team.get_score && defended ? rules.defense_points : 0,
           availability = team.get_score && up ? rules.availability_points : 0;
         const members = new Map<string, number>();
         for (const a of earned)

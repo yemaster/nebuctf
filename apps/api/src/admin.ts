@@ -1,3 +1,7 @@
+import {
+  normalizeQuestionLogic,
+  validateQuestionLogic,
+} from "./contest-logic.js";
 import { getSetting } from "./settings.js";
 import { submissionLog } from "./submission-log.js";
 import { allowedIds, can } from "./access-control.js";
@@ -398,7 +402,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
   const contestSummary = `SELECT c.*,(SELECT count(*)::int FROM registrations r WHERE r.contest_id=c.id) teams,
     coalesce((SELECT json_agg(g ORDER BY g.position) FROM contest_groups g WHERE g.contest_id=c.id),'[]') groups,
     coalesce((SELECT json_agg(cc.challenge_id ORDER BY cc.position,cc.challenge_id) FROM contest_challenges cc WHERE cc.contest_id=c.id),'[]') challenge_ids,
-    coalesce((SELECT json_agg(json_build_object('challenge_id',cc.challenge_id,'published',cc.published,'release_at',cc.release_at,'scoring',cc.scoring) ORDER BY cc.position,cc.challenge_id) FROM contest_challenges cc WHERE cc.contest_id=c.id),'[]') challenge_settings FROM contests c`;
+    coalesce((SELECT json_agg(json_build_object('challenge_id',cc.challenge_id,'published',cc.published,'release_at',cc.release_at,'scoring',cc.scoring,'logic',cc.logic) ORDER BY cc.position,cc.challenge_id) FROM contest_challenges cc WHERE cc.contest_id=c.id),'[]') challenge_settings FROM contests c`;
   app.get("/api/admin/contests", async (req) => {
     const user = requireAdmin(req),
       ids = allowedIds(user, "contests.read");
@@ -473,11 +477,36 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
             )
           )
             fail(400, "赛题配置必须属于当前比赛且不能重复");
+          const logicSettings = ids.map((challenge_id) => ({
+            challenge_id,
+            logic: normalizeQuestionLogic(
+              (
+                data.challenge_settings?.find(
+                  (s) => s.challenge_id === challenge_id,
+                ) ?? previous.find((s) => s.challenge_id === challenge_id)
+              )?.logic,
+            ),
+          }));
+          validateQuestionLogic(logicSettings);
           if (old && new Date(old.starts_at).getTime() <= Date.now()) {
             if (data.round_duration !== old.round_duration)
               fail(409, "开赛后不能更改比赛轮次时长");
             if (!isDeepStrictEqual(data.timing, old.timing ?? {}))
               fail(409, "开赛后不能更改作答时间规则");
+            if (
+              logicSettings.some(
+                (setting) =>
+                  !isDeepStrictEqual(
+                    setting.logic,
+                    normalizeQuestionLogic(
+                      previous.find(
+                        (p) => p.challenge_id === setting.challenge_id,
+                      )?.logic,
+                    ),
+                  ),
+              )
+            )
+              fail(409, "开赛后不能更改赛题互斥与依赖规则");
             if (
               data.challenge_settings?.some(
                 (setting) =>
@@ -674,7 +703,7 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
                 (item) => item.challenge_id === challenge,
               ) ?? previous.find((item) => item.challenge_id === challenge);
             await tx.query(
-              "INSERT INTO contest_challenges(contest_id,challenge_id,published,release_at,scoring,position,release_announced_at) VALUES($1,$2,$3,$4,$5,$6,$7)",
+              "INSERT INTO contest_challenges(contest_id,challenge_id,published,release_at,scoring,position,release_announced_at,logic) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
               [
                 cid,
                 challenge,
@@ -698,6 +727,10 @@ export function adminRoutes(app: FastifyInstance, db: DB) {
                     ? (old?.release_announced_at ?? null)
                     : null;
                 })(),
+                JSON.stringify(
+                  logicSettings.find((s) => s.challenge_id === challenge)!
+                    .logic,
+                ),
               ],
             );
           }

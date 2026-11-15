@@ -5,6 +5,7 @@ import { ChallengeBloods } from "./challenge-bloods";
 import { QuestionResources } from "./question-resources";
 import { ObjectiveAnswer } from "./objective-answer";
 import { PatchPanel } from "./patch-panel";
+import { useExclusiveSubmission } from "./exclusive-submission";
 import { AwdArena } from "./awd-arena";
 import { m, useAnimationControls, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
@@ -98,6 +99,7 @@ export function ChallengeWorkspace({
       </Alert>
     );
   const c = detail.data;
+  const exclusive = useExclusiveSubmission(scope);
   const permissions = { ...defaultGroupPermissions, ...c?.permissions };
   const [flag, setFlag] = useState("");
   const [feedback, setFeedback] = useState<{
@@ -147,6 +149,7 @@ export function ChallengeWorkspace({
           : "Flag 不正确",
       });
       if (result.correct) setFlag("");
+      return result;
     },
     undefined,
     false,
@@ -278,6 +281,8 @@ export function ChallengeWorkspace({
                 key={id}
                 id={id}
                 scope={scope}
+                title={c.title}
+                contestLogic={c.contest_logic}
                 definition={c.objective}
                 readOnly={!permissions.submit}
               />
@@ -398,7 +403,8 @@ export function ChallengeWorkspace({
                     className="space-y-4"
                     onSubmit={(e) => {
                       e.preventDefault();
-                      if (flagUsage?.remaining !== 0) submit.mutate();
+                      if (flagUsage?.remaining !== 0 && c)
+                        exclusive.confirm([c], () => submit.mutateAsync());
                     }}
                   >
                     <label htmlFor={`flag-${id}`} className="sr-only">
@@ -493,6 +499,8 @@ export function ChallengeWorkspace({
                       <PatchPanel
                         id={id}
                         scope={scope}
+                        title={c.title}
+                        contestLogic={c.contest_logic}
                         active={active && submissionTab === "defense"}
                         completed={
                           c.challenge_type !== "awd" &&
@@ -510,6 +518,7 @@ export function ChallengeWorkspace({
           )}
         </article>
       )}
+      {exclusive.dialog}
       {!c && !detail.isLoading && !detail.error && <Empty>选择一道题目</Empty>}
     </ScrollArea>
   );

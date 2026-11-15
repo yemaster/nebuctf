@@ -4,6 +4,7 @@ import { effectivePoints } from "./competition-rules.js";
 import { roundWindow, firstChallengeRound } from "./contest-clock.js";
 import { score, fail } from "./security.js";
 import { permissionSQL } from "./group-permissions.js";
+import { contestLogicStates } from "./contest-logic.js";
 
 export { roundWindow } from "./contest-clock.js";
 export async function ensureRound(
@@ -112,9 +113,10 @@ export async function settleRound(
     "SELECT * FROM challenge_parts WHERE challenge_id=$1 ORDER BY position",
     [challenge.id],
   );
+  const logicEligibility = new Map<string, boolean>();
   for (const raw of units.length ? units : [challenge]) {
     const part = raw.id !== challenge.id;
-    const eligible =
+    const candidates =
       round.settings.round.carry !== false
         ? await db.query(
             `SELECT s.owner_key,s.user_id,${permissionSQL("g", "$4::uuid", "score")} get_score,${permissionSQL("g", "$4::uuid", "dynamic")} affect_dynamic FROM ${part ? "part_solves" : "solves"} s JOIN ranked_registrations r ON 't:'||r.team_id=s.owner_key AND r.contest_id=$2 LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.${part ? "part_id" : "challenge_id"}=$1 AND s.scope=$2::text AND NOT s.contest_practice AND s.created_at<$3 AND r.created_at<$3`,
@@ -124,6 +126,25 @@ export async function settleRound(
             `SELECT s.owner_key,s.user_id,${permissionSQL("g", "$4::uuid", "score")} get_score,${permissionSQL("g", "$4::uuid", "dynamic")} affect_dynamic FROM round_submissions s JOIN ranked_registrations r ON 't:'||r.team_id=s.owner_key AND r.contest_id=$3 LEFT JOIN contest_groups g ON g.id=r.group_id WHERE s.round_id=$1 AND s.unit_id=$2`,
             [round.id, raw.id, round.contest_id, challenge.id],
           );
+    const states = await contestLogicStates(
+      db,
+      round.contest_id,
+      candidates
+        .filter((candidate) => !logicEligibility.has(candidate.owner_key))
+        .map((candidate) => candidate.owner_key),
+    );
+    for (const [owner, state] of states) {
+      const logic = state.get(challenge.id);
+      logicEligibility.set(
+        owner,
+        state.has(challenge.id) &&
+          logic !== null &&
+          (!logic?.exclusive_group || logic.exclusive_selected),
+      );
+    }
+    const eligible = candidates.filter((candidate) =>
+      logicEligibility.get(candidate.owner_key),
+    );
     const points = effectivePoints(
       {
         ...raw,

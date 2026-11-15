@@ -1,3 +1,4 @@
+import { contestLogicState } from "./contest-logic.js";
 import { can } from "./access-control.js";
 import { isIP } from "node:net";
 import { z } from "zod";
@@ -80,6 +81,12 @@ export async function terminalTarget(db: DB, id: string, user: User) {
         row.challenge_id,
       );
       if (!team || !permission.view || !permission.resources)
+        return fail(403, "无权访问此靶机");
+      if (
+        (await contestLogicState(db, row.scope, row.owner_key)).get(
+          row.challenge_id,
+        ) === null
+      )
         return fail(403, "无权访问此靶机");
     }
   }

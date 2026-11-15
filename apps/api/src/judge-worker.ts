@@ -10,6 +10,7 @@ import { patchStorage } from "./judge.js";
 import { readUpdatePackage, patchContext } from "./patch-archive.js";
 import { creditSolve } from "./solve.js";
 import { ownerPermissions, requirePermission } from "./group-permissions.js";
+import { contestLogicState, lockContestChoices } from "./contest-logic.js";
 
 const label = "io.nebuctf.judge";
 export async function runChecker(
@@ -150,6 +151,18 @@ export class JudgeWorker {
       );
     }
   }
+  private async requireContestLogic(db: DB, job: Row) {
+    if (job.scope === "practice" || job.spec.contest_practice) return;
+    await lockContestChoices(db, job.scope, job.owner_key, [job.challenge_id]);
+    const state = await contestLogicState(db, job.scope, job.owner_key);
+    const logic = state.get(job.challenge_id);
+    if (
+      !state.has(job.challenge_id) ||
+      logic === null ||
+      (logic?.exclusive_group && !logic.exclusive_selected)
+    )
+      throw Error("当前赛题未解锁或尚未选择此互斥路线");
+  }
   async run(job: Row) {
     let keep = false,
       verdict = "error";
@@ -159,10 +172,16 @@ export class JudgeWorker {
       return Math.min(limit, Math.floor(ms / 1000));
     };
     try {
-      const claimed = await this.db.query(
-        'UPDATE judge_jobs SET status=\'building\',result=\'{"verdict":"checking","stage":"building"}\',updated_at=now() WHERE id=$1 AND status=\'queued\' RETURNING id',
-        [job.id],
-      );
+      const claimed = await this.db.transaction(async (tx) => {
+        await this.requireContestLogic(tx, job);
+        await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
+          JSON.stringify([job.scope, job.challenge_id, job.owner_key]),
+        ]);
+        return tx.query(
+          'UPDATE judge_jobs SET status=\'building\',result=\'{"verdict":"checking","stage":"building"}\',updated_at=now() WHERE id=$1 AND status=\'queued\' RETURNING id',
+          [job.id],
+        );
+      });
       if (!claimed.length) return;
       await notifyContest(this.db, job.scope).catch(() => {});
       remaining();
@@ -349,6 +368,7 @@ export class JudgeWorker {
       }
       remaining();
       await this.db.transaction(async (tx) => {
+        await this.requireContestLogic(tx, job);
         await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
           JSON.stringify([job.scope, job.challenge_id, job.owner_key]),
         ]);
@@ -417,6 +437,8 @@ export class JudgeWorker {
         "比赛中没有此题",
         "当前组别没有此题的作答权限",
         "当前组别没有此题的靶机与附件使用权限",
+        "当前赛题未解锁或尚未选择此互斥路线",
+        "已选择此互斥组的其他题目",
       ];
       const error =
         verdict === "update_error" || allowed.includes((e as Error).message)

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Row } from "./db.js";
 import { fail } from "./security.js";
+import { questionLogicInput } from "./contest-logic.js";
 
 export const phaseName = z.enum(["objective", "practical"]);
 export type PhaseName = z.infer<typeof phaseName>;
@@ -69,6 +70,10 @@ export const contestChallengeInput = z.object({
   published: z.boolean().default(true),
   release_at: z.iso.datetime().nullable().default(null),
   scoring: contestScoringInput.default({ mode: "inherit", parts: [] }),
+  logic: questionLogicInput.default({
+    exclusive_group: null,
+    dependency: null,
+  }),
 });
 
 export function validateTiming(contest: Row, hasAwd: boolean) {

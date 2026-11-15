@@ -25,6 +25,8 @@ import { PhaseCards } from "./contest-timing";
 import { useContestNow } from "./contest-clock";
 import { ActionError } from "./action-error";
 import { useObjectiveSubmissionNotice } from "@/lib/use-objective-submission-notice";
+import { useExclusiveSubmission } from "./exclusive-submission";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 
 export function ObjectiveNavigation({
   model,
@@ -79,6 +81,7 @@ export function ObjectivePaper({
   active: boolean;
 }) {
   const notice = useObjectiveSubmissionNotice();
+  const exclusive = useExclusiveSubmission(scope);
   const { query, submit } = model,
     data = query.data,
     [confirm, setConfirm] = useState(false);
@@ -114,7 +117,7 @@ export function ObjectivePaper({
   const completed = data.items.filter((q) =>
     answerComplete(q.objective, model.response(q)),
   ).length;
-  const remaining = pending.filter(
+  const remaining = model.finalQuestions.filter(
     (q) => !answerComplete(q.objective, model.response(q)),
   ).length;
   const withinTime =
@@ -123,6 +126,14 @@ export function ObjectivePaper({
       !data.phase.deadline_at ||
       Date.parse(data.phase.deadline_at) > now);
   const canSubmit = withinTime && pending.length > 0;
+  const finalize = () => {
+    if (exclusive.needsConfirmation(model.finalQuestions)) {
+      setConfirm(false);
+      exclusive.confirm(model.finalQuestions, () => submit.mutateAsync(true));
+    } else {
+      submit.mutate(true, { onSuccess: () => setConfirm(false) });
+    }
+  };
   return (
     <div className="flex h-full min-h-0 flex-col" aria-label="客观题答卷">
       <ScrollArea className="min-h-0 flex-1">
@@ -141,6 +152,35 @@ export function ObjectivePaper({
               </Button>
             </div>
           )}
+          {model.branches.map((branch) => (
+            <fieldset
+              key={branch.group}
+              className="mb-6 space-y-3 border-b pb-6"
+            >
+              <legend className="mb-3 text-sm font-medium">
+                {branch.group} · 选择提交题目
+              </legend>
+              <RadioGroup
+                aria-label={`${branch.group} 提交题目`}
+                value={branch.selectedId ?? ""}
+                onValueChange={(id) => model.selectBranch(branch.group, id)}
+                disabled={!withinTime || submit.isPending}
+              >
+                {branch.items.map((q) => (
+                  <label
+                    key={q.id}
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                  >
+                    <RadioGroupItem
+                      value={q.id}
+                      aria-label={`选择 ${q.title}`}
+                    />
+                    {q.title}
+                  </label>
+                ))}
+              </RadioGroup>
+            </fieldset>
+          ))}
           {!data.items.length && (
             <>
               <PhaseCards scope={scope} phases={[data.phase]} />
@@ -246,11 +286,11 @@ export function ObjectivePaper({
                 保存草稿
               </Button>
               <Button
-                disabled={submit.isPending}
+                disabled={submit.isPending || model.needsBranchSelection}
                 onClick={() =>
                   remaining > 0 || notice.needsConfirmation()
                     ? setConfirm(true)
-                    : submit.mutate(true)
+                    : finalize()
                 }
               >
                 提交答卷
@@ -277,10 +317,12 @@ export function ObjectivePaper({
               继续检查
             </Button>
             <Button
-              disabled={submit.isPending || !canSubmit}
+              disabled={
+                submit.isPending || !canSubmit || model.needsBranchSelection
+              }
               onClick={() => {
                 notice.acknowledge();
-                submit.mutate(true, { onSuccess: () => setConfirm(false) });
+                finalize();
               }}
             >
               {submit.isPending ? "提交中" : "确认交卷"}
@@ -288,6 +330,7 @@ export function ObjectivePaper({
           </div>
         </DialogContent>
       </Dialog>
+      {exclusive.dialog}
     </div>
   );
 }

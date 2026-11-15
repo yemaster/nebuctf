@@ -1,3 +1,8 @@
+import {
+  filterContestLogic,
+  lockContestChoices,
+  bindContestChoice,
+} from "./contest-logic.js";
 import { submissionUsage, requireSubmissionSlot } from "./submission-policy.js";
 import { seal } from "./settings.js";
 import { visibleHints, hintRoutes } from "./hints.js";
@@ -39,11 +44,27 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
     const sections = phases
       .filter((p) => p.status === "active")
       .map((p) => p.section);
-    const visibleIds = await visibleChallengeIds(
+    let visibleIds = await visibleChallengeIds(
       db,
       p.scope,
       req.user ?? undefined,
     );
+    if (contest) {
+      const candidates = await db.query(
+        "SELECT challenge_id id FROM contest_challenges WHERE contest_id=$1",
+        [p.scope],
+      );
+      const available = await filterContestLogic(
+        db,
+        candidates,
+        p.scope,
+        owner,
+        isContestPractice(contest),
+      );
+      visibleIds = available
+        .map((c) => c.id)
+        .filter((id: string) => visibleIds === null || visibleIds.includes(id));
+    }
     const args = [
       p.scope,
       p.q,
@@ -81,7 +102,13 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
       items: (
         await challengeProgress(
           db,
-          rows,
+          await filterContestLogic(
+            db,
+            rows,
+            p.scope,
+            owner,
+            isContestPractice(contest),
+          ),
           p.scope,
           owner,
           cutoff,
@@ -144,6 +171,8 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
         .parse(req.body);
     await rate(db, `submit-user:${u.id}`, 30, 60);
     return db.transaction(async (tx) => {
+      const submittingOwner = await ownerFor(tx, data.scope, u);
+      await lockContestChoices(tx, data.scope, submittingOwner, [cid]);
       await tx.query("SELECT id FROM challenges WHERE id=$1 FOR SHARE", [cid]);
       const c = await challengeAccess(tx, cid, data.scope, u, true, "submit");
       if (c.challenge_type === "objective")
@@ -154,6 +183,7 @@ export function challengeRoutes(app: FastifyInstance, db: DB) {
         JSON.stringify([data.scope, cid, owner]),
       ]);
       await requireSubmissionSlot(tx, c, data.scope, owner, "flag");
+      await bindContestChoice(tx, c, data.scope, owner);
       const parts = await tx.query(
         "SELECT * FROM challenge_parts WHERE challenge_id=$1 ORDER BY position,id",
         [cid],

@@ -95,3 +95,53 @@ test("gateway never forwards to loopback, public addresses or privileged ports",
     ),
   );
 });
+test("private contest domains recheck the owning team's route before forwarding", async () => {
+  const other = "22222222-2222-4222-8222-222222222222";
+  let selected: string | null = null;
+  let scope = "33333333-3333-4333-8333-333333333333";
+  const db = {
+    query: async (sql: string) => {
+      if (sql.includes("FROM instances"))
+        return [
+          {
+            upstream_host: "172.18.0.2",
+            upstream_port: 8080,
+            expires_at: new Date(Date.now() + 10000),
+            scope,
+            owner_key: "t:owner",
+            challenge_id: id,
+          },
+        ];
+      if (sql.includes("FROM contests"))
+        return [
+          { practice_mode: false, ends_at: new Date(Date.now() + 60000) },
+        ];
+      if (sql.includes("FROM contest_challenges"))
+        return [id, other].map((challenge_id) => ({
+          challenge_id,
+          logic: { exclusive_group: "route", dependency: null },
+        }));
+      if (sql.includes("FROM contest_exclusive_choices"))
+        return selected
+          ? [
+              {
+                owner_key: "t:owner",
+                group_name: "route",
+                challenge_id: selected,
+              },
+            ]
+          : [];
+      if (sql.includes("FROM solves")) return [];
+      throw new Error("Unexpected gateway query");
+    },
+  } as unknown as DB;
+  const host = `${id}.${config.CHALLENGE_DOMAIN}`;
+  assert.ok(await resolveTarget(db, host));
+  selected = other;
+  assert.equal(await resolveTarget(db, host), null);
+  selected = id;
+  assert.ok(await resolveTarget(db, host));
+  scope = "practice";
+  selected = other;
+  assert.ok(await resolveTarget(db, host));
+});

@@ -1,3 +1,4 @@
+import { emptyQuestionLogic, validateQuestionLogic } from "./contest-logic.js";
 import { z } from "zod";
 import { join } from "node:path";
 import { copyFile, mkdir, readFile, unlink } from "node:fs/promises";
@@ -230,6 +231,14 @@ export function validateContent(
     )
       fail(400, "比赛与题目列表不匹配");
     const selected = new Set<string>();
+    validateQuestionLogic(
+      c.challenge_ids.map((challenge_id) => ({
+        challenge_id,
+        logic:
+          c.challenge_settings?.find((s) => s.challenge_id === challenge_id)
+            ?.logic ?? emptyQuestionLogic(),
+      })),
+    );
     for (const setting of c.challenge_settings ?? []) {
       if (!ids.has(setting.challenge_id) || selected.has(setting.challenge_id))
         fail(400, "赛题设置存在重复或无效引用");
@@ -593,7 +602,7 @@ export async function importContent(
               }
             : { mode: "inherit", parts: [] };
           await tx.query(
-            "INSERT INTO contest_challenges(contest_id,challenge_id,published,release_at,scoring,position) VALUES($1,$2,$3,$4,$5,$6)",
+            "INSERT INTO contest_challenges(contest_id,challenge_id,published,release_at,scoring,position,logic) VALUES($1,$2,$3,$4,$5,$6,$7)",
             [
               contestId,
               remap(id),
@@ -601,6 +610,16 @@ export async function importContent(
               shift(setting?.release_at) ?? null,
               JSON.stringify(scoring),
               position,
+              JSON.stringify({
+                ...(setting?.logic ?? emptyQuestionLogic()),
+                dependency: setting?.logic.dependency
+                  ? {
+                      ...setting.logic.dependency,
+                      challenge_ids:
+                        setting.logic.dependency.challenge_ids.map(remap),
+                    }
+                  : null,
+              }),
             ],
           );
         }

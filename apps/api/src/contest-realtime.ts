@@ -1,3 +1,5 @@
+import { contestLogicStates } from "./contest-logic.js";
+import { isContestPractice } from "./contest-practice.js";
 import { can } from "./access-control.js";
 import { monitorRevision } from "./contest-monitor.js";
 import { visibleChallengeIds } from "./group-permissions.js";
@@ -119,7 +121,9 @@ export function contestRealtimeRoutes(app: FastifyInstance, db: DB) {
           if (
             key.startsWith("judges:")
               ? ownerPeers.has(key.slice(7))
-              : audiences.has(key)
+              : key.startsWith("logic:")
+                ? ownerPeers.has(key.slice(6))
+                : audiences.has(key)
           )
             continue;
           room.signatures.delete(key);
@@ -137,6 +141,22 @@ export function contestRealtimeRoutes(app: FastifyInstance, db: DB) {
         // Private team revisions invalidate patch results without broadcasting patch contents or results to other teams.
         const owners = [...ownerPeers.keys()];
         if (owners.length) {
+          const logicStates = await contestLogicStates(
+            db,
+            scope,
+            owners,
+            isContestPractice(contest),
+          );
+          for (const owner of owners) {
+            const state = logicStates.get(owner)!;
+            const key = `logic:${owner}`,
+              revision = digest(JSON.stringify([...state]));
+            if (forced || room.signatures.get(key) !== revision) {
+              room.signatures.set(key, revision);
+              for (const peer of ownerPeers.get(owner) ?? [])
+                send(peer, JSON.stringify({ type: "logic", revision }));
+            }
+          }
           const revisions = await db.query(
             "SELECT k.owner_key,j.id,j.updated_at::text FROM unnest($2::text[]) k(owner_key) JOIN LATERAL(SELECT id,updated_at FROM judge_jobs WHERE scope=$1 AND owner_key=k.owner_key ORDER BY updated_at DESC,id DESC LIMIT 1) j ON true",
             [scope, owners],

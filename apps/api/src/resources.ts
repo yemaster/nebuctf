@@ -1,3 +1,5 @@
+import { isContestPractice } from "./contest-practice.js";
+import { filterContestLogic } from "./contest-logic.js";
 import { withQueuePositions } from "./resource-queue.js";
 import { can, requireAccess } from "./access-control.js";
 import { contestResourcePolicy } from "./contest-resource-limits.js";
@@ -226,15 +228,21 @@ export function resourceRoutes(app: FastifyInstance, db: DB) {
     return {
       items: await withQueuePositions(
         db,
-        await db.query(
-          `SELECT i.id,i.scope,i.challenge_id,coalesce(c.title,'终端') title,i.status,i.kind,i.resource_type,coalesce(c.resources->'container'->>'protocol',i.spec->>'protocol','http') protocol,CASE WHEN $5::boolean THEN i.endpoint ELSE NULL END endpoint,i.expires_at,i.created_at,i.renew_count,(i.spec->>'renew_limit')::int renew_limit,i.max_expires_at,r.expires_at next_operation_at,(i.spec->>'ttl')::int ttl,i.owner_key='shared' shared,i.error FROM instances i LEFT JOIN challenges c ON c.id=i.challenge_id LEFT JOIN registrations reg ON reg.contest_id::text=i.scope AND 't:'||reg.team_id=$2 LEFT JOIN contest_groups g ON g.id=reg.group_id LEFT JOIN rate_limits r ON r.key='resource:'||i.owner_key||':'||i.scope||':'||coalesce(i.challenge_id::text,'terminal')||CASE WHEN i.resource_type<>'container' THEN ':'||i.resource_type ELSE '' END WHERE i.scope=$1 AND ${permissionSQL("g", "i.challenge_id", "view")} AND ${permissionSQL("g", "i.challenge_id", "resources")} AND (i.owner_key=$2 OR (i.owner_key='shared' AND $4::boolean=false AND $5::boolean AND c.published AND ($1='practice' OR EXISTS(SELECT 1 FROM contest_challenges cc WHERE cc.contest_id::text=$1 AND cc.challenge_id=c.id AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()))))) AND i.status=ANY($3::text[]) ORDER BY i.created_at DESC LIMIT 100`,
-          [
-            scope,
-            owner,
-            [...activeStatuses, "failed"],
-            owned === "true",
-            visible,
-          ],
+        await filterContestLogic(
+          db,
+          await db.query(
+            `SELECT i.id,i.scope,i.challenge_id,coalesce(c.title,'终端') title,i.status,i.kind,i.resource_type,coalesce(c.resources->'container'->>'protocol',i.spec->>'protocol','http') protocol,CASE WHEN $5::boolean THEN i.endpoint ELSE NULL END endpoint,i.expires_at,i.created_at,i.renew_count,(i.spec->>'renew_limit')::int renew_limit,i.max_expires_at,r.expires_at next_operation_at,(i.spec->>'ttl')::int ttl,i.owner_key='shared' shared,i.error FROM instances i LEFT JOIN challenges c ON c.id=i.challenge_id LEFT JOIN registrations reg ON reg.contest_id::text=i.scope AND 't:'||reg.team_id=$2 LEFT JOIN contest_groups g ON g.id=reg.group_id LEFT JOIN rate_limits r ON r.key='resource:'||i.owner_key||':'||i.scope||':'||coalesce(i.challenge_id::text,'terminal')||CASE WHEN i.resource_type<>'container' THEN ':'||i.resource_type ELSE '' END WHERE i.scope=$1 AND ${permissionSQL("g", "i.challenge_id", "view")} AND ${permissionSQL("g", "i.challenge_id", "resources")} AND (i.owner_key=$2 OR (i.owner_key='shared' AND $4::boolean=false AND $5::boolean AND c.published AND ($1='practice' OR EXISTS(SELECT 1 FROM contest_challenges cc WHERE cc.contest_id::text=$1 AND cc.challenge_id=c.id AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()))))) AND i.status=ANY($3::text[]) ORDER BY i.created_at DESC LIMIT 100`,
+            [
+              scope,
+              owner,
+              [...activeStatuses, "failed"],
+              owned === "true",
+              visible,
+            ],
+          ),
+          scope,
+          owner,
+          isContestPractice(contest),
         ),
       ),
     };

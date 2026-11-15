@@ -54,11 +54,24 @@ export type Scoring = {
     availability_points: number;
   };
 };
+export type QuestionLogic = {
+  exclusive_group: string | null;
+  dependency: {
+    scope: "team" | "global";
+    mode: "all" | "any";
+    challenge_ids: string[];
+  } | null;
+};
+export const defaultQuestionLogic = (): QuestionLogic => ({
+  exclusive_group: null,
+  dependency: null,
+});
 export type ContestQuestion = {
   challenge_id: string;
   published: boolean;
   release_at: string | null;
   scoring: Scoring;
+  logic: QuestionLogic;
 };
 export type PhaseRule = {
   mode: "inherit" | "fixed" | "flexible";
@@ -121,6 +134,7 @@ export function questionSetting(c: Challenge): ContestQuestion {
     challenge_id: c.id,
     published: true,
     release_at: null,
+    logic: defaultQuestionLogic(),
     scoring:
       c.challenge_type === "awd"
         ? {

@@ -388,3 +388,13 @@ INSERT INTO schema_migrations(version) VALUES(36) ON CONFLICT DO NOTHING;
 
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS identity_id text;
 INSERT INTO schema_migrations(version) VALUES(37) ON CONFLICT DO NOTHING;
+
+ALTER TABLE contest_challenges ADD COLUMN IF NOT EXISTS logic jsonb NOT NULL DEFAULT '{"exclusive_group":null,"dependency":null}';
+CREATE TABLE IF NOT EXISTS contest_exclusive_choices(
+ contest_id uuid NOT NULL REFERENCES contests(id) ON DELETE CASCADE,
+ owner_key text NOT NULL,
+ group_name varchar(60) NOT NULL CHECK(length(trim(group_name))>0),
+ challenge_id uuid NOT NULL REFERENCES challenges(id),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(contest_id,owner_key,group_name));
+INSERT INTO schema_migrations(version) VALUES(38) ON CONFLICT DO NOTHING;

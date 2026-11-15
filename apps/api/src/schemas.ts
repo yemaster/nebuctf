@@ -1,3 +1,4 @@
+import { emptyQuestionLogic, validateQuestionLogic } from "./contest-logic.js";
 import { registrationFormInput } from "./registration-form-input.js";
 import {
   submissionLimitsInput,
@@ -257,6 +258,41 @@ export const contestInput = z
       )
       .max(20)
       .optional(),
+  })
+  .superRefine((v, ctx) => {
+    const settings = v.challenge_settings ?? [];
+    if (
+      new Set(settings.map((s) => s.challenge_id)).size !== settings.length ||
+      settings.some((s) => !v.challenge_ids.includes(s.challenge_id))
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["challenge_settings"],
+        message: "赛题配置必须属于当前比赛且不能重复",
+      });
+      return;
+    }
+    try {
+      validateQuestionLogic(
+        v.challenge_ids.map((challenge_id) => ({
+          challenge_id,
+          logic:
+            settings.find((s) => s.challenge_id === challenge_id)?.logic ??
+            emptyQuestionLogic(),
+        })),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "赛题逻辑无效";
+      const index = settings.findIndex((s) => message.includes(s.challenge_id));
+      ctx.addIssue({
+        code: "custom",
+        path:
+          index < 0
+            ? ["challenge_settings"]
+            : ["challenge_settings", index, "logic"],
+        message,
+      });
+    }
   })
   .refine((v) => v.ends_at > v.starts_at, "结束时间必须晚于开始时间")
   .refine(

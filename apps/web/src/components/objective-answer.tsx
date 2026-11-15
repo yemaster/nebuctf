@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, useAPI, useAction } from "@/lib/api";
-import type { Objective } from "@/lib/competition";
+import type { Objective, QuestionLogic } from "@/lib/competition";
 import { ObjectiveFields } from "./objective-fields";
 import { QueryState } from "./shared";
 import { Button } from "./ui/button";
@@ -14,6 +14,7 @@ import {
 import { ActionError } from "./action-error";
 import type { ObjectiveReview } from "@/lib/objective-paper";
 import { useObjectiveSubmissionNotice } from "@/lib/use-objective-submission-notice";
+import { useExclusiveSubmission } from "./exclusive-submission";
 type Answer = { choices?: string[]; blanks?: Record<string, string> };
 type Saved = {
   review?: ObjectiveReview | null;
@@ -26,14 +27,23 @@ export function ObjectiveAnswer({
   id,
   scope,
   definition: v,
+  title = "本题",
+  contestLogic,
   readOnly = false,
 }: {
   id: string;
   scope: string;
   definition: Objective;
+  title?: string;
+  contestLogic?: QuestionLogic & { exclusive_selected: boolean };
   readOnly?: boolean;
 }) {
   const notice = useObjectiveSubmissionNotice();
+  const exclusive = useExclusiveSubmission(scope);
+  const finalize = () =>
+    exclusive.confirm([{ id, title, contest_logic: contestLogic }], () =>
+      submit.mutateAsync(true),
+    );
   const query = useAPI<Saved>(`/challenges/${id}/answer?scope=${scope}`),
     [answer, setAnswer] = useState<Answer>({}),
     [confirm, setConfirm] = useState(false),
@@ -65,6 +75,7 @@ export function ObjectiveAnswer({
       setAnswer(result.answer);
       setConfirm(false);
       setEdited(false);
+      return result;
     },
     undefined,
     false,
@@ -112,9 +123,7 @@ export function ObjectiveAnswer({
           <Button
             disabled={!complete || submit.isPending || query.isLoading}
             onClick={() =>
-              notice.needsConfirmation()
-                ? setConfirm(true)
-                : submit.mutate(true)
+              notice.needsConfirmation() ? setConfirm(true) : finalize()
             }
           >
             {submit.isPending ? "提交中" : "提交答案"}
@@ -146,7 +155,7 @@ export function ObjectiveAnswer({
               onClick={() => {
                 notice.acknowledge();
                 setConfirm(false);
-                submit.mutate(true);
+                finalize();
               }}
             >
               确认提交
@@ -154,6 +163,7 @@ export function ObjectiveAnswer({
           </div>
         </DialogContent>
       </Dialog>
+      {exclusive.dialog}
     </section>
   );
 }

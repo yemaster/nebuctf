@@ -1,4 +1,4 @@
-import type { Objective, Phase } from "./competition";
+import type { Objective, Phase, QuestionLogic } from "./competition";
 export const OBJECTIVE_PAPER = "objective";
 export type ObjectiveResponse = {
   choices?: string[];
@@ -16,6 +16,7 @@ export type ObjectiveSaved = {
   revision: string | null;
 };
 export type PaperQuestion = {
+  contest_logic?: QuestionLogic & { exclusive_selected: boolean };
   hints?: import("./hints").ChallengeHint[];
   id: string;
   title: string;

@@ -7,6 +7,7 @@ import { questionWindow } from "./contest-timing.js";
 import { publicObjective, resourceProfiles } from "./challenge-model.js";
 import { fail } from "./security.js";
 import type { DB, Row } from "./db.js";
+import { contestLogicState } from "./contest-logic.js";
 import {
   allPermissions,
   ownerPermissions,
@@ -129,6 +130,8 @@ export async function challengeAccess(
   requirePermission(permissions, permission);
   const phase = await questionWindow(db, contest!, c!, owner);
   const practice = isContestPractice(contest);
+  const logic = (await contestLogicState(db, scope, owner, practice)).get(id);
+  if (logic === null) fail(403, "题目尚未解锁或已选择其他互斥题目");
   if (practice && c!.challenge_type === "awd" && permission !== "view")
     fail(403, "AWD 对抗已结束，可查看题面和历史轮次");
   // Only an unregistered administrator gets a preview. Registered admins play by the same clock.
@@ -145,6 +148,7 @@ export async function challengeAccess(
   return {
     ...effectivePoints(c!, link!.scoring),
     contest_scoring: link!.scoring,
+    ...(logic ? { contest_logic: logic } : {}),
     phase,
     contest_practice: practice,
     permissions,
@@ -173,6 +177,7 @@ export const publicChallenge = (c: Row) => ({
       "created_at",
       "permissions",
       "contest_practice",
+      "contest_logic",
     ].map((k) => [k, c[k]]),
   ),
   objective: c.objective ? publicObjective(c.objective) : null,

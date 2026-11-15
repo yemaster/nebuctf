@@ -30,9 +30,10 @@ export async function creditSolve(
     [challenge.id],
   );
   let already = false;
+  // Fresh formal credit can promote practice progress, never the reverse.
   if (unit?.id) {
     const rows = await db.query(
-      "INSERT INTO part_solves(id,part_id,challenge_id,scope,owner_key,user_id,contest_practice) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING RETURNING id",
+      "INSERT INTO part_solves(id,part_id,challenge_id,scope,owner_key,user_id,contest_practice) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(part_id,scope,owner_key) DO UPDATE SET contest_practice=false,user_id=excluded.user_id,created_at=excluded.created_at WHERE part_solves.contest_practice AND NOT excluded.contest_practice RETURNING id",
       [
         crypto.randomUUID(),
         unit.id,
@@ -56,13 +57,13 @@ export async function creditSolve(
       unit?.id ?? challenge.id,
     ));
   const [progress] = await db.query(
-    "SELECT count(*)::int n FROM part_solves WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3",
-    [challenge.id, scope, owner],
+    "SELECT count(*)::int n FROM part_solves WHERE challenge_id=$1 AND scope=$2 AND owner_key=$3 AND contest_practice=$4",
+    [challenge.id, scope, owner, practice],
   );
   const completed = !parts.length || progress!.n === parts.length;
   if (completed) {
     const rows = await db.query(
-      "INSERT INTO solves(id,challenge_id,scope,owner_key,user_id,contest_practice) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING id",
+      "INSERT INTO solves(id,challenge_id,scope,owner_key,user_id,contest_practice) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(challenge_id,scope,owner_key) DO UPDATE SET contest_practice=false,user_id=excluded.user_id,created_at=excluded.created_at WHERE solves.contest_practice AND NOT excluded.contest_practice RETURNING id",
       [crypto.randomUUID(), challenge.id, scope, owner, user, practice],
     );
     if (!parts.length) already = !rows.length;

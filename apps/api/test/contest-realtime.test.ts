@@ -7,7 +7,7 @@ import { config } from "../src/config.js";
 import { digest, flagHash } from "../src/security.js";
 import { sessionCookie } from "../src/auth.js";
 import { recordContestReleases } from "../src/contest-activity.js";
-import { recordContestNotice } from "../src/activity-events.js";
+import { recordContestNotice, notifyContest } from "../src/activity-events.js";
 import { creditSolve } from "../src/solve.js";
 
 test(
@@ -142,6 +142,66 @@ test(
     await wait(() => messages.at(-1)?.data?.frozen === true);
     assert(!messages.at(-1).data.items.some((e: any) => e.type === "solve"));
     assert(messages.at(-1).data.items.some((e: any) => e.type === "hint"));
+    await t.test(
+      "frozen solves invalidate logic without exposing question information",
+      async () => {
+        const prerequisite = crypto.randomUUID(),
+          gated = crypto.randomUUID();
+        for (const challengeId of [prerequisite, gated]) {
+          await db.query(
+            "INSERT INTO challenges(id,title,category,difficulty,kind,flag_hash,published) VALUES($1,$2,'Web','入门','static_attachment',$3,true)",
+            [challengeId, challengeId, flagHash("flag{logic}")],
+          );
+          await db.query(
+            "INSERT INTO contest_challenges(contest_id,challenge_id,logic) VALUES($1,$2,$3)",
+            [
+              contest,
+              challengeId,
+              JSON.stringify({
+                exclusive_group: null,
+                dependency:
+                  challengeId === gated
+                    ? {
+                        scope: "global",
+                        mode: "all",
+                        challenge_ids: [prerequisite],
+                      }
+                    : null,
+              }),
+            ],
+          );
+        }
+        const revisionsBefore = messages.filter(
+          (message) => message.type === "logic",
+        ).length;
+        await db.transaction((tx) => notifyContest(tx, contest));
+        await wait(
+          () =>
+            messages.filter((message) => message.type === "logic").length >
+            revisionsBefore,
+        );
+        const before = messages.findLast(
+          (message) => message.type === "logic",
+        ).revision;
+        const [source] = await db.query(
+          "SELECT * FROM challenges WHERE id=$1",
+          [prerequisite],
+        );
+        await db.transaction((tx) =>
+          creditSolve(tx, source!, contest, "t:" + team, user),
+        );
+        await wait(
+          () =>
+            messages.findLast((message) => message.type === "logic")
+              .revision !== before,
+        );
+        const event = messages.findLast((message) => message.type === "logic");
+        assert.deepEqual(Object.keys(event).sort(), ["revision", "type"]);
+        assert.equal(typeof event.revision, "string");
+        assert(!JSON.stringify(event).includes(prerequisite));
+        assert(!JSON.stringify(event).includes(gated));
+      },
+    );
     await db.query(
       "UPDATE contest_challenges SET published=false WHERE contest_id=$1 AND challenge_id=$2",
       [contest, cid],

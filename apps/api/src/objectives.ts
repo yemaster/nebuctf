@@ -1,3 +1,9 @@
+import type { ObjectiveDefinition } from "./challenge-model.js";
+import {
+  filterContestLogic,
+  lockContestChoices,
+  bindContestChoice,
+} from "./contest-logic.js";
 import { visibleHints } from "./hints.js";
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
@@ -55,6 +61,13 @@ export function objectiveRoutes(app: FastifyInstance, db: DB) {
         .parse(req.body);
     await rate(db, `answer:${user.id}`, 30, 60);
     return db.transaction(async (tx) => {
+      if (input.finalize)
+        await lockContestChoices(
+          tx,
+          input.scope,
+          await ownerFor(tx, input.scope, user),
+          [cid],
+        );
       return saveObjectiveAnswer(tx, user, cid, input);
     });
   });
@@ -135,6 +148,7 @@ export function objectiveRoutes(app: FastifyInstance, db: DB) {
           objective: q.objective,
           points: q.points,
           permissions: q.permissions,
+          contest_logic: q.contest_logic,
           saved: {
             ...saved,
             review: saved.finalized_at
@@ -191,6 +205,12 @@ export function objectiveRoutes(app: FastifyInstance, db: DB) {
           owner = await ownerFor(tx, scope, user);
         // Same permission projection as GET. A newly released question must not be silently skipped.
         if (input.finalize) {
+          await lockContestChoices(
+            tx,
+            scope,
+            owner,
+            input.answers.map((a) => a.id),
+          );
           const questions = await objectiveQuestions(tx, scope, user),
             visible: Row[] = await challengeProgress(
               tx,
@@ -200,13 +220,21 @@ export function objectiveRoutes(app: FastifyInstance, db: DB) {
               contestCutoff(contest),
               isContestPractice(contest),
             );
-          const expected = visible
-            .filter((c) => c.permissions.submit)
-            .map((c) => c.id)
-            .sort();
+          const submitted = new Set(input.answers.map((a) => a.id));
+          const eligible = visible.filter((c) => c.permissions.submit);
           if (
-            JSON.stringify(expected) !==
-            JSON.stringify(input.answers.map((a) => a.id).sort())
+            input.answers.some((a) => !eligible.some((c) => c.id === a.id)) ||
+            eligible.some(
+              (c) =>
+                !submitted.has(c.id) &&
+                (!c.contest_logic?.exclusive_group ||
+                  !eligible.some(
+                    (other) =>
+                      submitted.has(other.id) &&
+                      other.contest_logic?.exclusive_group ===
+                        c.contest_logic.exclusive_group,
+                  )),
+            )
           )
             fail(409, "题目已更新，请刷新答卷后重新提交");
         }
@@ -235,9 +263,17 @@ async function objectiveQuestions(
   user: User,
 ): Promise<Row[]> {
   const visible = await visibleChallengeIds(db, scope, user);
-  return db.query(
+  const rows = await db.query(
     "SELECT c.* FROM challenges c JOIN contest_challenges cc ON cc.challenge_id=c.id WHERE cc.contest_id=$1 AND c.challenge_type='objective' AND c.published AND cc.published AND (cc.release_at IS NULL OR cc.release_at<=now()) AND ($2::uuid[] IS NULL OR c.id=ANY($2::uuid[])) ORDER BY c.created_at,c.id LIMIT 200",
     [scope, visible],
+  );
+  const contest = await contestAccess(db, scope, user, false);
+  return filterContestLogic(
+    db,
+    rows,
+    scope,
+    await progressOwnerFor(db, scope, user),
+    isContestPractice(contest),
   );
 }
 
@@ -288,6 +324,29 @@ async function saveObjectiveAnswer(
       ? gradeObjective(challenge.objective, input.answer)
       : null,
     finalized = input.finalize ? new Date() : null;
+  if (input.finalize) {
+    const definition = challenge.objective as ObjectiveDefinition;
+    const choices = input.answer.choices ?? [],
+      blanks = input.answer.blanks ?? {};
+    if (
+      definition.type === "blank"
+        ? choices.length > 0 ||
+          Object.keys(blanks).some(
+            (id) => !definition.blanks.some((b) => b.id === id),
+          )
+        : Object.keys(blanks).length > 0 ||
+          new Set(choices).size !== choices.length ||
+          (definition.type === "single" && choices.length > 1) ||
+          choices.some((id) => !definition.options.some((o) => o.id === id))
+    )
+      fail(400, "答案包含无效选项或空位");
+    if (
+      challenge.contest_logic?.exclusive_group &&
+      !(choices.length || Object.values(blanks).some((value) => value.trim()))
+    )
+      fail(400, "请填写答案后提交互斥题目");
+    await bindContestChoice(tx, challenge, input.scope, owner);
+  }
   const [saved] = await tx.query(
     "INSERT INTO objective_answers(id,challenge_id,scope,owner_key,user_id,answer,correct,finalized_at,contest_practice) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(challenge_id,scope,owner_key,contest_practice) DO UPDATE SET answer=excluded.answer,user_id=excluded.user_id,correct=excluded.correct,finalized_at=excluded.finalized_at,updated_at=now() RETURNING answer,correct,finalized_at,updated_at::text revision",
     [

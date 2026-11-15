@@ -11,6 +11,8 @@ import type { DB, Row } from "./db.js";
 import { config } from "./config.js";
 import { storage, validateImage } from "./resources.js";
 import { cleanDockerMessage } from "./image-reference.js";
+import { contestLogicState } from "./contest-logic.js";
+import { isContestPractice } from "./contest-practice.js";
 const label = "io.nebuctf.instance";
 export function containerConfig(i: Row): Record<string, any> {
   const terminal = i.kind === "terminal",
@@ -135,6 +137,39 @@ export class Worker {
       );
   }
   async start(i: Row) {
+    try {
+      await this.provision(i);
+    } catch (error) {
+      try {
+        await this.cleanup(i);
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [error, cleanupError],
+          "instance creation and cleanup failed",
+        );
+      }
+      throw error;
+    }
+  }
+  private async requireContestLogic(i: Row) {
+    if (
+      i.scope === "practice" ||
+      i.scope === "test" ||
+      !i.challenge_id ||
+      !i.owner_key?.startsWith("t:")
+    )
+      return;
+    const [contest] = await this.db.query(
+      "SELECT practice_mode,ends_at FROM contests WHERE id=$1",
+      [i.scope],
+    );
+    if (isContestPractice(contest)) return;
+    const state = await contestLogicState(this.db, i.scope, i.owner_key);
+    if (!state.has(i.challenge_id) || state.get(i.challenge_id) === null)
+      throw Error("赛题尚未解锁或已选择其他互斥题目");
+  }
+  private async provision(i: Row) {
+    await this.requireContestLogic(i);
     if (i.spec.patch_job_id) {
       const [patch] = await this.db.query(
         "SELECT id FROM judge_jobs WHERE id=$1 AND status='passed' AND scope=$2 AND owner_key=$3 AND challenge_id=$4 AND result->>'image'=$5",
@@ -193,6 +228,7 @@ export class Worker {
       if (!notFound(e)) throw e;
       await this.docker.createContainer(containerConfig(i));
     }
+    await this.requireContestLogic(i);
     let info = await this.docker.inspectContainer(name);
     if (!info.State.Running && info.State.Status === "created")
       await this.docker.startContainer(name);

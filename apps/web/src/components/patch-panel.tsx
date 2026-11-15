@@ -16,6 +16,8 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, useAction } from "@/lib/api";
 import type { SubmissionUsage } from "@/lib/submission-limits";
+import type { QuestionLogic } from "@/lib/competition";
+import { useExclusiveSubmission } from "./exclusive-submission";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { OperationProgress } from "./operation-progress";
@@ -64,14 +66,19 @@ const running = (job?: Job) =>
 export function PatchPanel({
   id,
   scope,
+  title = "本题",
+  contestLogic,
   active = true,
   completed = false,
 }: {
   id: string;
   scope: string;
+  title?: string;
+  contestLogic?: QuestionLogic & { exclusive_selected: boolean };
   active?: boolean;
   completed?: boolean;
 }) {
+  const exclusive = useExclusiveSubmission(scope);
   const path = `/challenges/${id}/patches?scope=${encodeURIComponent(scope)}`,
     cache = useQueryClient();
   const query = useQuery({
@@ -119,6 +126,7 @@ export function PatchPanel({
       );
       setFile(null);
       if (input.current) input.current.value = "";
+      return created;
     },
     undefined,
     false,
@@ -382,7 +390,12 @@ export function PatchPanel({
                 usage?.remaining === 0 ||
                 cooldown > 0
               }
-              onClick={() => upload.mutate()}
+              onClick={() =>
+                exclusive.confirm(
+                  [{ id, title, contest_logic: contestLogic }],
+                  () => upload.mutateAsync(),
+                )
+              }
             >
               {failed ? <RotateCw /> : <Upload />}
               {cooldown > 0 ? `${cooldown} 秒后可提交` : "提交补丁"}
@@ -415,6 +428,7 @@ export function PatchPanel({
             job?.error)) && (
           <ResourceError error={upload.error ?? job!.error!} />
         )}
+      {exclusive.dialog}
     </div>
   );
 }

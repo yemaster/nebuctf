@@ -9,6 +9,8 @@ import type { Duplex } from "node:stream";
 import { isIPv4 } from "node:net";
 import type { DB } from "./db.js";
 import { config } from "./config.js";
+import { contestLogicState } from "./contest-logic.js";
+import { isContestPractice } from "./contest-practice.js";
 export function instanceFromHost(
   host: string | undefined,
   domain = config.CHALLENGE_DOMAIN,
@@ -83,7 +85,7 @@ export async function resolveTarget(db: DB, host: string | undefined) {
   const id = instanceFromHost(host);
   if (!id) return null;
   const [i] = await db.query(
-    "SELECT upstream_host,upstream_port,expires_at FROM instances WHERE id=$1 AND status='running' AND expires_at>now() AND spec->>'access_mode'='domain' AND kind IN ('static_container','dynamic_container')",
+    "SELECT upstream_host,upstream_port,expires_at,scope,owner_key,challenge_id FROM instances WHERE id=$1 AND status='running' AND expires_at>now() AND spec->>'access_mode'='domain' AND kind IN ('static_container','dynamic_container')",
     [id],
   );
   if (
@@ -94,6 +96,27 @@ export async function resolveTarget(db: DB, host: string | undefined) {
     i.upstream_port > 65535
   )
     return null;
+  if (
+    i.scope !== "practice" &&
+    i.scope !== "test" &&
+    i.owner_key !== "shared"
+  ) {
+    const [contest] = await db.query(
+      "SELECT practice_mode,ends_at FROM contests WHERE id=$1",
+      [i.scope],
+    );
+    if (
+      (
+        await contestLogicState(
+          db,
+          i.scope,
+          i.owner_key,
+          isContestPractice(contest),
+        )
+      ).get(i.challenge_id) === null
+    )
+      return null;
+  }
   return {
     host: i.upstream_host as string,
     port: i.upstream_port as number,

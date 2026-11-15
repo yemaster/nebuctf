@@ -33,13 +33,18 @@ export function useContestRealtime(scope: string) {
         try {
           const payload = JSON.parse(String(event.data));
           if (
-            payload.type === "judges" &&
+            (payload.type === "judges" || payload.type === "logic") &&
             typeof payload.revision === "string"
           ) {
             void cache.invalidateQueries({
-              predicate: (q) =>
-                String(q.queryKey[0]).startsWith("/challenges/") &&
-                String(q.queryKey[0]).includes(`scope=${scope}`),
+              predicate: (q) => {
+                const key = String(q.queryKey[0]);
+                return (
+                  (key.startsWith("/challenges") &&
+                    key.includes(`scope=${scope}`)) ||
+                  key === `/contests/${scope}/objective-paper`
+                );
+              },
             });
             return;
           }
@@ -98,10 +103,11 @@ export function useContestRealtime(scope: string) {
               predicate: (q) => {
                 const key = String(q.queryKey[0]);
                 return (
-                  (key.startsWith("/challenges") ||
+                  ((key.startsWith("/challenges") ||
                     key.startsWith("/scoreboard") ||
                     key.startsWith("/instances")) &&
-                  key.includes(`scope=${scope}`)
+                    key.includes(`scope=${scope}`)) ||
+                  key === `/contests/${scope}/objective-paper`
                 );
               },
             });
