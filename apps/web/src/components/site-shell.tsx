@@ -7,7 +7,6 @@ import {
   BookOpen,
   Bell,
   ChevronDown,
-  CircleHelp,
   GitBranch,
   LogOut,
   Menu,
@@ -332,10 +331,7 @@ export function SiteHeader({
           <Button
             variant="ghost"
             asChild
-            className={cn(
-              navigationClass(active(help.to)),
-              contestId && "w-11 px-3 has-[>svg]:px-3",
-            )}
+            className={navigationClass(active(help.to))}
           >
             <Link
               to={help.to}
@@ -346,7 +342,7 @@ export function SiteHeader({
               data-nav-active={active(help.to) || undefined}
               aria-current={active(help.to) ? "page" : undefined}
             >
-              {contestId ? <CircleHelp /> : "帮助"}
+              帮助
             </Link>
           </Button>
           <NavigationIndicator

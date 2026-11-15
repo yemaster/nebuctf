@@ -281,7 +281,6 @@ function HelpArticle({
           >
             {document.title}
           </h1>
-          <HelpDocumentMeta document={document} className="mt-6" />
         </header>
         {headings.length > 0 && (
           <Collapsible className="mb-8 xl:hidden">
@@ -338,12 +337,7 @@ function HelpArticle({
               </Button>
             )}
           </nav>
-          <p className="mt-6 text-xs text-muted-foreground">
-            最后更新于{" "}
-            <time dateTime={document.updated_at}>
-              {new Date(document.updated_at).toLocaleString("zh-CN")}
-            </time>
-          </p>
+          <HelpDocumentMeta document={document} className="mt-6" />
         </footer>
       </article>
       <aside className="sticky top-0 hidden h-[calc(100dvh-10rem)] xl:block">

@@ -1,6 +1,5 @@
 import type { HelpDocument } from "@/lib/help";
-import { cn, date } from "@/lib/utils";
-import { UserIdentity } from "./user-avatar";
+import { cn } from "@/lib/utils";
 
 export function HelpDocumentMeta({
   document,
@@ -12,38 +11,31 @@ export function HelpDocumentMeta({
   >;
   className?: string;
 }) {
+  const author = document.author;
+  const editor = document.editor?.id !== author?.id ? document.editor : null;
   return (
-    <dl
+    <div
       aria-label="文档维护记录"
       className={cn(
-        "flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground",
+        "flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground",
         className,
       )}
     >
-      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-        <dt>创建人</dt>
-        <dd className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <UserIdentity
-            name={document.author?.username}
-            avatarId={document.author?.avatar_id}
-          />
-          <time dateTime={document.created_at}>
-            {date(document.created_at)}
-          </time>
-        </dd>
-      </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-        <dt>最后编辑人</dt>
-        <dd className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <UserIdentity
-            name={document.editor?.username}
-            avatarId={document.editor?.avatar_id}
-          />
-          <time dateTime={document.updated_at}>
-            {date(document.updated_at)}
-          </time>
-        </dd>
-      </div>
-    </dl>
+      {author && <span className="break-all">作者 {author.username}</span>}
+      <span>
+        {editor && <span className="break-all">{editor.username} </span>}
+        更新于{" "}
+        <time
+          dateTime={document.updated_at}
+          title={new Date(document.updated_at).toLocaleString("zh-CN")}
+        >
+          {new Date(document.updated_at).toLocaleDateString("zh-CN", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          })}
+        </time>
+      </span>
+    </div>
   );
 }
