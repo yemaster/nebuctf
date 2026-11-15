@@ -376,10 +376,19 @@ test(
           );
           saved = undefined;
           assert.deepEqual(
-            [...host.querySelectorAll('[role="tab"]')]
-              .slice(0, 2)
-              .map((t) => t.textContent),
-            ["基本信息", "WriteUp 提交"],
+            [
+              ...host.querySelectorAll(
+                '[role="tablist"][aria-label="比赛配置"] [role="tab"]',
+              ),
+            ].map((t) => t.textContent),
+            [
+              "基本信息",
+              "赛题设置",
+              "时间规则",
+              "报名设置",
+              "资源限制",
+              "WriteUp 提交",
+            ],
           );
           await tab("WriteUp 提交");
           await click(
@@ -412,7 +421,11 @@ test(
             host.querySelector('[aria-label="WriteUp 提交要求"]')!,
             "附上关键步骤",
           );
-          await click(host.querySelector('[role="radio"][value="captain"]'));
+          await click(
+            [...host.querySelectorAll("label")]
+              .find((label) => label.textContent === "允许队员提交")!
+              .querySelector("button"),
+          );
           await tab("基本信息");
           await click(button("保存比赛"));
           assert.equal(saved.writeup.enabled, true);

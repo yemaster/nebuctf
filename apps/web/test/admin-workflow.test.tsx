@@ -25,6 +25,9 @@ test(
       window: dom.window,
       document: dom.window.document,
       HTMLElement: dom.window.HTMLElement,
+      HTMLInputElement: dom.window.HTMLInputElement,
+      Node: dom.window.Node,
+      NodeFilter: dom.window.NodeFilter,
       HTMLFormElement: dom.window.HTMLFormElement,
       Element: dom.window.Element,
       SVGElement: dom.window.SVGElement,
@@ -269,11 +272,11 @@ test(
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
     }
-    async function click(element: Element | null) {
+    async function click(element: Element | null, event = "click") {
       assert.ok(element);
       await act(async () =>
         element.dispatchEvent(
-          new dom.window.MouseEvent("click", {
+          new dom.window.MouseEvent(event, {
             bubbles: true,
             cancelable: true,
           }),
@@ -402,7 +405,7 @@ test(
           await mount(
             `/admin/contests/${id}/edit?return=${encodeURIComponent("/admin/contests?page=2")}`,
           );
-          await settle(() => !!button("收起选题"));
+          await settle(() => !!button("调整选题"));
           await act(async () => {
             const tab = [...container.querySelectorAll('[role="tab"]')].find(
               (el) => el.textContent === "赛题设置",
@@ -414,60 +417,58 @@ test(
               }),
             );
           });
-          await settle(
-            () => !!container.querySelector('[aria-label="选择 题目 1"]'),
+          await change(
+            container.querySelector<HTMLInputElement>('input[name="title"]')!,
+            "比赛草稿",
           );
-          const picker = container.querySelector('[aria-label="选择题目"]')!;
+          await settle(() => !!button("丢弃草稿"));
+          assert(
+            button("保存比赛")!.parentElement!.contains(button("丢弃草稿")),
+          );
+          await click(button("调整选题"));
+          await settle(
+            () =>
+              !!document.querySelector(
+                '[role="dialog"] [aria-label="选择 题目 1"]',
+              ),
+          );
+          let dialog = document.querySelector('[role="dialog"]')!;
+          let picker = dialog.querySelector('[aria-label="选择题目"]')!;
           assert.equal(picker.querySelectorAll('[role="checkbox"]').length, 10);
           assert.match(picker.textContent!, /练习场已开放|练习题/);
           await click(button("下一页", picker));
           await settle(
-            () => !!container.querySelector('[aria-label="选择 题目 14"]'),
+            () => !!picker.querySelector('[aria-label="选择 题目 14"]'),
           );
           assert.equal(
-            container
+            picker
               .querySelector('[aria-label="选择 题目 13"]')!
               .getAttribute("data-state"),
             "checked",
           );
-          await click(container.querySelector('[aria-label="选择 题目 14"]'));
-          const chosen = container.querySelector('[aria-label="已选赛题"]')!;
+          await click(picker.querySelector('[aria-label="选择 题目 14"]'));
+          const chosen = container.querySelector('[aria-label="赛题配置"]')!;
+          assert.equal(
+            chosen.querySelectorAll("[data-question-id]").length,
+            10,
+          );
+          await click(button("确认选题", dialog));
+          await settle(() => !document.querySelector('[role="dialog"]'));
+          await settle(() => !button("下一页", chosen)!.disabled);
+          await click(button("下一页", chosen));
+          await settle(() => !!button("设置 题目 14", chosen));
+          assert.equal(chosen.querySelectorAll("[data-question-id]").length, 4);
+          await click(button("赛题操作 题目 14"), "pointerdown");
+          await click(document.querySelector('[aria-label="移除 题目 14"]'));
+          await click(button("赛题操作 题目 13"), "pointerdown");
+          await click(document.querySelector('[aria-label="移除 题目 13"]'));
           await settle(
-            () =>
-              chosen.querySelectorAll("[data-selected-question]").length === 14,
+            () => chosen.querySelectorAll("[data-question-id]").length === 2,
           );
-          assert.equal(picker.querySelector("button[aria-pressed]"), null);
-          assert.equal(
-            chosen.querySelectorAll('[aria-label="Web 已选赛题"] li').length,
-            5,
-          );
-          assert.equal(
-            chosen.querySelectorAll('[aria-label="Pwn 已选赛题"] li').length,
-            5,
-          );
-          assert.equal(
-            chosen.querySelectorAll('[aria-label="Crypto 已选赛题"] li').length,
-            4,
-          );
-          await change(
-            picker.querySelector('[aria-label="搜索可添加题目"]')!,
-            "题目 29",
-          );
-          await click(button("搜索题目", picker));
-          await settle(
-            () => !!picker.querySelector('[aria-label="选择 题目 29"]'),
-          );
-          assert.equal(picker.querySelectorAll('[role="checkbox"]').length, 1);
-          assert.equal(
-            chosen.querySelectorAll("[data-selected-question]").length,
-            14,
-          );
-          await click(button("移除已选 题目 14", chosen));
-          await click(button("移除已选 题目 13", chosen));
-          assert.equal(
-            chosen.querySelectorAll("[data-selected-question]").length,
-            12,
-          );
+          await click(button("调整选题"));
+          await settle(() => !!document.querySelector('[role="dialog"]'));
+          dialog = document.querySelector('[role="dialog"]')!;
+          picker = dialog.querySelector('[aria-label="选择题目"]')!;
           await change(
             picker.querySelector('[aria-label="搜索可添加题目"]')!,
             "题目 14",
@@ -482,12 +483,17 @@ test(
               .getAttribute("aria-checked"),
             "false",
           );
-          await click(button("收起选题"));
+          await click(picker.querySelector('[aria-label="选择 题目 14"]'));
+          await click(button("取消", dialog));
+          await settle(() => !document.querySelector('[role="dialog"]'));
+          assert.equal(chosen.querySelectorAll("[data-question-id]").length, 2);
+          await click(button("上一页", chosen));
           await settle(() => !!button("设置 题目 1"));
           const schedule = container.querySelector('[aria-label="赛题配置"]')!;
           await click(button("下一页", schedule));
           await settle(() => !!button("设置 题目 11"));
-          await click(button("上移 题目 11"));
+          await click(button("赛题操作 题目 11"), "pointerdown");
+          await click(document.querySelector('[aria-label="上移 题目 11"]'));
           await settle(
             () => !!button("设置 题目 11") && !!button("设置 题目 1"),
           );
@@ -524,7 +530,7 @@ test(
         },
       );
       await t.test(
-        "grouped selection loads all 200 questions and honors the started contest lock",
+        "one selected-question list loads all 200 settings and honors the started contest lock",
         async () => {
           const count = challenges.length,
             previous = contest.challenge_ids,
@@ -541,32 +547,32 @@ test(
           try {
             await mount(`/admin/contests/${id}/edit`);
             const chosen = () =>
-              container.querySelector('[aria-label="已选赛题"]')!;
-            await settle(
-              () =>
-                chosen()?.querySelectorAll("[data-selected-question]")
-                  .length === 200,
+              container.querySelector('[aria-label="赛题配置"]')!;
+            await settle(() => !!button("设置 题目 1", chosen()));
+            assert.equal(
+              chosen().querySelectorAll("[data-question-id]").length,
+              10,
             );
             assert.equal(
-              chosen().querySelectorAll('[aria-label="Web 已选赛题"] li')
-                .length,
-              67,
+              container.querySelector('[aria-label="已选赛题"]'),
+              null,
             );
-            assert.equal(
-              chosen().querySelectorAll('[aria-label="Pwn 已选赛题"] li')
-                .length,
-              67,
-            );
-            assert.equal(
-              chosen().querySelectorAll('[aria-label="Crypto 已选赛题"] li')
-                .length,
-              66,
-            );
-            assert(button("移除已选 题目 200", chosen())!.disabled);
+            assert(button("调整选题")!.disabled);
+            assert.equal(document.querySelector('[role="dialog"]'), null);
+            for (let page = 1; page < 20; page++)
+              await click(button("下一页", chosen()));
+            await settle(() => !!button("设置 题目 200", chosen()));
+            assert(button("赛题操作 题目 200", chosen())!.disabled);
+            await click(button("设置 题目 200", chosen()));
             assert(
-              container.querySelector<HTMLButtonElement>(
-                '[aria-label="选择 题目 1"]',
-              )!.disabled,
+              container
+                .querySelector('[aria-label="题目 200互斥组"]')!
+                .matches(":disabled"),
+            );
+            assert(
+              container
+                .querySelector('[aria-label="题目 200依赖范围"]')!
+                .matches(":disabled"),
             );
             const batches = selections.filter((s) => s.page_size === 100);
             assert.equal(batches.length, 2);

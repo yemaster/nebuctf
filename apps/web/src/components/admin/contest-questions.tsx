@@ -1,6 +1,16 @@
+import { NativeSelect, NativeSelectOption } from "../ui/native-select";
+import { profiles } from "@/lib/competition";
 import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, ChevronDown, Plus, Search, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  Plus,
+  Search,
+  X,
+  MoreHorizontal,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { activateFromRow } from "@/lib/row-action";
 import type { Challenge } from "@/lib/types";
@@ -8,8 +18,27 @@ import {
   questionTypes,
   questionSetting,
   type ContestQuestion,
+  defaultQuestionLogic,
 } from "@/lib/competition";
+import { retainContestQuestions } from "@/lib/contest-editor";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+  DialogClose,
+} from "../ui/dialog";
 import { Button } from "../ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "../ui/dropdown-menu";
+import { ScrollArea } from "../ui/scroll-area";
 import { Input } from "../ui/input";
 import { Switch } from "../ui/switch";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
@@ -20,7 +49,19 @@ import {
 } from "../ui/collapsible";
 import { Item, ItemGroup } from "../ui/item";
 import { Field, Pagination, QueryState, Empty } from "../shared";
-import { ContestQuestionPicker } from "./contest-question-picker";
+import { ChallengePicker } from "../challenge-picker";
+import type {
+  SubmissionLimits,
+  SubmissionOverride,
+} from "@/lib/submission-limits";
+import type { HintPolicy, HintOverride } from "@/lib/hints";
+import {
+  QuestionSubmissionLimits,
+  ContestSubmissionLimits,
+} from "./contest-submission-limits";
+import { QuestionHints, ContestHints } from "./contest-hints";
+import { QuestionLogicEditor, ContestRuleHelp } from "./contest-question-logic";
+import { Separator } from "../ui/separator";
 import { inputDate } from "./shared";
 import { ScoringEditor, scoringNames, scoreSummary } from "./contest-scoring";
 
@@ -34,6 +75,16 @@ export function ContestQuestions({
   onChange,
   locked,
   issue,
+  submissionLimits,
+  onSubmissionLimitsChange,
+  submissionOverrides,
+  onSubmissionOverridesChange,
+  hintPolicy,
+  onHintPolicyChange,
+  hintOverrides,
+  onHintOverridesChange,
+  defaultIssue,
+  disabled,
 }: {
   ids: string[];
   onIdsChange: (ids: string[]) => void;
@@ -41,44 +92,73 @@ export function ContestQuestions({
   onChange: (v: ContestQuestion[]) => void;
   locked: boolean;
   issue: QuestionIssue | null;
+  submissionLimits: SubmissionLimits;
+  onSubmissionLimitsChange: (value: SubmissionLimits) => void;
+  submissionOverrides: SubmissionOverride[];
+  onSubmissionOverridesChange: (value: SubmissionOverride[]) => void;
+  hintPolicy: HintPolicy;
+  onHintPolicyChange: (value: HintPolicy) => void;
+  hintOverrides: HintOverride[];
+  onHintOverridesChange: (value: HintOverride[]) => void;
+  defaultIssue: string;
+  disabled: boolean;
 }) {
   const [page, setPage] = useState(1),
     [search, setSearch] = useState(""),
     [q, setQ] = useState(""),
-    [adding, setAdding] = useState(true),
-    [expanded, setExpanded] = useState<string[]>([]);
+    [adding, setAdding] = useState(false),
+    [pickerIds, setPickerIds] = useState<string[]>([]),
+    [picked, setPicked] = useState<Challenge[]>([]),
+    [expanded, setExpanded] = useState<string[]>([]),
+    [defaultsOpen, setDefaultsOpen] = useState(false);
   const query = useQuery({
-    queryKey: ["contest-question-settings", ids.join(","), page, q],
-    queryFn: () =>
-      api<{ items: Challenge[]; total: number }>(
-        "/admin/challenges/search",
-        "POST",
-        {
-          ids: ids.join(","),
-          page,
-          page_size: pageSize,
-          q,
-        },
-      ),
+    queryKey: ["contest-question-settings", [...ids].sort().join(",")],
+    queryFn: async () => {
+      const batches = Array.from(
+        { length: Math.ceil(ids.length / 100) },
+        (_, i) => ids.slice(i * 100, (i + 1) * 100),
+      );
+      const pages = await Promise.all(
+        batches.map((batch) =>
+          api<{ items: Challenge[] }>("/admin/challenges/search", "POST", {
+            ids: batch.join(","),
+            page_size: 100,
+          }),
+        ),
+      );
+      return pages.flatMap((page) => page.items);
+    },
     enabled: ids.length > 0,
     placeholderData: keepPreviousData,
   });
-  const items = ids.length
-    ? (query.data?.items ?? [])
-        .filter((c) => ids.includes(c.id))
-        .sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
-    : [];
-  const total = ids.length ? query.data?.total : 0;
+  const questions = ids.flatMap((id) => {
+    const question = query.data?.find((c) => c.id === id);
+    return question ? [question] : [];
+  });
+  const matching = questions.filter((c) =>
+    c.title.toLocaleLowerCase().includes(q.toLocaleLowerCase()),
+  );
+  const items = matching.slice((page - 1) * pageSize, page * pageSize);
+  const total = matching.length;
+  const groups = [
+    ...new Set(
+      value
+        .map((s) => s.logic?.exclusive_group?.trim())
+        .filter((group): group is string => !!group),
+    ),
+  ];
   useEffect(() => {
-    if (total !== undefined && !query.isPlaceholderData)
-      setPage((p) => Math.min(p, Math.max(1, Math.ceil(total / pageSize))));
-  }, [total, query.isPlaceholderData]);
+    setPage((p) => Math.min(p, Math.max(1, Math.ceil(total / pageSize))));
+  }, [total]);
   useEffect(() => {
-    const missing = items.filter(
+    const missing = questions.filter(
       (c) => !value.some((v) => v.challenge_id === c.id),
     );
     if (missing.length) onChange([...value, ...missing.map(questionSetting)]);
-  }, [items, value, onChange]);
+  }, [questions, value, onChange]);
+  useEffect(() => {
+    if (defaultIssue) setDefaultsOpen(true);
+  }, [defaultIssue]);
   useEffect(() => {
     if (!issue) return;
     setSearch("");
@@ -109,36 +189,137 @@ export function ContestQuestions({
   };
   return (
     <section aria-label="比赛赛题" className="min-w-0 space-y-5">
-      <Collapsible open={adding} onOpenChange={setAdding} className="space-y-4">
+      <Collapsible
+        open={defaultsOpen || !!defaultIssue}
+        onOpenChange={setDefaultsOpen}
+        className="space-y-5 border-b pb-5"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="font-medium">
             赛题{" "}
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
+            <span className="ml-2 text-sm font-normal tabular-nums text-muted-foreground">
               {ids.length} / 200
             </span>
           </h3>
-          <CollapsibleTrigger asChild>
-            <Button type="button" variant={adding ? "secondary" : "default"}>
-              {adding ? <ChevronDown className="rotate-180" /> : <Plus />}
-              {adding ? "收起选题" : "调整选题"}
-            </Button>
-          </CollapsibleTrigger>
+          <div className="flex flex-wrap items-center gap-2">
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-28"
+              >
+                默认规则{" "}
+                <ChevronDown className={defaultsOpen ? "rotate-180" : ""} />
+              </Button>
+            </CollapsibleTrigger>
+
+            <Dialog
+              open={adding}
+              onOpenChange={(open) => {
+                if (open) {
+                  setPickerIds([...ids]);
+                  setPicked([]);
+                }
+                setAdding(open);
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-28"
+                  disabled={locked || disabled}
+                >
+                  <Plus />
+                  调整选题
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl" aria-describedby={undefined}>
+                <DialogHeader>
+                  <DialogTitle>选择赛题</DialogTitle>
+                </DialogHeader>
+                <ScrollArea className="h-[min(60dvh,32rem)] pr-4">
+                  <ChallengePicker
+                    value={pickerIds}
+                    onChange={setPickerIds}
+                    onPick={(c) =>
+                      setPicked((current) =>
+                        current.some((v) => v.id === c.id)
+                          ? current
+                          : [...current, c],
+                      )
+                    }
+                    disabled={locked || disabled}
+                    limit={200}
+                  />
+                </ScrollArea>
+                <DialogFooter className="flex-row items-center border-t pt-4">
+                  <span className="mr-auto whitespace-nowrap text-sm tabular-nums text-muted-foreground">
+                    已选 {pickerIds.length}
+                    <span className="hidden sm:inline"> / 200</span>
+                  </span>
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline">
+                      取消
+                    </Button>
+                  </DialogClose>
+                  <Button
+                    type="button"
+                    disabled={locked || disabled}
+                    onClick={() => {
+                      const retained = retainContestQuestions(value, pickerIds);
+                      onIdsChange(pickerIds);
+                      onChange([
+                        ...retained,
+                        ...picked
+                          .filter(
+                            (c) =>
+                              pickerIds.includes(c.id) &&
+                              !retained.some((s) => s.challenge_id === c.id),
+                          )
+                          .map(questionSetting),
+                      ]);
+                      setAdding(false);
+                    }}
+                  >
+                    确认选题
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
-        <CollapsibleContent>
-          <ContestQuestionPicker
-            value={ids}
-            onChange={onIdsChange}
-            onPick={(c) => {
-              if (!value.some((v) => v.challenge_id === c.id))
-                onChange([...value, questionSetting(c)]);
-            }}
-            disabled={locked}
+        {defaultIssue && (
+          <p role="alert" className="text-sm text-destructive">
+            {defaultIssue}
+          </p>
+        )}
+        <CollapsibleContent className="grid gap-5 motion-safe:data-[state=open]:animate-in motion-safe:data-[state=open]:fade-in-0 motion-safe:duration-150 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div className="flex items-center gap-1 lg:col-span-2">
+            <h4 className="text-sm font-medium">默认规则</h4>{" "}
+            <ContestRuleHelp>
+              次数按每队每题累计，错误 Flag
+              也计次。提示逐条解锁、全队共享；多条系数相乘。赛后练习不占正式额度且提示免费。
+            </ContestRuleHelp>
+          </div>
+          <ContestSubmissionLimits
+            value={submissionLimits}
+            onChange={onSubmissionLimitsChange}
           />
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">默认提示规则</h4>
+            <ContestHints
+              policy={hintPolicy}
+              onPolicyChange={onHintPolicyChange}
+            />
+          </div>
         </CollapsibleContent>
       </Collapsible>
       {locked && (
         <p className="text-sm text-muted-foreground">
-          比赛已开始，可调整启用状态与上线时间；选题和计分已锁定。
+          比赛已开始，选题、计分与解锁规则已锁定。
         </p>
       )}
       <section aria-label="赛题配置" className="min-w-0 space-y-5">
@@ -192,7 +373,7 @@ export function ContestQuestions({
           <Empty>没有符合条件的赛题</Empty>
         )}
         <fieldset
-          disabled={query.isPlaceholderData}
+          disabled={query.isFetching}
           className="min-w-0"
           aria-busy={query.isFetching}
         >
@@ -221,7 +402,7 @@ export function ContestQuestions({
                     data-question-id={c.id}
                   >
                     <div
-                      className="flex cursor-pointer flex-col gap-2 py-3 lg:flex-row lg:items-center lg:gap-5"
+                      className="flex cursor-pointer flex-col gap-2 py-3 xl:flex-row xl:items-center xl:gap-5"
                       onClick={(event) =>
                         activateFromRow(event, () =>
                           setExpanded((old) =>
@@ -242,8 +423,8 @@ export function ContestQuestions({
                           <ChevronDown
                             className={`shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
                           />
-                          <span className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_9rem] sm:items-center sm:gap-5">
-                            <span className="min-w-0 space-y-1">
+                          <span className="grid min-w-0 flex-1 grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-[minmax(0,1fr)_8rem_8rem] sm:items-center sm:gap-5">
+                            <span className="col-span-2 min-w-0 space-y-1 sm:col-span-1">
                               <span className="block break-words">
                                 {position + 1}. {c.title}
                               </span>
@@ -302,44 +483,60 @@ export function ContestQuestions({
                           />
                           {v.published ? "启用" : "停用"}
                         </label>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          aria-label={`上移 ${c.title}`}
-                          disabled={locked || !!q || position === 0}
-                          onClick={() => move(c.id, -1)}
-                        >
-                          <ArrowUp />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          aria-label={`下移 ${c.title}`}
-                          disabled={
-                            locked || !!q || position === ids.length - 1
-                          }
-                          onClick={() => move(c.id, 1)}
-                        >
-                          <ArrowDown />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          aria-label={`移除 ${c.title}`}
-                          disabled={locked}
-                          onClick={() =>
-                            onIdsChange(ids.filter((id) => id !== c.id))
-                          }
-                        >
-                          <X />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={locked || disabled}
+                              aria-label={`赛题操作 ${c.title}`}
+                            >
+                              <MoreHorizontal />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              aria-label={`上移 ${c.title}`}
+                              disabled={
+                                locked || disabled || !!q || position === 0
+                              }
+                              onSelect={() => move(c.id, -1)}
+                            >
+                              <ArrowUp />
+                              上移
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              aria-label={`下移 ${c.title}`}
+                              disabled={
+                                locked ||
+                                disabled ||
+                                !!q ||
+                                position === ids.length - 1
+                              }
+                              onSelect={() => move(c.id, 1)}
+                            >
+                              <ArrowDown />
+                              下移
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              aria-label={`移除 ${c.title}`}
+                              variant="destructive"
+                              disabled={locked || disabled}
+                              onSelect={() =>
+                                onIdsChange(ids.filter((id) => id !== c.id))
+                              }
+                            >
+                              <X />
+                              移除赛题
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
-                    <CollapsibleContent className="min-w-0">
-                      <div className="min-w-0 space-y-6 rounded-lg bg-muted/30 p-4 mb-4 sm:p-6">
+                    <CollapsibleContent className="min-w-0 motion-safe:data-[state=open]:animate-in motion-safe:data-[state=open]:fade-in-0 motion-safe:duration-150">
+                      <div className="mb-4 min-w-0 space-y-5 border-t px-2 py-4">
                         {issue?.id === c.id && (
                           <p role="alert" className="text-sm text-destructive">
                             {issue.message}
@@ -350,62 +547,174 @@ export function ContestQuestions({
                             题库尚未启用此题，启用后选手才能访问。
                           </p>
                         )}
-                        <fieldset className="min-w-0 space-y-3">
-                          <legend className="mb-3 text-sm font-medium">
-                            上线安排
-                          </legend>
-                          <RadioGroup
-                            aria-label={`${c.title}上线安排`}
-                            className="flex flex-wrap gap-5"
-                            value={timed ? "scheduled" : "phase"}
-                            onValueChange={(mode) => {
-                              update({
-                                ...v,
-                                release_at:
-                                  mode === "phase"
-                                    ? null
-                                    : (v.release_at ?? ""),
-                              });
-                            }}
-                          >
-                            <label className="flex items-center gap-2 text-sm">
-                              <RadioGroupItem value="phase" />
-                              随阶段开放
-                            </label>
-                            <label className="flex items-center gap-2 text-sm">
-                              <RadioGroupItem value="scheduled" />
-                              定时上线
-                            </label>
-                          </RadioGroup>
-                          {timed && (
-                            <Field label="上线时间" className="max-w-sm">
-                              <Input
-                                type="datetime-local"
-                                required
-                                aria-label={`${c.title}上线时间`}
-                                value={inputDate(v.release_at)}
-                                onChange={(e) =>
+                        <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+                          <fieldset disabled={locked} className="min-w-0">
+                            <ScoringEditor
+                              challenge={c}
+                              value={v.scoring}
+                              onChange={(scoring) => update({ ...v, scoring })}
+                            />
+                          </fieldset>
+                          <Separator
+                            orientation="vertical"
+                            className="hidden h-auto self-stretch xl:block"
+                          />
+                          <Separator className="xl:hidden" />
+                          <div className="min-w-0 space-y-5">
+                            <fieldset className="min-w-0 space-y-3">
+                              <legend className="mb-3 text-sm font-medium">
+                                上线安排
+                              </legend>
+                              <RadioGroup
+                                aria-label={`${c.title}上线安排`}
+                                className="flex flex-wrap gap-5"
+                                value={timed ? "scheduled" : "phase"}
+                                onValueChange={(mode) => {
                                   update({
                                     ...v,
-                                    release_at: e.target.value
-                                      ? new Date(e.target.value).toISOString()
-                                      : "",
-                                  })
-                                }
-                              />
-                            </Field>
-                          )}
-                        </fieldset>
-                        <fieldset
-                          disabled={locked}
-                          className="min-w-0 border-t pt-5"
-                        >
-                          <ScoringEditor
-                            challenge={c}
-                            value={v.scoring}
-                            onChange={(scoring) => update({ ...v, scoring })}
-                          />
-                        </fieldset>
+                                    release_at:
+                                      mode === "phase"
+                                        ? null
+                                        : (v.release_at ?? ""),
+                                  });
+                                }}
+                              >
+                                <label className="flex items-center gap-2 text-sm">
+                                  <RadioGroupItem value="phase" />
+                                  随阶段开放
+                                </label>
+                                <label className="flex items-center gap-2 text-sm">
+                                  <RadioGroupItem value="scheduled" />
+                                  定时上线
+                                </label>
+                              </RadioGroup>
+                              {timed && (
+                                <Field label="上线时间" className="max-w-sm">
+                                  <Input
+                                    type="datetime-local"
+                                    required
+                                    aria-label={`${c.title}上线时间`}
+                                    value={inputDate(v.release_at)}
+                                    onChange={(e) =>
+                                      update({
+                                        ...v,
+                                        release_at: e.target.value
+                                          ? new Date(
+                                              e.target.value,
+                                            ).toISOString()
+                                          : "",
+                                      })
+                                    }
+                                  />
+                                </Field>
+                              )}
+                            </fieldset>
+                            {profiles(c).container?.mode !== "public" &&
+                              profiles(c).container && (
+                                <fieldset className="space-y-3">
+                                  <legend className="mb-3 text-sm font-medium">
+                                    靶机开启次数
+                                  </legend>
+                                  <div className="grid gap-3 sm:grid-cols-2">
+                                    <Field label="限制方式">
+                                      <NativeSelect
+                                        aria-label={`${c.title}开启次数限制`}
+                                        wrapperClassName="w-full"
+                                        value={
+                                          v.container_start_limit?.mode ??
+                                          "inherit"
+                                        }
+                                        onChange={(event) =>
+                                          update({
+                                            ...v,
+                                            container_start_limit: {
+                                              mode: event.target.value as
+                                                | "inherit"
+                                                | "unlimited"
+                                                | "custom",
+                                              count:
+                                                event.target.value === "custom"
+                                                  ? (v.container_start_limit
+                                                      ?.count ?? 3)
+                                                  : null,
+                                            },
+                                          })
+                                        }
+                                      >
+                                        <NativeSelectOption value="inherit">
+                                          跟随比赛
+                                        </NativeSelectOption>
+                                        <NativeSelectOption value="unlimited">
+                                          不限制
+                                        </NativeSelectOption>
+                                        <NativeSelectOption value="custom">
+                                          单独设置
+                                        </NativeSelectOption>
+                                      </NativeSelect>
+                                    </Field>
+                                    {v.container_start_limit?.mode ===
+                                      "custom" && (
+                                      <Field label="每队最多开启">
+                                        <Input
+                                          type="number"
+                                          aria-label={`${c.title}每队开启次数`}
+                                          min={0}
+                                          max={10000}
+                                          step={1}
+                                          required
+                                          value={
+                                            v.container_start_limit.count ?? ""
+                                          }
+                                          onChange={(event) =>
+                                            update({
+                                              ...v,
+                                              container_start_limit: {
+                                                mode: "custom",
+                                                count:
+                                                  event.target.value === ""
+                                                    ? null
+                                                    : Number(
+                                                        event.target.value,
+                                                      ),
+                                              },
+                                            })
+                                          }
+                                        />
+                                      </Field>
+                                    )}
+                                  </div>
+                                </fieldset>
+                              )}
+                            <QuestionSubmissionLimits
+                              challenge={c}
+                              defaults={submissionLimits}
+                              value={submissionOverrides.find(
+                                (s) => s.challenge_id === c.id,
+                              )}
+                              onChange={(next) =>
+                                onSubmissionOverridesChange([
+                                  ...submissionOverrides.filter(
+                                    (s) => s.challenge_id !== c.id,
+                                  ),
+                                  ...(next ? [next] : []),
+                                ])
+                              }
+                            />
+                            <QuestionHints
+                              challenge={c}
+                              overrides={hintOverrides}
+                              onOverridesChange={onHintOverridesChange}
+                            />
+                          </div>
+                        </div>
+                        <QuestionLogicEditor
+                          challenge={c}
+                          value={v.logic ?? defaultQuestionLogic()}
+                          onChange={(logic) => update({ ...v, logic })}
+                          questions={questions}
+                          groups={groups}
+                          locked={locked || disabled}
+                        />
                       </div>
                     </CollapsibleContent>
                   </Item>

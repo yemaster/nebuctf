@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import React, { act } from "react";
 import { JSDOM } from "jsdom";
 import { challengePoints, scoreCurve } from "../src/lib/scoring";
+import type { Contest } from "../src/lib/types";
+import type { ContestQuestion } from "../src/lib/competition";
+import type { SubmissionOverride } from "../src/lib/submission-limits";
+import type { HintOverride } from "../src/lib/hints";
 
 test("score preview uses the same bounded quadratic curve as contest scoring", () => {
   assert.equal(challengePoints(500, 100, 20, 10), 400);
@@ -73,8 +77,9 @@ test(
       });
     }
     original.set("fetch", Object.getOwnPropertyDescriptor(globalThis, "fetch"));
+    // Browser-dependent UI modules must observe the JSDOM globals during initialization.
     const { createRoot } = await import("react-dom/client"),
-      { MemoryRouter } = await import("react-router-dom"),
+      { MemoryRouter, useLocation } = await import("react-router-dom"),
       { QueryClient, QueryClientProvider } =
         await import("@tanstack/react-query"),
       { LazyMotion, domAnimation } = await import("motion/react");
@@ -93,6 +98,7 @@ test(
     const ctf = {
         id: "10000000-0000-4000-8000-000000000001",
         title: "CTF service",
+        kind: "dynamic_container",
         challenge_type: "ctf",
         category: "Web",
         initial_points: 100,
@@ -100,6 +106,10 @@ test(
         decay: 10,
         dynamic_score: true,
         parts: [],
+        hints: [
+          { id: "hint-one", content: "第一条提示" },
+          { id: "hint-two", content: "第二条提示" },
+        ],
         published: true,
       },
       awdp = {
@@ -193,7 +203,7 @@ test(
         cache.clear();
       }
     };
-    const mount = async (child: React.ReactNode) => {
+    const mount = async (child: React.ReactNode, path = "/") => {
       await cleanup();
       cache = new QueryClient({
         defaultOptions: {
@@ -205,7 +215,7 @@ test(
       await act(async () =>
         root!.render(
           <QueryClientProvider client={cache}>
-            <MemoryRouter>
+            <MemoryRouter initialEntries={[path]}>
               <LazyMotion features={domAnimation}>{child}</LazyMotion>
             </MemoryRouter>
           </QueryClientProvider>,
@@ -251,16 +261,91 @@ test(
         );
       });
     };
-    const tab = async (name: string) =>
-      click(
+    const tab = async (name: string) => {
+      const target = ["访问与报名", "报名分组", "报名表单"].includes(name)
+        ? "报名设置"
+        : name;
+      await click(
         [...host().querySelectorAll('[role="tab"]')].find(
-          (el) => el.textContent === name,
+          (el) => el.textContent === target,
         )!,
         "mousedown",
       );
+    };
     try {
+      const dialog = () => document.querySelector('[role="dialog"]')!;
+      const dialogButton = (text: string) =>
+        [...dialog().querySelectorAll("button")].find(
+          (el) => el.textContent?.trim() === text,
+        )!;
+      const groupToggle = (text: string) =>
+        [...dialog().querySelectorAll("label")]
+          .find((el) => el.textContent?.trim() === text)!
+          .querySelector("button")!;
       await t.test(
-        "group cards open details and preserve question overrides across navigation",
+        "team picker stages selection, cancellation and selected-only removal",
+        async () => {
+          const { ContestTeamPicker } =
+            await import("../src/components/admin/contest-team-picker");
+          let applied: string[] = [];
+          function Picker() {
+            const [ids, setIds] = React.useState<string[]>([]);
+            return (
+              <ContestTeamPicker
+                value={ids}
+                onChange={(next) => {
+                  applied = next;
+                  setIds(next);
+                }}
+              />
+            );
+          }
+          await mount(<Picker />);
+          assert.equal(
+            host().querySelector('[aria-label="搜索可报名战队"]'),
+            null,
+          );
+          await click(button("选择战队"));
+          await settle(
+            () => !!document.querySelector('[aria-label="选择战队 Alpha"]'),
+          );
+          await click(document.querySelector('[aria-label="选择战队 Alpha"]')!);
+          await click(dialogButton("取消"));
+          assert.deepEqual(applied, []);
+          await click(button("选择战队"));
+          await settle(
+            () => !!document.querySelector('[aria-label="选择战队 Alpha"]'),
+          );
+          assert.equal(
+            document
+              .querySelector('[aria-label="选择战队 Alpha"]')!
+              .getAttribute("aria-checked"),
+            "false",
+          );
+          await click(document.querySelector('[aria-label="选择战队 Alpha"]')!);
+          await click(document.querySelector('[aria-label="选择战队 Beta"]')!);
+          await click(dialogButton("确认选择"));
+          assert.deepEqual(applied, ["team-a", "team-b"]);
+          await click(button("选择战队"));
+          await click(dialogButton("已选 2"));
+          await settle(
+            () => !!document.querySelector('[aria-label="选择战队 Beta"]'),
+          );
+          await click(document.querySelector('[aria-label="选择战队 Beta"]')!);
+          await click(dialogButton("确认选择"));
+          assert.deepEqual(applied, ["team-a"]);
+          await mount(
+            <ContestTeamPicker
+              value={applied}
+              onChange={() => assert.fail("read-only picker changed")}
+              disabled
+            />,
+          );
+          assert(button("选择战队").disabled);
+        },
+      );
+      await t.test(
+        "group dialogs stage permissions and cancel without replacing the list",
         async () => {
           const selected = questionBank.map((c) => c.id);
           await mount(
@@ -283,56 +368,164 @@ test(
               new dom.window.FormData(host().querySelector("form")!),
               selected,
             )[0]!;
-          const toggle = (label: string) =>
-            [...host().querySelectorAll("label")]
-              .find((l) => l.textContent?.trim() === label)!
-              .querySelector("button")!;
-          assert.equal(host().querySelectorAll('[role="switch"]').length, 0);
-          await click(host().querySelector('[aria-label="配置组别 体验组"]')!);
-          assert.equal(host().querySelectorAll('[role="switch"]').length, 8);
-          assert.equal(host().querySelectorAll('[role="radio"]').length, 3);
-          await click(host().querySelector('[role="radio"][value="auto"]')!);
-          assert.equal(values().review_mode, "auto");
-          assert.equal(values().permissions.score, false);
-          await click(toggle("查看赛题"));
-          assert.equal(values().permissions.view, false);
-          await click(button("单题权限"));
-          await settle(() => host().querySelectorAll("tbody tr").length === 10);
+          const listItem = host().querySelector(
+            '[aria-label="配置组别 体验组"]',
+          )!;
+          await click(listItem);
+          assert(dialog());
+          assert.equal(
+            host().querySelector('[aria-label="配置组别 体验组"]'),
+            listItem,
+          );
+          assert.equal(dialog().querySelectorAll('[role="switch"]').length, 8);
+          await click(dialog().querySelector('[role="radio"][value="auto"]')!);
+          await click(groupToggle("查看赛题"));
+          assert.equal(values().permissions.view, true);
+          await click(dialogButton("单题权限"));
+          await settle(
+            () => dialog().querySelectorAll("tbody tr").length === 10,
+          );
           const cb = (label: string) =>
-            host().querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!;
+            dialog().querySelector<HTMLButtonElement>(
+              `[aria-label="${label}"]`,
+            )!;
           assert(cb("CTF service查看赛题").disabled);
           await click(cb("CTF service沿用组别权限"));
           await click(cb("CTF service查看赛题"));
           await click(cb("CTF service使用靶机与附件"));
-          assert.equal(
-            (values().challenge_permissions[ctf.id] as any).view,
-            true,
-          );
-          assert.equal(
-            (values().challenge_permissions[ctf.id] as any).resources,
-            false,
-          );
-          await click(host().querySelector('[aria-label="下一页"]')!);
-          assert.equal(host().querySelectorAll("tbody tr").length, 2);
-          await click(host().querySelector('[aria-label="上一页"]')!);
+          await click(dialog().querySelector('[aria-label="下一页"]')!);
+          assert.equal(dialog().querySelectorAll("tbody tr").length, 2);
+          await click(dialog().querySelector('[aria-label="上一页"]')!);
           assert.equal(
             cb("CTF service查看赛题").getAttribute("data-state"),
             "checked",
           );
-          await click(cb("CTF service沿用组别权限"));
-          assert.equal(values().challenge_permissions[ctf.id], undefined);
-          await click(button("返回组别"));
-          assert.equal(host().querySelectorAll('[role="switch"]').length, 0);
+          await click(dialogButton("确认组别"));
+          assert.equal(document.querySelector('[role="dialog"]'), null);
+          assert.equal(values().review_mode, "auto");
           assert.equal(values().permissions.view, false);
-          await click(host().querySelector('[aria-label="配置组别 体验组"]')!);
           assert.equal(
-            toggle("查看赛题").getAttribute("data-state"),
-            "unchecked",
+            (values().challenge_permissions[ctf.id] as any).resources,
+            false,
+          );
+          await settle(() => document.activeElement === listItem);
+          await click(listItem);
+          await click(groupToggle("查看赛题"));
+          await click(dialogButton("取消"));
+          assert.equal(values().permissions.view, false);
+        },
+      );
+      await t.test(
+        "group invitation editing stages changes, validates, generates and clears codes",
+        async () => {
+          await mount(
+            <form>
+              <GroupsEditor
+                initial={[
+                  {
+                    id: "invite-group",
+                    name: "邀请组",
+                    description: "",
+                    invite_code: "saved-code",
+                  },
+                ]}
+              />
+            </form>,
+          );
+          const read = () =>
+            readGroups(
+              new dom.window.FormData(host().querySelector("form")!),
+            )[0]!;
+          const open = () =>
+            click(host().querySelector('[aria-label="配置组别 邀请组"]')!);
+          const input = () =>
+            dialog().querySelector<HTMLInputElement>(
+              'input[placeholder="留空沿用比赛设置"]',
+            )!;
+          await open();
+          assert.equal(input().value, "saved-code");
+          await change(input(), "changed-code");
+          await click(dialogButton("取消"));
+          assert.equal(read().invite_code, "saved-code");
+          await open();
+          await change(input(), "tiny");
+          await click(dialogButton("确认组别"));
+          assert.match(dialog().textContent!, /组别邀请码为 6–128 位/);
+          await click(
+            dialog().querySelector('[aria-label="随机生成组别邀请码"]')!,
+          );
+          const generated = input().value;
+          assert.match(generated, /^[a-f0-9]{12}$/);
+          await click(dialogButton("确认组别"));
+          assert.equal(read().invite_code, generated);
+          await open();
+          await click(dialog().querySelector('[aria-label="清除组别邀请码"]')!);
+          await click(dialogButton("确认组别"));
+          assert.equal(read().invite_code, "");
+        },
+      );
+      await t.test(
+        "registration invitation input follows selected group and contest policy",
+        async () => {
+          const { ContestInviteCodeField } =
+            await import("../src/components/contest-invite-code-field");
+          const groups = [
+            { id: "open", name: "默认组别", description: "" },
+            {
+              id: "invite",
+              name: "邀请组",
+              description: "",
+              invite_code_set: true,
+            },
+          ];
+          await mount(
+            <ContestInviteCodeField
+              contest={{ groups, registration_mode: "public" }}
+              groupId="open"
+              value=""
+              onChange={() => {}}
+            />,
+          );
+          assert(!host().querySelector('input[name="invite_code"]'));
+          await mount(
+            <ContestInviteCodeField
+              contest={{ groups, registration_mode: "public" }}
+              groupId="invite"
+              value=""
+              onChange={() => {}}
+            />,
+          );
+          assert.match(host().textContent!, /组别邀请码/);
+          assert(
+            host().querySelector<HTMLInputElement>('input[name="invite_code"]')!
+              .required,
+          );
+          await mount(
+            <ContestInviteCodeField
+              contest={{ groups, registration_mode: "invite" }}
+              groupId="open"
+              value=""
+              onChange={() => {}}
+            />,
+          );
+          assert.match(host().textContent!, /比赛邀请码/);
+          await mount(
+            <ContestInviteCodeField
+              contest={{ groups, registration_mode: "invite" }}
+              groupId="invite"
+              value=""
+              onChange={() => {}}
+            />,
+          );
+          assert.match(host().textContent!, /组别邀请码/);
+          assert.equal(
+            host().querySelectorAll('input[name="invite_code"]').length,
+            1,
           );
         },
       );
       await t.test(
-        "saved group IDs are adopted without losing drafts; started scoring controls are locked",
+        "new groups commit once, cancel cleanly and adopt saved IDs",
         async () => {
           function Harness() {
             const [initial, setInitial] = React.useState<any[]>([]);
@@ -353,53 +546,146 @@ test(
             );
           }
           await mount(<Harness />);
+          const read = () =>
+            readGroups(new dom.window.FormData(host().querySelector("form")!), [
+              ctf.id,
+            ]);
           await click(button("添加组别"));
           await change(
-            host().querySelector('input[maxlength="60"]')!,
+            dialog().querySelector('input[maxlength="60"]')!,
+            "不要保存",
+          );
+          await click(dialogButton("取消"));
+          assert.equal(read().length, 0);
+          await settle(() => document.activeElement === button("添加组别"));
+          await click(button("添加组别"));
+          await click(dialogButton("确认组别"));
+          assert.match(dialog().textContent!, /请输入组别名称/);
+          await change(
+            dialog().querySelector('input[maxlength="60"]')!,
             " 新组别 ",
           );
-          const toggle = [...host().querySelectorAll("label")]
-            .find((l) => l.textContent === "参与三血")!
-            .querySelector("button")!;
-          await click(toggle);
+          await click(groupToggle("参与三血"));
+          await click(dialogButton("确认组别"));
+          assert.equal(read().length, 1);
           await click(button("返回保存结果"));
-          const [savedGroup] = readGroups(
-            new dom.window.FormData(host().querySelector("form")!),
-            [ctf.id],
-          );
-          assert.equal(savedGroup!.id, "saved-group");
-          assert.equal(savedGroup!.permissions.blood, false);
+          assert.equal(read()[0].id, "saved-group");
+          assert.equal(read()[0].permissions.blood, false);
           await mount(
             <GroupsEditor
-              initial={[{ id: "g", name: "正式组", description: "" }]}
+              initial={[
+                {
+                  id: "default-group",
+                  name: "默认组别",
+                  description: "",
+                  is_default: true,
+                },
+                { id: "g", name: "正式组", description: "" },
+              ]}
               challengeIds={[ctf.id]}
               started
-              registered
             />,
           );
-          assert(button("添加组别").disabled);
+          assert(!button("添加组别").disabled);
+          assert(!host().querySelector('[aria-label="删除组别 默认组别"]'));
+          assert.match(host().textContent!, /默认组别/);
           await click(host().querySelector('[aria-label="配置组别 正式组"]')!);
           for (const label of [
             "获得积分",
             "参与三血",
             "参与全局排名",
             "影响动态分值",
-          ]) {
-            assert(
-              [...host().querySelectorAll("label")]
-                .find((l) => l.textContent === label)!
-                .querySelector("button")!.disabled,
+          ])
+            assert(groupToggle(label).disabled);
+          assert(!groupToggle("查看赛题").disabled);
+          await click(dialogButton("取消"));
+        },
+      );
+      await t.test(
+        "group permission summaries track inherited review and per-question differences without editing",
+        async () => {
+          function SummaryReview() {
+            const [review, setReview] = React.useState(false);
+            return (
+              <form>
+                <button type="button" onClick={() => setReview(!review)}>
+                  切换比赛审核
+                </button>
+                <GroupsEditor
+                  requireReview={review}
+                  challengeIds={[ctf.id]}
+                  initial={[
+                    {
+                      id: "summary-inherit",
+                      name: "继承组",
+                      description: "",
+                      review_mode: "inherit",
+                      permissions: { submit: false, score: false },
+                      challenge_permissions: { [ctf.id]: { submit: true } },
+                    },
+                    {
+                      id: "summary-auto",
+                      name: "免审核组",
+                      description: "",
+                      review_mode: "auto",
+                    },
+                  ]}
+                />
+              </form>
             );
           }
-          assert(
-            ![...host().querySelectorAll("label")]
-              .find((l) => l.textContent === "查看赛题")!
-              .querySelector("button")!.disabled,
+          await mount(<SummaryReview />);
+          const state = (group: string, key: string) =>
+            host().querySelector(
+              `[aria-label="${group}权限"] [data-permission="${key}"]`,
+            )!;
+          assert.equal(
+            state("继承组", "submit").getAttribute("data-permission-state"),
+            "mixed",
+          );
+          assert.equal(
+            state("继承组", "score").getAttribute("data-permission-state"),
+            "off",
+          );
+          assert.equal(
+            state("默认组别", "require_review").getAttribute(
+              "data-permission-state",
+            ),
+            "off",
+          );
+          await click(button("切换比赛审核"));
+          assert.equal(
+            state("默认组别", "require_review").getAttribute(
+              "data-permission-state",
+            ),
+            "on",
+          );
+          assert.equal(
+            state("继承组", "require_review").getAttribute(
+              "data-permission-state",
+            ),
+            "on",
+          );
+          assert.equal(
+            state("免审核组", "require_review").getAttribute(
+              "data-permission-state",
+            ),
+            "off",
+          );
+          const before = readGroups(
+            new dom.window.FormData(host().querySelector("form")!),
+          );
+          await click(state("继承组", "submit"));
+          assert.match(dialog().textContent!, /部分赛题不同/);
+          assert(!dialog().querySelector('input[maxlength="60"]'));
+          assert.deepEqual(
+            readGroups(new dom.window.FormData(host().querySelector("form")!)),
+            before,
           );
         },
       );
       await t.test(
-        "group cards paginate without dropping drafts and reveal hidden invalid names",
+        "group dialogs validate names, preserve off-page groups and serialize confirmed changes",
         async () => {
           const ref =
             React.createRef<
@@ -420,44 +706,305 @@ test(
           );
           const read = () =>
             readGroups(new dom.window.FormData(host().querySelector("form")!));
-          assert.equal(host().querySelectorAll("[data-edit-group]").length, 10);
-          assert.equal(read().length, 12);
           await click(host().querySelector('[aria-label="下一页"]')!);
-          assert.equal(host().querySelectorAll("[data-edit-group]").length, 2);
           await click(host().querySelector('[aria-label="配置组别 组别 12"]')!);
-          await change(
-            host().querySelector('input[maxlength="60"]')!,
-            "组别 1",
-          );
-          await click(button("返回组别"));
-          await act(async () => assert.equal(ref.current!.validate(), false));
+          const name = () =>
+            dialog().querySelector<HTMLInputElement>('input[maxlength="60"]')!;
+          await change(name(), "组别 1");
+          await click(dialogButton("确认组别"));
           assert.equal(
-            host().querySelector('[role="alert"]')!.textContent,
+            dialog().querySelector('[role="alert"]')!.textContent,
             "组别名称不能重复",
           );
+          assert(document.activeElement === name());
+          assert.equal(read()[11].name, "组别 12");
+          await change(name(), "   ");
+          await click(dialogButton("确认组别"));
           assert.equal(
-            document.activeElement,
-            host().querySelector('input[maxlength="60"]'),
-          );
-          assert.equal(read()[11].permissions.score, false);
-          await change(host().querySelector('input[maxlength="60"]')!, "   ");
-          await click(button("返回组别"));
-          await act(async () => assert.equal(ref.current!.validate(), false));
-          assert.equal(
-            host().querySelector('[role="alert"]')!.textContent,
+            dialog().querySelector('[role="alert"]')!.textContent,
             "请输入组别名称",
           );
-          await change(
-            host().querySelector('input[maxlength="60"]')!,
-            "更新后的组别",
-          );
+          await change(name(), "更新后的组别");
+          await click(dialogButton("确认组别"));
           await act(async () => assert.equal(ref.current!.validate(), true));
-          await click(button("返回组别"));
+          assert.equal(read().length, 12);
+          assert.equal(read()[11].permissions.score, false);
           await click(
             host().querySelector('[aria-label="删除组别 更新后的组别"]')!,
           );
           assert.equal(read().length, 11);
-          assert.equal(read()[10].id, "group-10");
+        },
+      );
+      await t.test(
+        "restored unsaved groups have independent editor keys",
+        async () => {
+          await mount(
+            <form>
+              <GroupsEditor
+                initial={[
+                  { id: "", name: "草稿一", description: "" },
+                  { id: "", name: "草稿二", description: "" },
+                ]}
+              />
+            </form>,
+          );
+          await click(host().querySelector('[aria-label="配置组别 草稿二"]')!);
+          await change(
+            dialog().querySelector('input[maxlength="60"]')!,
+            "第二组",
+          );
+          await click(dialogButton("确认组别"));
+          const groups = readGroups(
+            new dom.window.FormData(host().querySelector("form")!),
+          );
+          assert.deepEqual(
+            groups.map((g) => g.name),
+            ["草稿一", "第二组"],
+          );
+        },
+      );
+      await t.test(
+        "inline question rules preserve sparse limits, hint policies and editable unlock rules",
+        async () => {
+          const writes: Record<string, unknown>[] = [];
+          function EditorLocation() {
+            const location = useLocation();
+            return <output data-editor-location>{location.search}</output>;
+          }
+          const contest: Contest = {
+            id: "inline-rules",
+            title: "Rules",
+            description: "",
+            starts_at: "2030-01-01T00:00:00Z",
+            ends_at: "2030-01-02T00:00:00Z",
+            freeze_at: null,
+            team_limit: 4,
+            published: false,
+            teams: 0,
+            registered: false,
+            poster_id: null,
+            groups: [],
+            registration: null,
+            challenge_ids: [ctf.id, awdp.id, questionBank[2]!.id],
+            submission_limits: { flag: 10, defense: null },
+            submission_overrides: [{ challenge_id: awdp.id, defense: 4 }],
+          };
+          await mount(
+            <>
+              <ContestForm
+                contest={contest}
+                pending={false}
+                save={async (value) => {
+                  writes.push(value);
+                }}
+              />
+              <EditorLocation />
+            </>,
+            "/?section=challenges&return=%2Fadmin%2Fcontests",
+          );
+          await settle(
+            () => !!host().querySelector('[aria-label="设置 Extra 1"]'),
+          );
+          await tab("赛题设置");
+          const location = new URLSearchParams(
+            host().querySelector("[data-editor-location]")!.textContent!,
+          );
+          assert.equal(location.get("section"), "challenges");
+          assert.equal(location.get("return"), "/admin/contests");
+          assert(
+            ![...host().querySelectorAll('[role="tab"]')].some((el) =>
+              ["提交限制", "提示规则"].includes(el.textContent ?? ""),
+            ),
+          );
+          await click(
+            host().querySelector('[aria-label="设置 AWDP service"]')!,
+          );
+          await change(
+            host().querySelector(
+              '[aria-label="AWDP service Flag 提交次数方式"]',
+            )!,
+            "unlimited",
+          );
+          await change(
+            host().querySelector('[aria-label="AWDP service 防御申请次数"]')!,
+            "12",
+          );
+          await click(host().querySelector('[aria-label="设置 CTF service"]')!);
+          await change(
+            host().querySelector('[aria-label="CTF service互斥组"]')!,
+            "route",
+          );
+          await change(
+            host().querySelector('[aria-label="AWDP service复用互斥组"]')!,
+            "route",
+          );
+          await change(
+            host().querySelector('[aria-label="CTF service 提示 1"]')!,
+            "fixed",
+          );
+          await change(
+            host().querySelector('[aria-label="CTF service 提示 1扣分"]')!,
+            "40",
+          );
+          await change(
+            host().querySelector('[aria-label="CTF service 提示 2"]')!,
+            "factor",
+          );
+          await change(
+            host().querySelector('[aria-label="CTF service 提示 2系数"]')!,
+            "0.5",
+          );
+          await click(host().querySelector('[aria-label="设置 Extra 1"]')!);
+          await change(
+            host().querySelector('[aria-label="Extra 1依赖范围"]')!,
+            "global",
+          );
+          await click(
+            host().querySelector('[aria-label="Extra 1选择前置赛题"]')!,
+          );
+          await change(
+            document.querySelector('[aria-label="Extra 1搜索前置赛题"]')!,
+            "CTF",
+          );
+          assert.equal(
+            document.querySelector('[aria-label="依赖 AWDP service"]'),
+            null,
+          );
+          await click(
+            document.querySelector('[aria-label="依赖 CTF service"]')!,
+          );
+          await act(async () =>
+            document.dispatchEvent(
+              new dom.window.KeyboardEvent("keydown", {
+                key: "Escape",
+                bubbles: true,
+              }),
+            ),
+          );
+          const modes = host().querySelector(
+            '[aria-label="Extra 1依赖完成方式"]',
+          )!;
+          await click(
+            [...modes.querySelectorAll("button")].find(
+              (el) => el.textContent === "任一完成",
+            )!,
+          );
+          await tab("基本信息");
+          await click(button("保存比赛"));
+          const first = writes.at(-1)!;
+          assert.deepEqual(first.submission_overrides, [
+            { challenge_id: awdp.id, defense: 12, flag: null },
+          ]);
+          assert.deepEqual(
+            (first.hint_overrides as HintOverride[]).map((h) => h.policy),
+            [
+              { mode: "fixed", points: 40 },
+              { mode: "factor", factor: 0.5 },
+            ],
+          );
+          const settings = first.challenge_settings as ContestQuestion[];
+          assert.equal(
+            settings.find((s) => s.challenge_id === awdp.id)!.logic
+              .exclusive_group,
+            "route",
+          );
+          assert.deepEqual(
+            settings.find((s) => s.challenge_id === questionBank[2]!.id)!.logic
+              .dependency,
+            { scope: "global", mode: "any", challenge_ids: [ctf.id] },
+          );
+          await mount(
+            <ContestForm
+              contest={{
+                ...contest,
+                challenge_settings: settings,
+                submission_overrides:
+                  first.submission_overrides as SubmissionOverride[],
+                hint_overrides: first.hint_overrides as HintOverride[],
+              }}
+              pending={false}
+              save={async (value) => {
+                writes.push(value);
+              }}
+            />,
+          );
+          await settle(
+            () => !!host().querySelector('[aria-label="设置 AWDP service"]'),
+          );
+          await tab("赛题设置");
+          await click(
+            host().querySelector('[aria-label="设置 AWDP service"]')!,
+          );
+          await change(
+            host().querySelector(
+              '[aria-label="AWDP service Flag 提交次数方式"]',
+            )!,
+            "inherit",
+          );
+          await change(
+            host().querySelector('[aria-label="AWDP service互斥组"]')!,
+            "",
+          );
+          await click(host().querySelector('[aria-label="设置 Extra 1"]')!);
+          assert.equal(
+            host().querySelector<HTMLSelectElement>(
+              '[aria-label="Extra 1依赖范围"]',
+            )!.value,
+            "global",
+          );
+          await change(
+            host().querySelector('[aria-label="Extra 1依赖范围"]')!,
+            "team",
+          );
+          await click(button("保存比赛"));
+          assert.deepEqual(writes.at(-1)!.submission_overrides, [
+            { challenge_id: awdp.id, defense: 12 },
+          ]);
+          assert.equal(
+            (writes.at(-1)!.challenge_settings as ContestQuestion[]).find(
+              (s) => s.challenge_id === questionBank[2]!.id,
+            )!.logic.dependency!.scope,
+            "team",
+          );
+          assert.equal(
+            (writes.at(-1)!.challenge_settings as ContestQuestion[]).find(
+              (s) => s.challenge_id === awdp.id,
+            )!.logic.exclusive_group,
+            null,
+          );
+          await click(host().querySelector('[aria-label="设置 CTF service"]')!);
+          await change(
+            host().querySelector('[aria-label="CTF service 提示 1"]')!,
+            "free",
+          );
+          await change(
+            host().querySelector('[aria-label="CTF service 提示 2"]')!,
+            "inherit",
+          );
+          await click(button("保存比赛"));
+          assert.deepEqual(writes.at(-1)!.hint_overrides, [
+            {
+              challenge_id: ctf.id,
+              hint_id: "hint-one",
+              policy: { mode: "free" },
+            },
+          ]);
+          await click(
+            host().querySelector('[aria-label="赛题操作 CTF service"]')!,
+            "pointerdown",
+          );
+          await click(
+            document.querySelector('[aria-label="移除 CTF service"]')!,
+          );
+          await click(button("保存比赛"));
+          const final = writes.at(-1)!;
+          assert.deepEqual(final.hint_overrides, []);
+          assert.equal(
+            (final.challenge_settings as ContestQuestion[]).find(
+              (s) => s.challenge_id === questionBank[2]!.id,
+            )!.logic.dependency,
+            null,
+          );
         },
       );
       await t.test(
@@ -509,10 +1056,7 @@ test(
             host().querySelector('input[name="round_duration"]')!,
             "60",
           );
-          await change(
-            host().querySelector('select[aria-label="客观题作答方式"]')!,
-            "flexible",
-          );
+          await click(host().querySelector('[aria-label="客观题自由开始"]')!);
           await tab("基本信息");
           await click(button("保存比赛"));
           assert.equal(saved, undefined);
@@ -521,9 +1065,9 @@ test(
               .textContent,
             "时间规则",
           );
-          const phase = [...host().querySelectorAll("fieldset")].find(
-            (el) => el.querySelector("h3")?.textContent === "客观题",
-          )!;
+          const phase = host()
+            .querySelector('[aria-label="客观题作答方式"]')!
+            .closest("fieldset")!;
           const dates = phase.querySelectorAll('input[type="datetime-local"]');
           await change(
             dates[0]!,
@@ -553,6 +1097,81 @@ test(
           );
           assert.equal(saved.timing.objective.duration_seconds, 1800);
           assert.equal(ctf.initial_points, 100);
+        },
+      );
+      await t.test(
+        "signup uses one navigation layer and field menus preserve edits through preview",
+        async () => {
+          saved = undefined;
+          await mount(
+            <ContestForm
+              contest={
+                {
+                  title: "Signup",
+                  description: "",
+                  starts_at: "2035-01-01T00:00:00Z",
+                  ends_at: "2035-01-02T00:00:00Z",
+                  team_limit: 4,
+                  groups: [],
+                  challenge_ids: [],
+                } as any
+              }
+              pending={false}
+              save={(v) => {
+                saved = v;
+              }}
+            />,
+          );
+          await tab("报名设置");
+          const panel = host().querySelector('[data-config-tab="signup"]')!;
+          assert.equal(panel.querySelectorAll('[role="tablist"]').length, 0);
+          assert.equal(host().querySelectorAll("#contest-form").length, 1);
+          for (const name of ["access", "registration", "form"])
+            assert(panel.querySelector(`[data-config-tab="${name}"]`));
+          await click(button("添加字段")!, "pointerdown");
+          await click(
+            [...document.querySelectorAll('[role="menuitem"]')].find(
+              (el) => el.textContent === "自定义字段",
+            )!,
+          );
+          await tab("基本信息");
+          await click(button("保存比赛")!);
+          assert.equal(saved, undefined);
+          assert.equal(
+            host().querySelector(
+              '[role="tablist"][aria-label="比赛配置"] [aria-selected="true"]',
+            )!.textContent,
+            "报名设置",
+          );
+          const field = host().querySelector<HTMLInputElement>(
+            "[data-registration-field] input",
+          )!;
+          await change(field, "学校");
+          await click(button("预览表单")!);
+          const dialog = document.querySelector('[role="dialog"]')!;
+          assert(dialog.textContent!.includes("学校"));
+          assert.equal(
+            host().querySelector("[data-registration-field] input"),
+            field,
+          );
+          await click(
+            [...dialog.querySelectorAll("button")].find(
+              (el) => el.textContent === "关闭",
+            )!,
+          );
+          assert.equal(field.value, "学校");
+          await click(button("保存比赛")!);
+          assert.equal(saved.registration_form[0].label, "学校");
+          await click(
+            host().querySelector('[aria-label="字段 1 操作"]')!,
+            "pointerdown",
+          );
+          await click(
+            [...document.querySelectorAll('[role="menuitem"]')].find(
+              (el) => el.textContent === "删除字段",
+            )!,
+          );
+          assert.equal(host().querySelector("[data-registration-field]"), null);
         },
       );
       await t.test(
@@ -588,17 +1207,78 @@ test(
             toggle("spectator_enabled").getAttribute("data-state"),
             "checked",
           );
+          await tab("基本信息");
+          for (const name of [
+            "published",
+            "spectator_enabled",
+            "spectator_scoreboard",
+            "practice_mode",
+          ]) {
+            assert.equal(
+              toggle(name)
+                .closest("[data-config-tab]")
+                ?.getAttribute("data-config-tab"),
+              "content",
+            );
+          }
           await click(toggle("spectator_scoreboard"));
           await click(toggle("practice_mode"));
+          await tab("访问与报名");
           await click(toggle("auto_approve"));
-          await click(host().querySelector('[role="radio"][value="invite"]')!);
+          const inviteCode = host().querySelector<HTMLInputElement>(
+            '[name="registration_code"]',
+          )!;
+          assert.equal(inviteCode.disabled, false);
+          assert.equal(inviteCode.closest("[hidden]"), null);
+          await click(
+            host().querySelector('[aria-label="随机生成比赛邀请码"]')!,
+          );
+          assert.match(inviteCode.value, /^[a-f0-9]{12}$/);
+          assert.equal(
+            host().querySelector<HTMLSelectElement>(
+              '[name="registration_mode"]',
+            )!.value,
+            "invite",
+          );
+          assert.equal(
+            host().querySelector<HTMLButtonElement>(
+              '[aria-label="复制比赛邀请码"]',
+            )!.disabled,
+            false,
+          );
+          await change(inviteCode, "");
+          await change(
+            host().querySelector('[name="registration_mode"]')!,
+            "public",
+          );
+          await change(inviteCode, "typed-invite");
+          assert.equal(
+            host().querySelector<HTMLSelectElement>(
+              '[name="registration_mode"]',
+            )!.value,
+            "invite",
+          );
+          await change(inviteCode, "");
           await tab("基本信息");
           await click(button("保存比赛"));
           assert.equal(saved, undefined);
           assert.equal(
-            host().querySelector('[role="tab"][aria-selected="true"]')!
-              .textContent,
-            "访问与报名",
+            host().querySelector(
+              '[role="tablist"][aria-label="比赛配置"] [aria-selected="true"]',
+            )!.textContent,
+            "报名设置",
+          );
+          assert.equal(
+            host()
+              .querySelector('[data-config-tab="signup"]')!
+              .hasAttribute("hidden"),
+            false,
+          );
+          assert.equal(
+            host()
+              .querySelector('[data-config-tab="access"]')!
+              .hasAttribute("hidden"),
+            false,
           );
           await change(
             host().querySelector('[name="registration_code"]')!,
@@ -613,14 +1293,111 @@ test(
           assert.equal(saved.registration_mode, "invite");
           assert.equal(saved.registration_code, "invite-123");
           await tab("访问与报名");
-          await click(host().querySelector('[role="radio"][value="teams"]')!);
-          await settle(() => !!button("添加"));
-          await click(button("添加"));
+          await change(
+            host().querySelector('[name="registration_mode"]')!,
+            "teams",
+          );
+          assert.equal(
+            host().querySelector('[aria-label="搜索可报名战队"]'),
+            null,
+          );
+          await click(button("选择战队"));
+          await settle(
+            () => !!document.querySelector('[aria-label="选择战队 Alpha"]'),
+          );
+          await click(document.querySelector('[aria-label="选择战队 Alpha"]')!);
+          await click(button("确认选择"));
           await tab("基本信息");
           await click(button("保存比赛"));
           assert.equal(saved.registration_mode, "teams");
           assert.deepEqual(saved.registration_team_ids, ["team-a"]);
           assert.equal(saved.registration_code, "");
+        },
+      );
+      await t.test(
+        "registration dates validate in the signup panel and retain values across tabs",
+        async () => {
+          saved = undefined;
+          await mount(
+            <ContestForm
+              contest={
+                {
+                  title: "Schedule",
+                  description: "",
+                  starts_at: "2035-01-02T00:00:00Z",
+                  ends_at: "2035-01-04T00:00:00Z",
+                  team_limit: 4,
+                  groups: [],
+                  challenge_ids: [],
+                } as any
+              }
+              pending={false}
+              save={(value) => {
+                saved = value;
+              }}
+            />,
+          );
+          const opens = host().querySelector<HTMLInputElement>(
+            '[name="registration_opens_at"]',
+          )!;
+          const closes = host().querySelector<HTMLInputElement>(
+            '[name="registration_closes_at"]',
+          )!;
+          for (const input of [
+            opens,
+            closes,
+            host().querySelector('[name="team_limit"]')!,
+            host().querySelector('[name="auto_approve"]')!,
+          ]) {
+            assert.equal(
+              input
+                .closest("[data-config-tab]")
+                ?.getAttribute("data-config-tab"),
+              "access",
+            );
+          }
+          await tab("访问与报名");
+          await change(opens, "2035-01-03T12:00");
+          await change(closes, "2035-01-02T12:00");
+          await tab("资源限制");
+          await click(button("保存比赛"));
+          assert.equal(saved, undefined);
+          assert.equal(
+            host().querySelector(
+              '[role="tablist"][aria-label="比赛配置"] [aria-selected="true"]',
+            )?.textContent,
+            "报名设置",
+          );
+          assert.equal(
+            host().querySelector(
+              '[role="tablist"][aria-label="比赛配置"] [aria-selected="true"]',
+            )?.textContent,
+            "报名设置",
+          );
+          assert.match(
+            host().querySelector('[role="alert"]')?.textContent ?? "",
+            /报名开放时间必须早于报名截止时间/,
+          );
+          await change(opens, "2035-01-01T12:00");
+          await change(closes, "2035-01-05T12:00");
+          await tab("基本信息");
+          await click(button("保存比赛"));
+          assert.equal(saved, undefined);
+          assert.match(
+            host().querySelector('[role="alert"]')?.textContent ?? "",
+            /报名截止时间不能晚于比赛结束时间/,
+          );
+          await change(closes, "2035-01-02T12:00");
+          await tab("时间规则");
+          await click(button("保存比赛"));
+          assert.equal(
+            saved.registration_opens_at,
+            new Date("2035-01-01T12:00").toISOString(),
+          );
+          assert.equal(
+            saved.registration_closes_at,
+            new Date("2035-01-02T12:00").toISOString(),
+          );
         },
       );
       await t.test(
@@ -647,22 +1424,28 @@ test(
             />,
           );
           await tab("访问与报名");
-          await click(host().querySelector('[role="radio"][value="private"]')!);
+          await change(host().querySelector('[name="visibility"]')!, "private");
           assert.equal(
-            host()
-              .querySelector('[role="radio"][value="teams"]')!
-              .getAttribute("data-state"),
-            "checked",
+            host().querySelector<HTMLSelectElement>(
+              '[name="registration_mode"]',
+            )!.value,
+            "teams",
           );
           assert(
-            (
-              host().querySelector(
-                '[role="radio"][value="invite"]',
-              ) as HTMLButtonElement
-            ).disabled,
+            host().querySelector<HTMLOptionElement>(
+              '[name="registration_mode"] option[value="invite"]',
+            )!.disabled,
           );
-          await settle(() => !!button("添加"));
-          await click(button("添加"));
+          assert.equal(
+            host().querySelector('[aria-label="搜索可报名战队"]'),
+            null,
+          );
+          await click(button("选择战队"));
+          await settle(
+            () => !!document.querySelector('[aria-label="选择战队 Alpha"]'),
+          );
+          await click(document.querySelector('[aria-label="选择战队 Alpha"]')!);
+          await click(button("确认选择"));
           await tab("资源限制");
           await change(
             host().querySelector('[name="containers_per_team"]')!,
@@ -683,6 +1466,7 @@ test(
             attachments_per_team: 0,
             containers_total: 8,
             attachments_total: null,
+            container_starts_per_team: null,
           });
           saved = undefined;
           await tab("资源限制");

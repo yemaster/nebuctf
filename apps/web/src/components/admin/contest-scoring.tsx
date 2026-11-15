@@ -110,12 +110,12 @@ export function ScoringEditor({
       }))
     : [{ id: "", title: "", points }];
   return (
-    <div className="min-w-0 space-y-6">
+    <div className="min-w-0 space-y-4">
       <fieldset className="min-w-0 space-y-3">
         <legend className="mb-3 text-sm font-medium">计分方式</legend>
         <RadioGroup
           aria-label={`${c.title}计分方式`}
-          className="flex flex-wrap gap-x-6 gap-y-3"
+          className="grid grid-cols-2 gap-x-6 gap-y-3"
           value={v.mode}
           onValueChange={(value) => {
             const mode = value as Scoring["mode"];
@@ -256,7 +256,7 @@ export function ScoringEditor({
             {units.map((unit) => (
               <section
                 key={unit.id}
-                className="min-w-0 space-y-4 py-5 first:pt-0 last:pb-0"
+                className="min-w-0 space-y-4 py-4 first:pt-0 last:pb-0"
                 aria-label={unit.title || "题目分值"}
               >
                 {unit.title && (

@@ -199,12 +199,13 @@ export function ContestEditor() {
         id ? "PUT" : "POST",
         body,
       );
-      if (!id)
-        navigate(
-          `/admin/contests/${result.id}/edit?return=${encodeURIComponent(back)}`,
-          { replace: true },
-        );
-      else await data.refetch();
+      if (!id) {
+        const nextParams = new URLSearchParams(location.search);
+        nextParams.set("return", back);
+        navigate(`/admin/contests/${result.id}/edit?${nextParams}`, {
+          replace: true,
+        });
+      } else await data.refetch();
     },
     () => {
       toast.success("比赛已保存");
