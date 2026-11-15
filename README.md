@@ -1,5 +1,7 @@
 # NebuCTF
 
+[项目介绍与使用文档](https://yemaster.github.io/nebuctf/) · [部署指南](https://yemaster.github.io/nebuctf/deploy/quick-start.html)
+
 自托管的 CTF 竞赛与学习平台。React + shadcn/ui、Fastify、PostgreSQL；Docker Compose 部署。实现范围和真实验收状态分别见 [方案](docs/PLAN.md) 与 [验证记录](docs/VERIFICATION.md)。首版已完成真实 Docker 资源与数据库集成验收；浏览器视觉验收和生产压力测试仍待完成。本次运行入口与账号说明见 [本地测试](docs/LOCAL_TEST.md)。
 
 ## 功能
